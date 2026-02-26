@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── UniRide Design System ────────────────────────────────────────────────── */
+/* Ported from UniRide-Web/app/globals.css to match web brand identity         */
+/* Primary: #042F40 (dark teal) · Accent: #D4A017 (gold) · Clean & pro        */
