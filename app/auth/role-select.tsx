@@ -10,7 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 import Logo from "@/components/Logo";
-import { useTranslation } from "@/hooks/use-translation";
+import { T } from "@/hooks/use-translation";
 import useTranslatorStore from "@/store/useTranslatorStore";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -26,32 +26,6 @@ export default function RoleSelectScreen() {
   useEffect(() => {
     initialize();
   }, []);
-
-  // ─── Translated strings ─────────────────────────────────────────────
-  const welcomeText = useTranslation("Welcome to UniRide");
-  const subtitleText = useTranslation("Choose how you'd like to get started.");
-  const needRideText = useTranslation("I need a ride");
-  const riderDescText = useTranslation(
-    "Book campus rides, track drivers live, and travel with confidence.",
-  );
-  const driverText = useTranslation("I'm a driver");
-  const driverDescText = useTranslation(
-    "Sign in to your driver account or apply to join our team.",
-  );
-  const applyDriverText = useTranslation("Apply as a new driver");
-  const checkStatusText = useTranslation("Check application status");
-  const signInAsDriverText = useTranslation("Sign In as Driver");
-  const signInAsRiderText = useTranslation("Sign In as Rider");
-  const continueAsText = useTranslation("Continue as...");
-  const newHereText = useTranslation("New here?");
-  const createAccountText = useTranslation("Create an account");
-  const termsIntroText = useTranslation(
-    "By continuing, you agree to UniRide's",
-  );
-  const termsText = useTranslation("Terms of Service");
-  const privacyText = useTranslation("Privacy Policy");
-  const andText = useTranslation("and");
-  const helpText = useTranslation("Need help? Contact support");
 
   const LANG_LABEL: Record<string, string> = {
     en: "EN",
@@ -100,7 +74,7 @@ export default function RoleSelectScreen() {
           >
             <Ionicons name="help-circle-outline" size={16} color="#6B7280" />
             <Text className="text-gray-500 text-[11px] font-medium ml-1">
-              {helpText}
+              <T>Need help? Contact support</T>
             </Text>
           </Pressable>
 
@@ -134,13 +108,13 @@ export default function RoleSelectScreen() {
             entering={FadeInDown.delay(150).duration(400)}
             className="text-primary text-[26px] font-bold mb-2 tracking-tight"
           >
-            {welcomeText}
+            <T>Welcome to UniRide</T>
           </Animated.Text>
           <Animated.Text
             entering={FadeInDown.delay(220).duration(400)}
             className="text-gray-400 text-[15px] text-center leading-[22px] max-w-[280px]"
           >
-            {subtitleText}
+            <T>Choose how you'd like to get started.</T>
           </Animated.Text>
         </View>
 
@@ -170,10 +144,13 @@ export default function RoleSelectScreen() {
               </View>
               <View className="flex-1 mr-2">
                 <Text className="text-primary text-[15px] font-bold mb-0.5">
-                  {needRideText}
+                  <T>I need a ride</T>
                 </Text>
                 <Text className="text-gray-400 text-xs leading-[18px]">
-                  {riderDescText}
+                  <T>
+                    Book campus rides, track drivers live, and travel with
+                    confidence.
+                  </T>
                 </Text>
               </View>
               <View
@@ -214,10 +191,12 @@ export default function RoleSelectScreen() {
               </View>
               <View className="flex-1 mr-2">
                 <Text className="text-primary text-[15px] font-bold mb-0.5">
-                  {driverText}
+                  <T>I'm a driver</T>
                 </Text>
                 <Text className="text-gray-400 text-xs leading-[18px]">
-                  {driverDescText}
+                  <T>
+                    Sign in to your driver account or apply to join our team.
+                  </T>
                 </Text>
               </View>
               <View
@@ -251,7 +230,7 @@ export default function RoleSelectScreen() {
                 color="#D4A017"
               />
               <Text className="text-primary text-[13px] font-semibold ml-3 flex-1">
-                {applyDriverText}
+                <T>Apply as a new driver</T>
               </Text>
               <Ionicons name="open-outline" size={14} color="#9CA3AF" />
             </Pressable>
@@ -261,7 +240,7 @@ export default function RoleSelectScreen() {
             >
               <Ionicons name="search-outline" size={18} color="#6B7280" />
               <Text className="text-primary text-[13px] font-semibold ml-3 flex-1">
-                {checkStatusText}
+                <T>Check application status</T>
               </Text>
               <Ionicons name="open-outline" size={14} color="#9CA3AF" />
             </Pressable>
@@ -284,11 +263,15 @@ export default function RoleSelectScreen() {
                     selected ? "text-white" : "text-gray-400"
                   }`}
                 >
-                  {selected
-                    ? selected === "driver"
-                      ? signInAsDriverText
-                      : signInAsRiderText
-                    : continueAsText}
+                  {selected ? (
+                    selected === "driver" ? (
+                      <T>Sign In as Driver</T>
+                    ) : (
+                      <T>Sign In as Rider</T>
+                    )
+                  ) : (
+                    <T>Continue as...</T>
+                  )}
                 </Text>
                 {selected && (
                   <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
@@ -299,7 +282,7 @@ export default function RoleSelectScreen() {
             {/* Register link for riders */}
             {selected === "rider" && (
               <Text className="text-gray-400 text-[12px] text-center mb-4">
-                {newHereText}{" "}
+                <T>New here?</T>{" "}
                 <Text
                   className="text-primary font-bold"
                   onPress={() =>
@@ -309,25 +292,25 @@ export default function RoleSelectScreen() {
                     })
                   }
                 >
-                  {createAccountText}
+                  <T>Create an account</T>
                 </Text>
               </Text>
             )}
 
             <Text className="text-gray-300 text-[11px] text-center leading-4">
-              {termsIntroText}{" "}
+              <T>By continuing, you agree to UniRide's</T>{" "}
               <Text
                 className="text-gray-400 font-medium underline"
                 onPress={() => router.push("/auth/terms")}
               >
-                {termsText}
+                <T>Terms of Service</T>
               </Text>{" "}
-              {andText}{" "}
+              <T>and</T>{" "}
               <Text
                 className="text-gray-400 font-medium underline"
                 onPress={() => router.push("/auth/privacy")}
               >
-                {privacyText}
+                <T>Privacy Policy</T>
               </Text>
             </Text>
           </Animated.View>

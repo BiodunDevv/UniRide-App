@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { driverApi } from "@/lib/driverApi";
 import { eventBus } from "@/lib/eventBus";
 import { FadeIn } from "@/components/ui/animations";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 interface Bank {
   name: string;
@@ -26,6 +27,7 @@ export default function BankPickerScreen() {
   const [banks, setBanks] = useState<Bank[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const tSearchPlaceholder = useTranslation("Search banks...");
 
   useEffect(() => {
     (async () => {
@@ -64,7 +66,7 @@ export default function BankPickerScreen() {
             <Ionicons name="close" size={18} color="#042F40" />
           </Pressable>
           <Text className="text-primary text-[15px] font-bold">
-            Select Bank
+            <T>Select Bank</T>
           </Text>
           <View className="w-9" />
         </View>
@@ -78,7 +80,7 @@ export default function BankPickerScreen() {
             value={search}
             onChangeText={setSearch}
             className="flex-1 py-3 px-2.5 text-sm text-black"
-            placeholder="Search banks..."
+            placeholder={tSearchPlaceholder}
             placeholderTextColor="#9CA3AF"
             autoFocus
           />
@@ -94,7 +96,9 @@ export default function BankPickerScreen() {
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#042F40" />
-          <Text className="text-gray-400 text-xs mt-3">Loading banks...</Text>
+          <Text className="text-gray-400 text-xs mt-3">
+            <T>Loading banks...</T>
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -139,9 +143,11 @@ export default function BankPickerScreen() {
           ListEmptyComponent={
             <View className="items-center py-16">
               <Ionicons name="search-outline" size={36} color="#D1D5DB" />
-              <Text className="text-gray-400 text-sm mt-3">No banks found</Text>
+              <Text className="text-gray-400 text-sm mt-3">
+                <T>No banks found</T>
+              </Text>
               <Text className="text-gray-300 text-xs mt-1">
-                Try a different search term
+                <T>Try a different search term</T>
               </Text>
             </View>
           }

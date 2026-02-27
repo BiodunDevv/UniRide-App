@@ -18,7 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/useAuthStore";
 import { FadeIn } from "@/components/ui/animations";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -50,128 +50,59 @@ export default function SecurityScreen() {
   const [pinLoading, setPinLoading] = useState(false);
 
   const isIOS = Platform.OS === "ios";
-  const biometricName = isIOS ? "Face ID" : "Fingerprint";
+  const tFaceId = useTranslation("Face ID");
+  const tFingerprint = useTranslation("Fingerprint");
+  const biometricName = isIOS ? tFaceId : tFingerprint;
   const biometricIcon: IoniconsName = isIOS ? "scan-outline" : "finger-print";
   const biometricEnabled = user?.biometric_enabled || false;
   const pinEnabled = user?.pin_enabled || false;
 
-  const [
-    tDisable,
-    tAreYouSureDisable,
-    tLoginQuestion,
-    tCancel,
-    tError,
-    tFailed,
-    tAuthenticateToEnable,
-    tUsePasscode,
-    tEnabled,
-    tLoginEnabledMsg,
-    tInvalidPin,
-    tPinMust4Digits,
-    tMismatch,
-    tPinsDontMatch,
-    tRequired,
-    tEnterCurrentPasswordVerify,
-    tSuccess,
-    tPinLoginEnabled,
-    tFailedSetupPin,
-    tNewPinMust4Digits,
-    tEnterCurrentPinMsg,
-    tPinUpdatedSuccessfully,
-    tFailedUpdatePin,
-    tRemovePin,
-    tEnterPasswordRemovePin,
-    tRemove,
-    tRemoved,
-    tPinLoginDisabled,
-    tSecurity,
-    tBiometric,
-    t4DigitPin,
-    tLogin,
-    tEnabledTapToDisable,
-    tHardwareNotAvailable,
-    tSetUp,
-    tInDeviceSettings,
-    tTapToEnableQuickSignIn,
-    tPinLogin,
-    tEnabledSignInWith4DigitPin,
-    tSetUpQuick4DigitPin,
-    tOn,
-    tOff,
-    tSetUpPin,
-    tChangePin,
-    tEnter4DigitPin,
-    tConfirmPin,
-    tCurrentPasswordForVerification,
-    tEnablePin,
-    tCurrentPin,
-    tNew4DigitPin,
-    tUpdatePin,
-    tSecurityTips,
-    tUse,
-    tForFastestSignIn,
-    tPinProvidesQuickAlt,
-    tIsntAvailable,
-    tBothOptionsKeep,
-  ] = useTranslations([
-    "Disable",
-    "Are you sure you want to disable",
-    "login?",
-    "Cancel",
-    "Error",
-    "Failed",
-    "Authenticate to enable",
-    "Use passcode",
-    "Enabled",
-    "login enabled.",
-    "Invalid PIN",
-    "PIN must be exactly 4 digits.",
-    "Mismatch",
-    "PINs don't match.",
-    "Required",
+  // Alert & string translations
+  const tDisable = useTranslation("Disable");
+  const tAreYouSureDisable = useTranslation("Are you sure you want to disable");
+  const tLoginQuestion = useTranslation("login?");
+  const tCancel = useTranslation("Cancel");
+  const tError = useTranslation("Error");
+  const tFailed = useTranslation("Failed");
+  const tAuthenticateToEnable = useTranslation("Authenticate to enable");
+  const tUsePasscode = useTranslation("Use passcode");
+  const tEnabled = useTranslation("Enabled");
+  const tLoginEnabledMsg = useTranslation("login enabled.");
+  const tInvalidPin = useTranslation("Invalid PIN");
+  const tPinMust4Digits = useTranslation("PIN must be exactly 4 digits.");
+  const tMismatch = useTranslation("Mismatch");
+  const tPinsDontMatch = useTranslation("PINs don't match.");
+  const tRequired = useTranslation("Required");
+  const tEnterCurrentPasswordVerify = useTranslation(
     "Enter your current password to verify.",
-    "Success",
-    "PIN login has been enabled.",
-    "Failed to set up PIN.",
+  );
+  const tSuccess = useTranslation("Success");
+  const tPinLoginEnabled = useTranslation("PIN login has been enabled.");
+  const tFailedSetupPin = useTranslation("Failed to set up PIN.");
+  const tNewPinMust4Digits = useTranslation(
     "New PIN must be exactly 4 digits.",
-    "Enter your current PIN.",
-    "PIN updated successfully.",
-    "Failed to update PIN.",
-    "Remove PIN",
+  );
+  const tEnterCurrentPinMsg = useTranslation("Enter your current PIN.");
+  const tPinUpdatedSuccessfully = useTranslation("PIN updated successfully.");
+  const tFailedUpdatePin = useTranslation("Failed to update PIN.");
+  const tRemovePin = useTranslation("Remove PIN");
+  const tEnterPasswordRemovePin = useTranslation(
     "Enter your password to remove PIN login.",
-    "Remove",
-    "Removed",
-    "PIN login has been disabled.",
-    "Security",
-    "Biometric",
-    "4-Digit PIN",
-    "Login",
-    "Enabled — tap to disable",
-    "Hardware not available",
-    "Set up",
-    "in device settings",
-    "Tap to enable quick sign-in",
-    "PIN Login",
-    "Enabled — sign in with 4-digit PIN",
-    "Set up a quick 4-digit PIN for sign-in",
-    "ON",
-    "OFF",
-    "Set Up PIN",
-    "Change PIN",
-    "Enter 4-digit PIN",
-    "Confirm PIN",
+  );
+  const tRemove = useTranslation("Remove");
+  const tRemoved = useTranslation("Removed");
+  const tPinLoginDisabled = useTranslation("PIN login has been disabled.");
+  const tSetUp = useTranslation("Set up");
+  const tInDeviceSettings = useTranslation("in device settings");
+
+  // Placeholder translations
+  const tEnter4DigitPin = useTranslation("Enter 4-digit PIN");
+  const tConfirmPin = useTranslation("Confirm PIN");
+  const tCurrentPasswordForVerification = useTranslation(
     "Current password (for verification)",
-    "Enable PIN",
-    "Current PIN",
-    "New 4-digit PIN",
-    "Update PIN",
-    "Security Tips",
-    "Use",
-    "for the fastest, most secure sign-in",
-    "PIN provides a quick alternative when",
-    "isn't available",
-    "Both options keep your password safe and secure",
-  ]);
+  );
+  const tCurrentPin = useTranslation("Current PIN");
+  const tNew4DigitPin = useTranslation("New 4-digit PIN");
 
   useEffect(() => {
     checkCapability();
@@ -348,7 +279,9 @@ export default function SecurityScreen() {
             >
               <Ionicons name="close" size={20} color="#042F40" />
             </Pressable>
-            <Text className="text-primary text-lg font-bold">{tSecurity}</Text>
+            <Text className="text-primary text-lg font-bold">
+              <T>Security</T>
+            </Text>
             <View className="w-10" />
           </View>
 
@@ -361,7 +294,7 @@ export default function SecurityScreen() {
             {/* ── Biometric Section ─────────────────────────────────────── */}
             <FadeIn delay={0} duration={400}>
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 mt-2">
-                {tBiometric}
+                <T>Biometric</T>
               </Text>
               <View className="bg-white rounded-2xl border border-gray-100 mb-6">
                 <Pressable
@@ -382,16 +315,18 @@ export default function SecurityScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-bold text-primary">
-                      {biometricName} {tLogin}
+                      {biometricName} <T>Login</T>
                     </Text>
                     <Text className="text-xs text-gray-400 mt-0.5">
-                      {biometricEnabled
-                        ? tEnabledTapToDisable
-                        : !available
-                          ? tHardwareNotAvailable
-                          : !enrolled
-                            ? `${tSetUp} ${biometricName} ${tInDeviceSettings}`
-                            : tTapToEnableQuickSignIn}
+                      {biometricEnabled ? (
+                        <T>Enabled — tap to disable</T>
+                      ) : !available ? (
+                        <T>Hardware not available</T>
+                      ) : !enrolled ? (
+                        `${tSetUp} ${biometricName} ${tInDeviceSettings}`
+                      ) : (
+                        <T>Tap to enable quick sign-in</T>
+                      )}
                     </Text>
                   </View>
                   {toggling ? (
@@ -416,7 +351,7 @@ export default function SecurityScreen() {
             {/* ── PIN Section ───────────────────────────────────────────── */}
             <FadeIn delay={100} duration={400}>
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                {t4DigitPin}
+                <T>4-Digit PIN</T>
               </Text>
               <View className="bg-white rounded-2xl border border-gray-100 mb-6">
                 {/* PIN Status */}
@@ -434,12 +369,14 @@ export default function SecurityScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-bold text-primary">
-                      {tPinLogin}
+                      <T>PIN Login</T>
                     </Text>
                     <Text className="text-xs text-gray-400 mt-0.5">
-                      {pinEnabled
-                        ? tEnabledSignInWith4DigitPin
-                        : tSetUpQuick4DigitPin}
+                      {pinEnabled ? (
+                        <T>Enabled — sign in with 4-digit PIN</T>
+                      ) : (
+                        <T>Set up a quick 4-digit PIN for sign-in</T>
+                      )}
                     </Text>
                   </View>
                   <View
@@ -452,7 +389,7 @@ export default function SecurityScreen() {
                         pinEnabled ? "text-green-600" : "text-gray-400"
                       }`}
                     >
-                      {pinEnabled ? tOn : tOff}
+                      {pinEnabled ? <T>ON</T> : <T>OFF</T>}
                     </Text>
                   </View>
                 </View>
@@ -471,7 +408,7 @@ export default function SecurityScreen() {
                       color="#042F40"
                     />
                     <Text className="text-sm font-semibold text-primary ml-3">
-                      {tSetUpPin}
+                      <T>Set Up PIN</T>
                     </Text>
                   </Pressable>
                 )}
@@ -488,7 +425,7 @@ export default function SecurityScreen() {
                         color="#042F40"
                       />
                       <Text className="text-sm font-semibold text-primary ml-3">
-                        {tChangePin}
+                        <T>Change PIN</T>
                       </Text>
                     </Pressable>
                     <View className="h-px bg-gray-100 mx-4" />
@@ -562,7 +499,7 @@ export default function SecurityScreen() {
                           <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <Text className="text-white text-sm font-bold">
-                            {tEnablePin}
+                            <T>Enable PIN</T>
                           </Text>
                         )}
                       </Pressable>
@@ -615,7 +552,7 @@ export default function SecurityScreen() {
                           <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <Text className="text-white text-sm font-bold">
-                            {tUpdatePin}
+                            <T>Update PIN</T>
                           </Text>
                         )}
                       </Pressable>
@@ -635,14 +572,15 @@ export default function SecurityScreen() {
                     color="#042F40"
                   />
                   <Text className="text-primary text-sm font-bold ml-2">
-                    {tSecurityTips}
+                    <T>Security Tips</T>
                   </Text>
                 </View>
                 <Text className="text-gray-400 text-xs leading-5">
-                  • {tUse} {biometricName} {tForFastestSignIn}
-                  {"\n"}• {tPinProvidesQuickAlt} {biometricName}{" "}
-                  {tIsntAvailable}
-                  {"\n"}• {tBothOptionsKeep}
+                  • <T>Use</T> {biometricName}{" "}
+                  <T>for the fastest, most secure sign-in</T>
+                  {"\n"}• <T>PIN provides a quick alternative when</T>{" "}
+                  {biometricName} <T>isn't available</T>
+                  {"\n"}• <T>Both options keep your password safe and secure</T>
                 </Text>
               </View>
             </FadeIn>

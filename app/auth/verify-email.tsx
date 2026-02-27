@@ -18,7 +18,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 const CODE_LENGTH = 6;
 
@@ -30,41 +30,15 @@ export default function VerifyEmailScreen() {
   }>();
   const { verifyEmail, resendVerification, isLoading } = useAuthStore();
 
-  const [
-    tVerificationFailed,
-    tInvalidCode,
-    tSent,
-    tNewCodeSent,
-    tError,
-    tFailedResend,
-    tEmailVerified,
-    tRedirecting,
-    tVerifyYourEmail,
-    tWeSentCode,
-    tPasteHint,
-    tVerifying,
-    tVerifyEmail,
-    tDidntReceive,
-    tSending,
-    tResend,
-  ] = useTranslations([
-    "Verification Failed",
-    "Invalid code",
-    "Sent",
+  // Alert strings — need raw translated values
+  const tVerificationFailed = useTranslation("Verification Failed");
+  const tInvalidCode = useTranslation("Invalid code");
+  const tSent = useTranslation("Sent");
+  const tNewCodeSent = useTranslation(
     "A new verification code has been sent to your email.",
-    "Error",
-    "Failed to resend code",
-    "Email Verified!",
-    "Redirecting you to sign in...",
-    "Verify your email",
-    "We sent a 6-digit code to",
-    "Tip: Long-press any box to paste your code",
-    "Verifying...",
-    "Verify Email",
-    "Didn't receive a code?",
-    "Sending...",
-    "Resend",
-  ]);
+  );
+  const tError = useTranslation("Error");
+  const tFailedResend = useTranslation("Failed to resend code");
 
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [resending, setResending] = useState(false);
@@ -186,13 +160,13 @@ export default function VerifyEmailScreen() {
             entering={FadeInDown.delay(100).duration(300)}
             className="text-primary text-2xl font-bold mb-2"
           >
-            {tEmailVerified}
+            <T>Email Verified!</T>
           </Animated.Text>
           <Animated.Text
             entering={FadeInDown.delay(200).duration(300)}
             className="text-gray-400 text-sm text-center"
           >
-            {tRedirecting}
+            <T>Redirecting you to sign in...</T>
           </Animated.Text>
         </View>
       </SafeAreaView>
@@ -227,13 +201,13 @@ export default function VerifyEmailScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-2"
             >
-              {tVerifyYourEmail}
+              <T>Verify your email</T>
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm text-center leading-5"
             >
-              {tWeSentCode}
+              <T>We sent a 6-digit code to</T>
               {"\n"}
               <Text className="text-primary font-semibold">{email}</Text>
             </Animated.Text>
@@ -272,7 +246,7 @@ export default function VerifyEmailScreen() {
             entering={FadeInDown.delay(320).duration(400)}
             className="text-gray-300 text-xs text-center mb-8"
           >
-            {tPasteHint}
+            <T>Tip: Long-press any box to paste your code</T>
           </Animated.Text>
 
           {/* Verify button */}
@@ -287,16 +261,18 @@ export default function VerifyEmailScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? tVerifying : tVerifyEmail}
+                {isLoading ? <T>Verifying...</T> : <T>Verify Email</T>}
               </Text>
             </Pressable>
 
             {/* Resend */}
             <View className="flex-row justify-center mt-6">
-              <Text className="text-gray-400 text-sm">{tDidntReceive} </Text>
+              <Text className="text-gray-400 text-sm">
+                <T>Didn't receive a code?</T>{" "}
+              </Text>
               <Pressable onPress={handleResend} disabled={resending}>
                 <Text className="text-primary text-sm font-bold">
-                  {resending ? tSending : tResend}
+                  {resending ? <T>Sending...</T> : <T>Resend</T>}
                 </Text>
               </Pressable>
             </View>

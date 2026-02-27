@@ -19,7 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Logo from "@/components/Logo";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -28,57 +28,29 @@ export default function RegisterScreen() {
   const { role } = useLocalSearchParams<{ role?: string }>();
   const { register, isLoading } = useAuthStore();
 
-  const [
-    tFullNameRequired,
-    tEmailRequired,
-    tValidEmail,
-    tPasswordRequired,
-    tPasswordMinChars,
-    tPasswordsNoMatch,
-    tRegFailed,
-    tSomethingWrong,
-    tDriver,
-    tRider,
-    tCreateAccountHeading,
-    tJoinCommunity,
-    tFullName,
-    tJohnDoe,
-    tEmail,
-    tYourEmail,
-    tPassword,
-    tMinChars,
-    tConfirmPassword,
-    tReenterPassword,
-    tCreatingAccount,
-    tCreateAccountBtn,
-    tAlreadyHaveAccount,
-    tSignIn,
-  ] = useTranslations([
-    "Full name is required",
-    "Email is required",
-    "Enter a valid email",
-    "Password is required",
+  // Validation error messages (string values)
+  const tFullNameRequired = useTranslation("Full name is required");
+  const tEmailRequired = useTranslation("Email is required");
+  const tValidEmail = useTranslation("Enter a valid email");
+  const tPasswordRequired = useTranslation("Password is required");
+  const tPasswordMinChars = useTranslation(
     "Password must be at least 6 characters",
-    "Passwords do not match",
-    "Registration Failed",
-    "Something went wrong",
-    "Driver",
-    "Rider",
-    "Create account",
-    "Join the UniRide community",
-    "Full Name",
-    "John Doe",
-    "Email",
-    "your@university.edu",
-    "Password",
-    "Min 6 characters",
-    "Confirm Password",
-    "Re-enter your password",
-    "Creating account...",
-    "Create Account",
-    "Already have an account? ",
-    "Sign In",
-  ]);
+  );
+  const tPasswordsNoMatch = useTranslation("Passwords do not match");
+
+  // Alert messages (string values)
+  const tRegFailed = useTranslation("Registration Failed");
+  const tSomethingWrong = useTranslation("Something went wrong");
+
+  // AuthInput props (string values)
+  const tFullName = useTranslation("Full Name");
+  const tJohnDoe = useTranslation("John Doe");
+  const tEmail = useTranslation("Email");
+  const tYourEmail = useTranslation("your@university.edu");
+  const tPassword = useTranslation("Password");
+  const tMinChars = useTranslation("Min 6 characters");
+  const tConfirmPassword = useTranslation("Confirm Password");
+  const tReenterPassword = useTranslation("Re-enter your password");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -154,7 +126,7 @@ export default function RegisterScreen() {
                   isDriver ? "text-amber-700" : "text-primary"
                 }`}
               >
-                {isDriver ? tDriver : tRider}
+                {isDriver ? <T>Driver</T> : <T>Rider</T>}
               </Text>
             </View>
           </Animated.View>
@@ -171,13 +143,13 @@ export default function RegisterScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-1"
             >
-              {tCreateAccountHeading}
+              <T>Create account</T>
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm"
             >
-              {tJoinCommunity}
+              <T>Join the UniRide community</T>
             </Animated.Text>
           </View>
 
@@ -231,14 +203,14 @@ export default function RegisterScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? tCreatingAccount : tCreateAccountBtn}
+                {isLoading ? <T>Creating account...</T> : <T>Create Account</T>}
               </Text>
             </Pressable>
 
             {/* Login link */}
             <View className="flex-row justify-center mt-6">
               <Text className="text-gray-400 text-sm">
-                {tAlreadyHaveAccount}
+                <T>Already have an account? </T>
               </Text>
               <Pressable
                 onPress={() =>
@@ -249,7 +221,7 @@ export default function RegisterScreen() {
                 }
               >
                 <Text className="text-primary text-sm font-bold">
-                  {tSignIn}
+                  <T>Sign In</T>
                 </Text>
               </Pressable>
             </View>

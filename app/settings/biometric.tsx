@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 import { FadeIn } from "@/components/ui/animations";
 
 export default function BiometricScreen() {
@@ -25,66 +25,27 @@ export default function BiometricScreen() {
 
   const isEnabled = user?.biometric_enabled || false;
   const isIOS = Platform.OS === "ios";
-  const biometricName = isIOS ? "Face ID" : "Fingerprint";
+  const biometricName = useTranslation(isIOS ? "Face ID" : "Fingerprint");
   const biometricIcon: React.ComponentProps<typeof Ionicons>["name"] = isIOS
     ? "scan-outline"
     : "finger-print";
 
-  const [
-    tAuthToEnable,
-    tUsePasscode,
-    tEnabled,
-    tLoginEnabled,
-    tError,
-    tFailedToEnable,
-    tDisable,
-    tConfirmDisablePre,
-    tConfirmDisablePost,
-    tCancel,
-    tDisabled,
-    tLoginDisabled,
-    tFailedToDisable,
-    tEnable,
-    tSignInDescPre,
-    tSignInDescPost,
-    tQuickSignInPre,
-    tQuickSignInPost,
-    tActive,
-    tInactive,
-    tUsedForSignIn,
-    tNotEnabled,
-    tHardwareNotAvailable,
-    tNo,
-    tIsEnrolledSetUp,
-    tInDeviceSettings,
-  ] = useTranslations([
-    "Authenticate to enable",
-    "Use passcode",
-    "Enabled",
-    "login has been enabled.",
-    "Error",
-    "Failed to enable",
-    "Disable",
-    "Are you sure you want to disable",
+  const tAuthToEnable = useTranslation("Authenticate to enable");
+  const tUsePasscode = useTranslation("Use passcode");
+  const tEnabled = useTranslation("Enabled");
+  const tLoginEnabled = useTranslation("login has been enabled.");
+  const tError = useTranslation("Error");
+  const tFailedToEnable = useTranslation("Failed to enable");
+  const tDisable = useTranslation("Disable");
+  const tConfirmDisablePre = useTranslation("Are you sure you want to disable");
+  const tConfirmDisablePost = useTranslation(
     "login? You'll need to enter your password to sign in.",
-    "Cancel",
-    "Disabled",
-    "login has been disabled.",
-    "Failed to disable",
-    "Enable",
-    "You can sign in to UniRide using",
-    "This is faster and more secure than entering your password.",
-    "Sign in quickly and securely with",
-    "No need to type your password every time.",
-    "Active",
-    "Inactive",
-    "is being used for sign-in",
-    "is not enabled",
-    "hardware not available on this device.",
-    "No",
-    "is enrolled. Set up",
-    "in your device settings first.",
-  ]);
+  );
+  const tCancel = useTranslation("Cancel");
+  const tDisabled = useTranslation("Disabled");
+  const tLoginDisabled = useTranslation("login has been disabled.");
+  const tFailedToDisable = useTranslation("Failed to disable");
+  const tEnable = useTranslation("Enable");
 
   useEffect(() => {
     checkCapability();
@@ -197,9 +158,19 @@ export default function BiometricScreen() {
                 : `${tEnable} ${biometricName}`}
             </Text>
             <Text className="text-gray-400 text-sm text-center px-8 leading-5">
-              {isEnabled
-                ? `${tSignInDescPre} ${biometricName}. ${tSignInDescPost}`
-                : `${tQuickSignInPre} ${biometricName}. ${tQuickSignInPost}`}
+              {isEnabled ? (
+                <>
+                  <T>You can sign in to UniRide using</T> {biometricName}.{" "}
+                  <T>
+                    This is faster and more secure than entering your password.
+                  </T>
+                </>
+              ) : (
+                <>
+                  <T>Sign in quickly and securely with</T> {biometricName}.{" "}
+                  <T>No need to type your password every time.</T>
+                </>
+              )}
             </Text>
           </View>
         </FadeIn>
@@ -229,12 +200,18 @@ export default function BiometricScreen() {
                 <Text
                   className={`text-sm font-bold ${isEnabled ? "text-green-700" : "text-gray-500"}`}
                 >
-                  {isEnabled ? tActive : tInactive}
+                  {isEnabled ? <T>Active</T> : <T>Inactive</T>}
                 </Text>
                 <Text className="text-xs text-gray-400 mt-0.5">
-                  {isEnabled
-                    ? `${biometricName} ${tUsedForSignIn}`
-                    : `${biometricName} ${tNotEnabled}`}
+                  {isEnabled ? (
+                    <>
+                      {biometricName} <T>is being used for sign-in</T>
+                    </>
+                  ) : (
+                    <>
+                      {biometricName} <T>is not enabled</T>
+                    </>
+                  )}
                 </Text>
               </View>
             </View>
@@ -247,7 +224,7 @@ export default function BiometricScreen() {
             <View className="flex-row items-center">
               <Ionicons name="warning-outline" size={20} color="#D97706" />
               <Text className="text-amber-700 text-sm font-medium ml-2 flex-1">
-                {biometricName} {tHardwareNotAvailable}
+                {biometricName} <T>hardware not available on this device.</T>
               </Text>
             </View>
           </View>
@@ -258,8 +235,8 @@ export default function BiometricScreen() {
             <View className="flex-row items-center">
               <Ionicons name="warning-outline" size={20} color="#D97706" />
               <Text className="text-amber-700 text-sm font-medium ml-2 flex-1">
-                {tNo} {biometricName} {tIsEnrolledSetUp} {biometricName}{" "}
-                {tInDeviceSettings}
+                <T>No</T> {biometricName} <T>is enrolled. Set up</T>{" "}
+                {biometricName} <T>in your device settings first.</T>
               </Text>
             </View>
           </View>

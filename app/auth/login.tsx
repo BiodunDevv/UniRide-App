@@ -21,7 +21,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import Logo from "@/components/Logo";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useTranslation } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 import useTranslatorStore from "@/store/useTranslatorStore";
 
 const LOGIN_COUNT_KEY = "@uniride_login_count";
@@ -38,7 +38,6 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // ─── Translated strings ─────────────────────────────────────────────
-  const welcomeBackText = useTranslation("Welcome back");
   const signInSubText = useTranslation(
     role === "driver"
       ? "Sign in to your driver account"
@@ -48,16 +47,24 @@ export default function LoginScreen() {
   const emailPlaceholder = useTranslation("your@university.edu");
   const passwordLabel = useTranslation("Password");
   const passwordPlaceholder = useTranslation("Enter your password");
-  const forgotPwText = useTranslation("Forgot password?");
-  const signingInText = useTranslation("Signing in...");
-  const signInText = useTranslation("Sign In");
-  const noAccountText = useTranslation("Don't have an account?");
-  const signUpText = useTranslation("Sign Up");
-  const driverLabel = useTranslation("Driver");
-  const riderLabel = useTranslation("Rider");
   const emailRequiredText = useTranslation("Email is required");
   const validEmailText = useTranslation("Enter a valid email");
   const passwordRequiredText = useTranslation("Password is required");
+
+  // ─── Alert translations ─────────────────────────────────────────────
+  const tAccessDenied = useTranslation("Access Denied");
+  const tAccessDeniedMsg = useTranslation(
+    "This account cannot sign in on the mobile app. Please use the web portal.",
+  );
+  const tAccountSuspended = useTranslation("Account Suspended");
+  const tAccountSuspendedMsg = useTranslation(
+    "Your account has been flagged. Please contact support for assistance.",
+  );
+  const tWrongAccountType = useTranslation("Wrong Account Type");
+  const tLoginFailed = useTranslation("Login Failed");
+  const tSomethingWrong = useTranslation("Something went wrong");
+  const tNotNow = useTranslation("Not Now");
+  const tEnable = useTranslation("Enable");
 
   const LANG_LABEL: Record<string, string> = {
     en: "EN",
@@ -111,12 +118,12 @@ export default function LoginScreen() {
               `Sign in faster next time using ${biometricLabel}.`,
               [
                 {
-                  text: "Not Now",
+                  text: tNotNow,
                   style: "cancel",
                   onPress: () => router.replace(destination as any),
                 },
                 {
-                  text: "Enable",
+                  text: tEnable,
                   onPress: async () => {
                     try {
                       const authResult =
@@ -146,25 +153,19 @@ export default function LoginScreen() {
           params: { email: email.trim().toLowerCase(), role: role || "user" },
         });
       } else if (err.data?.platform_restricted) {
-        Alert.alert(
-          "Access Denied",
-          "This account cannot sign in on the mobile app. Please use the web portal.",
-        );
+        Alert.alert(tAccessDenied, tAccessDeniedMsg);
       } else if (err.data?.is_flagged) {
-        Alert.alert(
-          "Account Suspended",
-          "Your account has been flagged. Please contact support for assistance.",
-        );
+        Alert.alert(tAccountSuspended, tAccountSuspendedMsg);
       } else if (err.data?.role_mismatch) {
         const expected =
           err.data.expected_role === "driver" ? "Driver" : "Rider";
         Alert.alert(
-          "Wrong Account Type",
+          tWrongAccountType,
           err.message ||
             `This account is a ${expected} account. Please select the correct role.`,
         );
       } else {
-        Alert.alert("Login Failed", err.message || "Something went wrong");
+        Alert.alert(tLoginFailed, err.message || tSomethingWrong);
       }
     }
   };
@@ -225,7 +226,7 @@ export default function LoginScreen() {
                     isDriver ? "text-amber-700" : "text-primary"
                   }`}
                 >
-                  {isDriver ? driverLabel : riderLabel}
+                  {isDriver ? <T>Driver</T> : <T>Rider</T>}
                 </Text>
               </View>
             </View>
@@ -243,7 +244,7 @@ export default function LoginScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-1"
             >
-              {welcomeBackText}
+              <T>Welcome back</T>
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
@@ -281,7 +282,7 @@ export default function LoginScreen() {
             className="self-end mb-6"
           >
             <Text className="text-primary text-sm font-semibold">
-              {forgotPwText}
+              <T>Forgot password?</T>
             </Text>
           </Pressable>
 
@@ -295,13 +296,15 @@ export default function LoginScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? signingInText : signInText}
+                {isLoading ? <T>Signing in...</T> : <T>Sign In</T>}
               </Text>
             </Pressable>
 
             {/* Register link */}
             <View className="flex-row justify-center mt-6">
-              <Text className="text-gray-400 text-sm">{noAccountText} </Text>
+              <Text className="text-gray-400 text-sm">
+                <T>Don't have an account?</T>{" "}
+              </Text>
               <Pressable
                 onPress={() =>
                   router.push({
@@ -311,7 +314,7 @@ export default function LoginScreen() {
                 }
               >
                 <Text className="text-primary text-sm font-bold">
-                  {signUpText}
+                  <T>Sign Up</T>
                 </Text>
               </Pressable>
             </View>

@@ -1,13 +1,11 @@
 import ComingSoon from "@/components/ui/ComingSoon";
-import { useTranslations } from "@/hooks/use-translation";
+import { useTranslation } from "@/hooks/use-translation";
 
 export default function DriverEarningsScreen() {
-  const [tTitle, tSubtitle] = useTranslations([
-    "Earnings",
+  const title = useTranslation("Earnings");
+  const subtitle = useTranslation(
     "Track your earnings, payouts and financial stats",
-  ]);
-
-  return (
-    <ComingSoon title={tTitle} subtitle={tSubtitle} icon="wallet-outline" />
   );
+
+  return <ComingSoon title={title} subtitle={subtitle} icon="wallet-outline" />;
 }

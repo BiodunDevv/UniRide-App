@@ -22,13 +22,13 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Logo from "@/components/Logo";
-import { useTranslations } from "@/hooks/use-translation";
+import { T } from "@/hooks/use-translation";
 
 const { width } = Dimensions.get("window");
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-// ─── Onboarding Keys (source-of-truth English) ───────────────────────────────
-const onboardingKeys = [
+// ─── Onboarding Data (source-of-truth English) ───────────────────────────────
+const onboardingData = [
   {
     id: "1",
     title: "Safe Campus Rides",
@@ -66,10 +66,10 @@ function OnboardingSlide({
   return (
     <View style={{ width }} className="px-8">
       <Text className="text-primary text-2xl font-bold text-center mb-4 leading-tight">
-        {title}
+        <T>{title}</T>
       </Text>
       <Text className="text-gray-500 text-sm text-center leading-6">
-        {description}
+        <T>{description}</T>
       </Text>
     </View>
   );
@@ -80,25 +80,6 @@ export default function WelcomeScreen() {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
-
-  // ── Translations ────────────────────────────────────────────────
-  const allTexts = useTranslations([
-    ...onboardingKeys.map((s) => s.title),
-    ...onboardingKeys.map((s) => s.description),
-    "Skip",
-    "Back",
-    "Get Started",
-    "Next",
-  ]);
-  const onboardingData = onboardingKeys.map((item, i) => ({
-    ...item,
-    title: allTexts[i],
-    description: allTexts[i + onboardingKeys.length],
-  }));
-  const tSkip = allTexts[onboardingKeys.length * 2];
-  const tBack = allTexts[onboardingKeys.length * 2 + 1];
-  const tGetStarted = allTexts[onboardingKeys.length * 2 + 2];
-  const tNext = allTexts[onboardingKeys.length * 2 + 3];
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -154,7 +135,9 @@ export default function WelcomeScreen() {
             className="flex-row justify-end items-center px-6 pt-4 pb-2"
           >
             <Pressable onPress={completeOnboarding} className="py-2 px-4">
-              <Text className="text-white text-base font-medium">{tSkip}</Text>
+              <Text className="text-white text-base font-medium">
+                <T>Skip</T>
+              </Text>
             </Pressable>
           </Animated.View>
 
@@ -233,7 +216,7 @@ export default function WelcomeScreen() {
                     className="flex-1 bg-gray-200 rounded-full py-4 items-center active:opacity-80"
                   >
                     <Text className="text-primary text-base font-bold">
-                      {tBack}
+                      <T>Back</T>
                     </Text>
                   </Pressable>
                   <Pressable
@@ -241,7 +224,7 @@ export default function WelcomeScreen() {
                     className="flex-1 bg-primary rounded-full py-4 items-center active:opacity-90 shadow-lg"
                   >
                     <Text className="text-white text-base font-bold">
-                      {isLast ? tGetStarted : tNext}
+                      {isLast ? <T>Get Started</T> : <T>Next</T>}
                     </Text>
                   </Pressable>
                 </View>
@@ -251,7 +234,7 @@ export default function WelcomeScreen() {
                   className="bg-primary rounded-full py-4 items-center active:opacity-90 shadow-lg"
                 >
                   <Text className="text-white text-base font-bold">
-                    {tNext}
+                    <T>Next</T>
                   </Text>
                 </Pressable>
               )}

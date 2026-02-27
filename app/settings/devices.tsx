@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { authApi } from "@/lib/api";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -25,65 +25,36 @@ export default function DevicesScreen() {
   const [removing, setRemoving] = useState<string | null>(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
 
-  const [
-    tError,
-    tFailedLoadDevices,
-    tRemoveDevice,
-    tCancel,
-    tRemove,
-    tFailedRemoveDevice,
-    tLogoutAllDevices,
-    tLogoutAll,
-    tSuccess,
-    tAllDevicesLoggedOut,
-    tFailedLogoutDevices,
-    tYourDevices,
-    tDeviceSignedIn,
-    tDevicesSignedIn,
-    tOther,
-    tUnknownDevice,
-    tThisDevice,
-    tCurrentlyActive,
-    tLastActive,
-    tNoDevicesFound,
-    tLogoutAllOtherDevices,
-    tJustNow,
-    tMAgo,
-    tHAgo,
-    tDAgo,
-    tNever,
-    tRemoveFromAccount,
-    tLogoutAllBody,
-  ] = useTranslations([
-    "Error",
-    "Failed to load devices",
-    "Remove Device",
-    "Cancel",
-    "Remove",
-    "Failed to remove device",
-    "Logout All Devices",
-    "Logout All",
-    "Success",
+  const tError = useTranslation("Error");
+  const tFailedLoadDevices = useTranslation("Failed to load devices");
+  const tRemoveDevice = useTranslation("Remove Device");
+  const tCancel = useTranslation("Cancel");
+  const tRemove = useTranslation("Remove");
+  const tFailedRemoveDevice = useTranslation("Failed to remove device");
+  const tLogoutAllDevices = useTranslation("Logout All Devices");
+  const tLogoutAll = useTranslation("Logout All");
+  const tSuccess = useTranslation("Success");
+  const tAllDevicesLoggedOut = useTranslation(
     "All other devices have been logged out.",
-    "Failed to logout devices",
-    "Your Devices",
-    "device signed in",
-    "devices signed in",
-    "other",
-    "Unknown Device",
-    "This device",
-    "Currently active",
-    "Last active",
-    "No devices found",
-    "Logout All Other Devices",
-    "Just now",
-    "m ago",
-    "h ago",
-    "d ago",
-    "Never",
+  );
+  const tFailedLogoutDevices = useTranslation("Failed to logout devices");
+  const tDeviceSignedIn = useTranslation("device signed in");
+  const tDevicesSignedIn = useTranslation("devices signed in");
+  const tOther = useTranslation("other");
+  const tUnknownDevice = useTranslation("Unknown Device");
+  const tCurrentlyActive = useTranslation("Currently active");
+  const tLastActive = useTranslation("Last active");
+  const tJustNow = useTranslation("Just now");
+  const tMAgo = useTranslation("m ago");
+  const tHAgo = useTranslation("h ago");
+  const tDAgo = useTranslation("d ago");
+  const tNever = useTranslation("Never");
+  const tRemoveFromAccount = useTranslation(
     "from your account? They will be logged out.",
+  );
+  const tLogoutAllBody = useTranslation(
     "This will sign out all other devices. You'll stay signed in on this device.",
-  ]);
+  );
 
   useEffect(() => {
     loadCurrentDeviceId();
@@ -201,7 +172,9 @@ export default function DevicesScreen() {
         >
           <Ionicons name="close" size={20} color="#042F40" />
         </Pressable>
-        <Text className="text-primary text-lg font-bold">{tYourDevices}</Text>
+        <Text className="text-primary text-lg font-bold">
+          <T>Your Devices</T>
+        </Text>
         <View className="w-10" />
       </Animated.View>
 
@@ -263,7 +236,7 @@ export default function DevicesScreen() {
                       {isCurrent && (
                         <View className="bg-primary px-2 py-0.5 rounded-full">
                           <Text className="text-[9px] font-bold text-white uppercase tracking-wider">
-                            {tThisDevice}
+                            <T>This device</T>
                           </Text>
                         </View>
                       )}
@@ -307,7 +280,7 @@ export default function DevicesScreen() {
                 color="#D1D5DB"
               />
               <Text className="text-gray-400 text-sm mt-4 font-medium">
-                {tNoDevicesFound}
+                <T>No devices found</T>
               </Text>
             </View>
           )}
@@ -329,7 +302,7 @@ export default function DevicesScreen() {
                   <ActivityIndicator size="small" color="#EF4444" />
                 ) : (
                   <Text className="text-red-500 text-sm font-bold">
-                    {tLogoutAllOtherDevices}
+                    <T>Logout All Other Devices</T>
                   </Text>
                 )}
               </Pressable>

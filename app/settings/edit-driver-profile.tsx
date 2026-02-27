@@ -22,7 +22,7 @@ import { driverApi } from "@/lib/driverApi";
 import { pickAndUploadImage } from "@/lib/cloudinary";
 import { eventBus } from "@/lib/eventBus";
 import { FadeIn, ImagePreviewModal } from "@/components/ui/animations";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 /* ─── Section header ───────────────────────────────────────────────────────── */
 function SectionTitle({
@@ -125,93 +125,50 @@ export default function EditDriverProfileScreen() {
     String(driver?.available_seats || 4),
   );
 
-  const [
-    tError,
-    tFailedUploadPhoto,
-    tFailedUploadVehicleImage,
-    tFailedUpdateLicense,
-    tInvalidDetails,
-    tInvalidBankMsg,
-    tPleaseWait,
-    tRateLimitMsg,
-    tVerificationFailed,
-    tVerifyFailedMsg,
-    tMissingInfo,
-    tPhoneRequired,
-    tSuccess,
-    tProfileUpdated,
-    tFailedUpdateProfile,
-    tEditProfile,
-    tContact,
-    tPhoneNumber,
-    tPhonePlaceholder,
-    tBankDetails,
-    tSelectBank,
-    tChooseBank,
-    tAccountNumber,
-    tAccountPlaceholder,
-    tVerify,
-    tAccountName,
-    tVehicleDetails,
-    tColor,
-    tColorPlaceholder,
-    tSeats,
-    tSeatsPlaceholder,
-    tDescription,
-    tDescriptionPlaceholder,
-    tVehiclePhoto,
-    tChangePhoto,
-    tUploadVehiclePhoto,
-    tTapToSelect,
-    tDriversLicense,
-    tUpdateLicense,
-    tUploadLicense,
-    tLastUpdated,
-    tSaveChanges,
-  ] = useTranslations([
-    "Error",
-    "Failed to upload photo",
+  // Alert strings
+  const tError = useTranslation("Error");
+  const tFailedUploadPhoto = useTranslation("Failed to upload photo");
+  const tFailedUploadVehicleImage = useTranslation(
     "Failed to upload vehicle image",
-    "Failed to update license",
-    "Invalid Details",
+  );
+  const tFailedUpdateLicense = useTranslation("Failed to update license");
+  const tInvalidDetails = useTranslation("Invalid Details");
+  const tInvalidBankMsg = useTranslation(
     "Please select a bank and enter a valid 10-digit account number.",
-    "Please Wait",
+  );
+  const tPleaseWait = useTranslation("Please Wait");
+  const tRateLimitMsg = useTranslation(
     "The verification service is temporarily busy. Please wait a moment and try again.",
-    "Verification Failed",
+  );
+  const tVerificationFailed = useTranslation("Verification Failed");
+  const tVerifyFailedMsg = useTranslation(
     "Could not verify this account. Please check the details.",
-    "Missing Info",
-    "Phone number is required.",
-    "Success",
-    "Profile updated successfully",
-    "Failed to update profile",
-    "Edit Profile",
-    "Contact",
-    "Phone Number",
-    "+234 800 000 0000",
-    "Bank Details",
-    "Select Bank",
-    "Choose your bank",
-    "Account Number",
-    "0123456789",
-    "Verify",
-    "Account Name",
-    "Vehicle Details",
-    "Color",
-    "e.g. Silver",
-    "Seats",
-    "4",
-    "Description",
+  );
+  const tMissingInfo = useTranslation("Missing Info");
+  const tPhoneRequired = useTranslation("Phone number is required.");
+  const tSuccess = useTranslation("Success");
+  const tProfileUpdated = useTranslation("Profile updated successfully");
+  const tFailedUpdateProfile = useTranslation("Failed to update profile");
+
+  // Section / field labels (string props)
+  const tContact = useTranslation("Contact");
+  const tPhoneNumber = useTranslation("Phone Number");
+  const tPhonePlaceholder = useTranslation("+234 800 000 0000");
+  const tBankDetails = useTranslation("Bank Details");
+  const tChooseBank = useTranslation("Choose your bank");
+  const tAccountPlaceholder = useTranslation("0123456789");
+  const tVehicleDetails = useTranslation("Vehicle Details");
+  const tColor = useTranslation("Color");
+  const tColorPlaceholder = useTranslation("e.g. Silver");
+  const tSeats = useTranslation("Seats");
+  const tSeatsPlaceholder = useTranslation("4");
+  const tDescription = useTranslation("Description");
+  const tDescriptionPlaceholder = useTranslation(
     "Brief vehicle description...",
-    "Vehicle Photo",
-    "Change Photo",
-    "Upload Vehicle Photo",
-    "Tap to select from gallery",
-    "Driver's License",
-    "Update License",
-    "Upload License",
-    "Last updated",
-    "Save Changes",
-  ]);
+  );
+  const tVehiclePhoto = useTranslation("Vehicle Photo");
+  const tDriversLicense = useTranslation("Driver's License");
+  const tLastUpdated = useTranslation("Last updated");
 
   // Load initial bank code if bank name is already set
   useEffect(() => {
@@ -380,7 +337,7 @@ export default function EditDriverProfileScreen() {
                 <Ionicons name="chevron-back" size={18} color="#042F40" />
               </Pressable>
               <Text className="text-primary text-[15px] font-bold">
-                {tEditProfile}
+                <T>Edit Profile</T>
               </Text>
               <View className="w-9" />
             </View>
@@ -466,7 +423,7 @@ export default function EditDriverProfileScreen() {
               <View className="bg-white rounded-2xl border border-gray-100 p-4 mb-6">
                 {/* Bank selector — opens as page modal */}
                 <Text className="text-[11px] font-semibold text-gray-400 mb-1.5 ml-1">
-                  {tSelectBank}
+                  <T>Select Bank</T>
                 </Text>
                 <Pressable
                   onPress={openBankPicker}
@@ -492,7 +449,7 @@ export default function EditDriverProfileScreen() {
 
                 {/* Account number + verify */}
                 <Text className="text-[11px] font-semibold text-gray-400 mb-1.5 ml-1">
-                  {tAccountNumber}
+                  <T>Account Number</T>
                 </Text>
                 <View className="flex-row gap-2.5 mb-3">
                   <TextInput
@@ -539,7 +496,7 @@ export default function EditDriverProfileScreen() {
                               : "text-gray-400"
                           }`}
                         >
-                          {tVerify}
+                          <T>Verify</T>
                         </Text>
                       </View>
                     )}
@@ -566,7 +523,7 @@ export default function EditDriverProfileScreen() {
                     )}
                     <View className="flex-1">
                       <Text className="text-[10px] text-gray-400 font-medium">
-                        {tAccountName}
+                        <T>Account Name</T>
                       </Text>
                       <Text
                         className={`text-sm font-semibold mt-0.5 ${
@@ -657,7 +614,7 @@ export default function EditDriverProfileScreen() {
                             color="#042F40"
                           />
                           <Text className="text-primary text-xs font-semibold">
-                            {tChangePhoto}
+                            <T>Change Photo</T>
                           </Text>
                         </>
                       )}
@@ -677,10 +634,10 @@ export default function EditDriverProfileScreen() {
                           />
                         </View>
                         <Text className="text-gray-500 text-sm font-medium">
-                          {tUploadVehiclePhoto}
+                          <T>Upload Vehicle Photo</T>
                         </Text>
                         <Text className="text-gray-300 text-xs mt-1">
-                          {tTapToSelect}
+                          <T>Tap to select from gallery</T>
                         </Text>
                       </>
                     )}
@@ -728,7 +685,7 @@ export default function EditDriverProfileScreen() {
                               color="#042F40"
                             />
                             <Text className="text-primary text-xs font-semibold">
-                              {tUpdateLicense}
+                              <T>Update License</T>
                             </Text>
                           </>
                         )}
@@ -748,10 +705,10 @@ export default function EditDriverProfileScreen() {
                             />
                           </View>
                           <Text className="text-gray-500 text-sm font-medium">
-                            {tUploadLicense}
+                            <T>Upload License</T>
                           </Text>
                           <Text className="text-gray-300 text-xs mt-1">
-                            {tTapToSelect}
+                            <T>Tap to select from gallery</T>
                           </Text>
                         </>
                       )}
@@ -762,7 +719,7 @@ export default function EditDriverProfileScreen() {
                   <View className="flex-row items-center gap-1.5 mt-2 ml-1">
                     <Ionicons name="time-outline" size={11} color="#9CA3AF" />
                     <Text className="text-[10px] text-gray-400">
-                      {tLastUpdated}{" "}
+                      <T>Last updated</T>{" "}
                       {new Date(driver.license_last_updated).toLocaleDateString(
                         "en-NG",
                         {
@@ -797,7 +754,7 @@ export default function EditDriverProfileScreen() {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text className="text-white text-[15px] font-bold">
-                    {tSaveChanges}
+                    <T>Save Changes</T>
                   </Text>
                 )}
               </Pressable>

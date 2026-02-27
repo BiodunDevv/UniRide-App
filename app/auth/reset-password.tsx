@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -26,47 +26,25 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const [
-    tResetCodeRequired,
-    tNewPasswordRequired,
-    tPasswordMinChars,
-    tPasswordsNoMatch,
-    tPasswordResetTitle,
-    tPasswordResetMsg,
-    tOK,
-    tError,
-    tFailedReset,
-    tResetPassword,
-    tSubtitle,
-    tResetCodeLabel,
-    tResetCodePlaceholder,
-    tNewPasswordLabel,
-    tNewPasswordPlaceholder,
-    tConfirmPasswordLabel,
-    tConfirmPasswordPlaceholder,
-    tResetting,
-    tResetPasswordBtn,
-  ] = useTranslations([
-    "Reset code is required",
-    "New password is required",
+  const tResetCodeRequired = useTranslation("Reset code is required");
+  const tNewPasswordRequired = useTranslation("New password is required");
+  const tPasswordMinChars = useTranslation(
     "Password must be at least 6 characters",
-    "Passwords do not match",
-    "Password Reset",
+  );
+  const tPasswordsNoMatch = useTranslation("Passwords do not match");
+  const tPasswordResetTitle = useTranslation("Password Reset");
+  const tPasswordResetMsg = useTranslation(
     "Your password has been reset. You can now sign in.",
-    "OK",
-    "Error",
-    "Failed to reset password",
-    "Reset password",
-    "Enter the code sent to your email and choose a new password.",
-    "Reset Code",
-    "6-digit code",
-    "New Password",
-    "Min 6 characters",
-    "Confirm Password",
-    "Re-enter new password",
-    "Resetting...",
-    "Reset Password",
-  ]);
+  );
+  const tOK = useTranslation("OK");
+  const tError = useTranslation("Error");
+  const tFailedReset = useTranslation("Failed to reset password");
+  const tResetCodeLabel = useTranslation("Reset Code");
+  const tResetCodePlaceholder = useTranslation("6-digit code");
+  const tNewPasswordLabel = useTranslation("New Password");
+  const tNewPasswordPlaceholder = useTranslation("Min 6 characters");
+  const tConfirmPasswordLabel = useTranslation("Confirm Password");
+  const tConfirmPasswordPlaceholder = useTranslation("Re-enter new password");
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -126,13 +104,15 @@ export default function ResetPasswordScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-2"
             >
-              {tResetPassword}
+              <T>Reset password</T>
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm text-center leading-5 max-w-[280px]"
             >
-              {tSubtitle}
+              <T>
+                Enter the code sent to your email and choose a new password.
+              </T>
             </Animated.Text>
           </View>
 
@@ -174,7 +154,7 @@ export default function ResetPasswordScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? tResetting : tResetPasswordBtn}
+                {isLoading ? <T>Resetting...</T> : <T>Reset Password</T>}
               </Text>
             </Pressable>
           </Animated.View>

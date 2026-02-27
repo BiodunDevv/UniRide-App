@@ -2,12 +2,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useTranslation } from "@/hooks/use-translation";
-
-function T({ children }: { children: string }) {
-  const t = useTranslation(children);
-  return <>{t}</>;
-}
+import { T } from "@/hooks/use-translation";
 
 function Section({
   number,

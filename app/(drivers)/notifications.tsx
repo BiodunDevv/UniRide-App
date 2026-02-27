@@ -15,7 +15,7 @@ import {
   type Notification,
 } from "@/store/useNotificationStore";
 import NotificationSkeleton from "@/components/ui/NotificationSkeleton";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -120,35 +120,17 @@ function NotificationItem({
 }
 
 export default function DriverNotificationsScreen() {
-  const [
-    tNotifications,
-    tUnread,
-    tClearAll,
-    tDeleteAll,
-    tCancel,
-    tClearAllBtn,
-    tMarkAllRead,
-    tNoNotifications,
-    tEmptyMessage,
-    tJustNow,
-    tMAgo,
-    tHAgo,
-    tDAgo,
-  ] = useTranslations([
-    "Notifications",
-    "unread",
-    "Clear All",
+  const tUnread = useTranslation("unread");
+  const tClearAll = useTranslation("Clear All");
+  const tDeleteAll = useTranslation(
     "Delete all notifications? This cannot be undone.",
-    "Cancel",
-    "Clear All",
-    "Mark all read",
-    "No Notifications",
-    "You're all caught up! Ride requests, trip updates, and announcements will appear here.",
-    "Just now",
-    "m ago",
-    "h ago",
-    "d ago",
-  ]);
+  );
+  const tCancel = useTranslation("Cancel");
+  const tClearAllBtn = useTranslation("Clear All");
+  const tJustNow = useTranslation("Just now");
+  const tMAgo = useTranslation("m ago");
+  const tHAgo = useTranslation("h ago");
+  const tDAgo = useTranslation("d ago");
 
   const formatTime = useCallback(
     (dateStr: string) => formatTimeRaw(dateStr, tJustNow, tMAgo, tHAgo, tDAgo),
@@ -213,7 +195,7 @@ export default function DriverNotificationsScreen() {
       <View className="flex-row items-center justify-between px-6 pt-4 pb-3">
         <View>
           <Text className="text-primary text-xl font-bold">
-            {tNotifications}
+            <T>Notifications</T>
           </Text>
           {unreadCount > 0 && (
             <Text className="text-xs text-gray-400 mt-0.5">
@@ -238,7 +220,7 @@ export default function DriverNotificationsScreen() {
               className="px-3 py-1.5 rounded-full bg-[#D4A017]/10 active:bg-[#D4A017]/20"
             >
               <Text className="text-[#D4A017] text-xs font-semibold">
-                {tMarkAllRead}
+                <T>Mark all read</T>
               </Text>
             </Pressable>
           )}
@@ -276,10 +258,13 @@ export default function DriverNotificationsScreen() {
               />
             </View>
             <Text className="text-primary text-lg font-bold mb-2">
-              {tNoNotifications}
+              <T>No Notifications</T>
             </Text>
             <Text className="text-gray-400 text-sm text-center leading-5">
-              {tEmptyMessage}
+              <T>
+                You're all caught up! Ride requests, trip updates, and
+                announcements will appear here.
+              </T>
             </Text>
           </View>
         }

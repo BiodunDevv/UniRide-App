@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { FadeIn } from "@/components/ui/animations";
+import { T } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -120,15 +121,19 @@ export default function NotificationDetailScreen() {
     return (
       <SafeAreaView className="flex-1 bg-white items-center justify-center px-8">
         <Ionicons name="alert-circle-outline" size={48} color="#D1D5DB" />
-        <Text className="text-primary text-lg font-bold mt-4">Not Found</Text>
+        <Text className="text-primary text-lg font-bold mt-4">
+          <T>Not Found</T>
+        </Text>
         <Text className="text-gray-400 text-sm text-center mt-1">
-          This notification could not be loaded.
+          <T>This notification could not be loaded.</T>
         </Text>
         <Pressable
           onPress={() => router.back()}
           className="mt-6 px-6 py-3 rounded-xl bg-primary"
         >
-          <Text className="text-white text-sm font-bold">Go Back</Text>
+          <Text className="text-white text-sm font-bold">
+            <T>Go Back</T>
+          </Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -146,7 +151,9 @@ export default function NotificationDetailScreen() {
         >
           <Ionicons name="arrow-back" size={20} color="#042F40" />
         </Pressable>
-        <Text className="text-primary text-lg font-bold">Detail</Text>
+        <Text className="text-primary text-lg font-bold">
+          <T>Detail</T>
+        </Text>
         <View className="w-10" />
       </View>
 
@@ -171,7 +178,7 @@ export default function NotificationDetailScreen() {
                 className="text-xs font-bold uppercase tracking-wider"
                 style={{ color: config.color }}
               >
-                {config.label}
+                <T>{config.label}</T>
               </Text>
             </View>
             <Text className="text-primary text-xl font-bold text-center">
@@ -194,7 +201,9 @@ export default function NotificationDetailScreen() {
           <View className="bg-white rounded-2xl border border-gray-100 mb-6">
             <View className="flex-row items-center p-4">
               <Ionicons name="calendar-outline" size={18} color="#9CA3AF" />
-              <Text className="text-gray-400 text-sm ml-3 flex-1">Date</Text>
+              <Text className="text-gray-400 text-sm ml-3 flex-1">
+                <T>Date</T>
+              </Text>
               <Text className="text-primary text-sm font-medium">
                 {formatDate(detail.createdAt)}
               </Text>
@@ -202,7 +211,9 @@ export default function NotificationDetailScreen() {
             <View className="h-px bg-gray-100 mx-4" />
             <View className="flex-row items-center p-4">
               <Ionicons name="time-outline" size={18} color="#9CA3AF" />
-              <Text className="text-gray-400 text-sm ml-3 flex-1">Time</Text>
+              <Text className="text-gray-400 text-sm ml-3 flex-1">
+                <T>Time</T>
+              </Text>
               <Text className="text-primary text-sm font-medium">
                 {formatTime(detail.createdAt)}
               </Text>
@@ -210,14 +221,16 @@ export default function NotificationDetailScreen() {
             <View className="h-px bg-gray-100 mx-4" />
             <View className="flex-row items-center p-4">
               <Ionicons name="eye-outline" size={18} color="#9CA3AF" />
-              <Text className="text-gray-400 text-sm ml-3 flex-1">Status</Text>
+              <Text className="text-gray-400 text-sm ml-3 flex-1">
+                <T>Status</T>
+              </Text>
               <View
                 className={`px-2.5 py-0.5 rounded-full ${detail.is_read ? "bg-gray-100" : "bg-green-50"}`}
               >
                 <Text
                   className={`text-xs font-semibold ${detail.is_read ? "text-gray-500" : "text-green-600"}`}
                 >
-                  {detail.is_read ? "Read" : "New"}
+                  {detail.is_read ? <T>Read</T> : <T>New</T>}
                 </Text>
               </View>
             </View>
@@ -228,7 +241,7 @@ export default function NotificationDetailScreen() {
         {detail.metadata && Object.keys(detail.metadata).length > 0 && (
           <View className="bg-primary/[0.03] rounded-2xl p-4 mb-6">
             <Text className="text-primary text-sm font-bold mb-3">
-              Additional Info
+              <T>Additional Info</T>
             </Text>
             {Object.entries(detail.metadata).map(([key, value]) => (
               <View key={key} className="flex-row justify-between mb-2">

@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
 import useTranslatorStore from "@/store/useTranslatorStore";
-import { useTranslation } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 import * as WebBrowser from "expo-web-browser";
 import { driverApi } from "@/lib/driverApi";
 import ProfileRow from "@/components/profile/ProfileRow";
@@ -36,17 +36,14 @@ export default function DriverProfileScreen() {
     "Are you sure you want to sign out?",
   );
   const cancelText = useTranslation("Cancel");
-  const accountText = useTranslation("Account");
   const editProfileText = useTranslation("Edit Profile");
   const editProfileDescText = useTranslation("Phone, bank, vehicle details");
   const changePwText = useTranslation("Change Password");
   const changePwDescText = useTranslation("Update your password");
   const securitySectionText = useTranslation("Security");
   const devicesText = useTranslation("Your Devices");
-  const notificationsText = useTranslation("Notifications");
   const notifSettingsText = useTranslation("Notification Settings");
   const notifDescText = useTranslation("Manage push & email alerts");
-  const appSectionText = useTranslation("App");
   const aboutText = useTranslation("About UniRide");
   const termsText = useTranslation("Terms & Privacy");
   const supportText = useTranslation("Help & Support");
@@ -55,6 +52,10 @@ export default function DriverProfileScreen() {
   const biometricOnlyText = useTranslation("Biometric enabled");
   const pinOnlyText = useTranslation("PIN enabled");
   const setupSecurityText = useTranslation("Set up biometric or PIN");
+  const tReview = useTranslation("review");
+  const tReviews = useTranslation("reviews");
+  const tError = useTranslation("Error");
+  const tFailedToggle = useTranslation("Failed to toggle availability");
 
   const currentLang = availableLanguages.find((l) => l.code === language);
   const langDisplayName = currentLang
@@ -77,7 +78,7 @@ export default function DriverProfileScreen() {
       await driverApi.toggleStatus();
       await fetchMe();
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to toggle availability");
+      Alert.alert(tError, err.message || tFailedToggle);
     } finally {
       setToggling(false);
     }
@@ -164,7 +165,7 @@ export default function DriverProfileScreen() {
               <View className="bg-[#D4A017]/10 px-3 py-1 rounded-full flex-row items-center gap-1">
                 <Ionicons name="car-sport" size={12} color="#D4A017" />
                 <Text className="text-[#D4A017] text-xs font-semibold">
-                  Driver
+                  <T>Driver</T>
                 </Text>
               </View>
               <View
@@ -185,14 +186,14 @@ export default function DriverProfileScreen() {
                         : "text-amber-600"
                   }`}
                 >
-                  {approvalStatus}
+                  <T>{approvalStatus}</T>
                 </Text>
               </View>
               {user?.email_verified && (
                 <View className="bg-green-50 px-3 py-1 rounded-full flex-row items-center gap-1">
                   <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
                   <Text className="text-green-600 text-xs font-semibold">
-                    Verified
+                    <T>Verified</T>
                   </Text>
                 </View>
               )}
@@ -231,12 +232,18 @@ export default function DriverProfileScreen() {
                     <Text
                       className={`text-sm font-bold ${isAvailable ? "text-green-700" : "text-gray-500"}`}
                     >
-                      {isAvailable ? "You're Online" : "You're Offline"}
+                      {isAvailable ? (
+                        <T>You're Online</T>
+                      ) : (
+                        <T>You're Offline</T>
+                      )}
                     </Text>
                     <Text className="text-xs text-gray-400 mt-0.5">
-                      {isAvailable
-                        ? "Accepting ride requests"
-                        : "Tap to go online"}
+                      {isAvailable ? (
+                        <T>Accepting ride requests</T>
+                      ) : (
+                        <T>Tap to go online</T>
+                      )}
                     </Text>
                   </View>
                 </View>
@@ -250,7 +257,7 @@ export default function DriverProfileScreen() {
                     className={`px-4 py-2 rounded-full ${isAvailable ? "bg-green-600" : "bg-primary"}`}
                   >
                     <Text className="text-white text-xs font-semibold">
-                      {isAvailable ? "Go Offline" : "Go Online"}
+                      {isAvailable ? <T>Go Offline</T> : <T>Go Online</T>}
                     </Text>
                   </View>
                 )}
@@ -264,7 +271,7 @@ export default function DriverProfileScreen() {
           <FadeIn delay={160}>
             <View className="mx-4 mb-6">
               <Text className="px-2 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Vehicle Photo
+                <T>Vehicle Photo</T>
               </Text>
               <Pressable
                 onPress={() => setPreviewImage(driver.vehicle_image!)}
@@ -335,9 +342,11 @@ export default function DriverProfileScreen() {
                     </Text>
                   </View>
                   <Text className="text-gray-400 text-xs">
-                    {(driver.total_ratings ?? 0) > 0
-                      ? `${driver.total_ratings} ${driver.total_ratings === 1 ? "review" : "reviews"}`
-                      : "No reviews yet"}
+                    {(driver.total_ratings ?? 0) > 0 ? (
+                      `${driver.total_ratings} ${driver.total_ratings === 1 ? tReview : tReviews}`
+                    ) : (
+                      <T>No reviews yet</T>
+                    )}
                   </Text>
                 </View>
               </View>
@@ -349,7 +358,7 @@ export default function DriverProfileScreen() {
                     {driver.available_seats ?? 0}
                   </Text>
                   <Text className="text-gray-400 text-[10px] mt-0.5">
-                    Seats
+                    <T>Seats</T>
                   </Text>
                 </View>
                 <View className="flex-1 bg-white rounded-xl p-3 items-center">
@@ -357,7 +366,7 @@ export default function DriverProfileScreen() {
                     {driver.total_ratings ?? 0}
                   </Text>
                   <Text className="text-gray-400 text-[10px] mt-0.5">
-                    Reviews
+                    <T>Reviews</T>
                   </Text>
                 </View>
                 <View className="flex-1 bg-white rounded-xl p-3 items-center">
@@ -365,7 +374,7 @@ export default function DriverProfileScreen() {
                     {driver.plate_number || "N/A"}
                   </Text>
                   <Text className="text-gray-400 text-[10px] mt-0.5">
-                    Plate
+                    <T>Plate</T>
                   </Text>
                 </View>
               </View>
@@ -378,7 +387,7 @@ export default function DriverProfileScreen() {
           <FadeIn delay={200}>
             <View className="mb-6">
               <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Bank Details
+                <T>Bank Details</T>
               </Text>
               <View className="bg-white mx-4 rounded-2xl border border-gray-100 p-4">
                 <View className="flex-row items-center mb-3">
@@ -390,7 +399,7 @@ export default function DriverProfileScreen() {
                       {driver.bank_name}
                     </Text>
                     <Text className="text-gray-400 text-xs mt-0.5 font-mono">
-                      {driver.bank_account_number || "Not set"}
+                      {driver.bank_account_number || <T>Not set</T>}
                     </Text>
                   </View>
                 </View>
@@ -410,7 +419,7 @@ export default function DriverProfileScreen() {
         <FadeIn delay={240}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {accountText}
+              <T>Account</T>
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
@@ -467,7 +476,7 @@ export default function DriverProfileScreen() {
         <FadeIn delay={320}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {notificationsText}
+              <T>Notifications</T>
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
@@ -484,7 +493,7 @@ export default function DriverProfileScreen() {
         <FadeIn delay={360}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {appSectionText}
+              <T>App</T>
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow

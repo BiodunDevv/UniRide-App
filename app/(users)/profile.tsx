@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
 import useTranslatorStore from "@/store/useTranslatorStore";
-import { useTranslation } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 import * as WebBrowser from "expo-web-browser";
 import ProfileRow from "@/components/profile/ProfileRow";
 import ProfileSkeleton from "@/components/ui/ProfileSkeleton";
@@ -33,22 +33,18 @@ export default function UserProfileScreen() {
     "Are you sure you want to sign out?",
   );
   const cancelText = useTranslation("Cancel");
-  const accountText = useTranslation("Account");
   const editProfileText = useTranslation("Edit Profile");
   const editProfileDescText = useTranslation("Update your name and details");
   const changePwText = useTranslation("Change Password");
   const changePwDescText = useTranslation("Update your password");
   const securityText = useTranslation("Security");
   const devicesText = useTranslation("Your Devices");
-  const notificationsText = useTranslation("Notifications");
   const notifSettingsText = useTranslation("Notification Settings");
   const notifDescText = useTranslation("Manage push & email alerts");
-  const appText = useTranslation("App");
   const aboutText = useTranslation("About UniRide");
   const termsText = useTranslation("Terms & Privacy");
   const supportText = useTranslation("Help & Support");
-  const verifiedText = useTranslation("Verified");
-  const unverifiedText = useTranslation("Unverified");
+
   const languageText = useTranslation("Language");
   const biometricPinText = useTranslation("Biometric & PIN enabled");
   const biometricOnlyText = useTranslation("Biometric enabled");
@@ -153,13 +149,13 @@ export default function UserProfileScreen() {
                 <View className="bg-green-50 px-3 py-1 rounded-full flex-row items-center gap-1">
                   <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
                   <Text className="text-green-600 text-xs font-semibold">
-                    {verifiedText}
+                    <T>Verified</T>
                   </Text>
                 </View>
               ) : (
                 <View className="bg-amber-50 px-3 py-1 rounded-full">
                   <Text className="text-amber-600 text-xs font-semibold">
-                    {unverifiedText}
+                    <T>Unverified</T>
                   </Text>
                 </View>
               )}
@@ -171,7 +167,7 @@ export default function UserProfileScreen() {
         <FadeIn delay={80}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {accountText}
+              <T>Account</T>
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
@@ -227,7 +223,7 @@ export default function UserProfileScreen() {
         <FadeIn delay={200}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {notificationsText}
+              <T>Notifications</T>
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
@@ -244,7 +240,7 @@ export default function UserProfileScreen() {
         <FadeIn delay={260}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {appText}
+              <T>App</T>
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow

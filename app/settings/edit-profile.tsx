@@ -17,46 +17,26 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
 import { authApi } from "@/lib/api";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 import { pickAndUploadImage } from "@/lib/cloudinary";
 import { FadeIn } from "@/components/ui/animations";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, fetchMe } = useAuthStore();
-  const [
-    tSuccess,
-    tProfilePictureUpdated,
-    tError,
-    tFailedUploadPhoto,
-    tProfileUpdatedSuccessfully,
-    tFailedUpdateProfile,
-    tEditProfile,
-    tTapToChangePhoto,
-    tPersonalInformation,
-    tFullName,
-    tEnterYourFullName,
-    tEmailAddress,
-    tEmailCannotBeChanged,
-    tSaving,
-    tSaveChanges,
-  ] = useTranslations([
-    "Success",
-    "Profile picture updated",
-    "Error",
-    "Failed to upload photo",
+
+  // String values for Alert.alert() args
+  const tSuccess = useTranslation("Success");
+  const tProfilePictureUpdated = useTranslation("Profile picture updated");
+  const tError = useTranslation("Error");
+  const tFailedUploadPhoto = useTranslation("Failed to upload photo");
+  const tProfileUpdatedSuccessfully = useTranslation(
     "Profile updated successfully",
-    "Failed to update profile",
-    "Edit Profile",
-    "Tap to change photo",
-    "Personal Information",
-    "Full Name",
-    "Enter your full name",
-    "Email Address",
-    "Email cannot be changed",
-    "Saving...",
-    "Save Changes",
-  ]);
+  );
+  const tFailedUpdateProfile = useTranslation("Failed to update profile");
+
+  // String value for TextInput placeholder
+  const tEnterYourFullName = useTranslation("Enter your full name");
   const [name, setName] = useState(user?.name || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -118,7 +98,7 @@ export default function EditProfileScreen() {
               <Ionicons name="close" size={20} color="#042F40" />
             </Pressable>
             <Text className="text-primary text-lg font-bold">
-              {tEditProfile}
+              <T>Edit Profile</T>
             </Text>
             <View className="w-10" />
           </View>
@@ -151,7 +131,7 @@ export default function EditProfileScreen() {
                   </View>
                 </Pressable>
                 <Text className="text-gray-400 text-xs mt-3">
-                  {tTapToChangePhoto}
+                  <T>Tap to change photo</T>
                 </Text>
               </View>
             </FadeIn>
@@ -159,11 +139,11 @@ export default function EditProfileScreen() {
             {/* Form */}
             <FadeIn delay={100} duration={400}>
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-                {tPersonalInformation}
+                <T>Personal Information</T>
               </Text>
               <View className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-4">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5">
-                  {tFullName}
+                  <T>Full Name</T>
                 </Text>
                 <TextInput
                   value={name}
@@ -176,7 +156,7 @@ export default function EditProfileScreen() {
 
               <View className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5">
-                  {tEmailAddress}
+                  <T>Email Address</T>
                 </Text>
                 <View className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex-row items-center">
                   <Text className="text-sm text-gray-400 flex-1">
@@ -185,7 +165,7 @@ export default function EditProfileScreen() {
                   <Ionicons name="lock-closed" size={14} color="#D1D5DB" />
                 </View>
                 <Text className="text-[10px] text-gray-300 mt-1.5 px-1">
-                  {tEmailCannotBeChanged}
+                  <T>Email cannot be changed</T>
                 </Text>
               </View>
             </FadeIn>
@@ -205,7 +185,7 @@ export default function EditProfileScreen() {
                   !name.trim() ? "text-gray-400" : "text-white"
                 }`}
               >
-                {saving ? tSaving : tSaveChanges}
+                {saving ? <T>Saving...</T> : <T>Save Changes</T>}
               </Text>
             </Pressable>
           </View>

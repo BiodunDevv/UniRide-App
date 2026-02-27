@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import React from "react";
 import useTranslatorStore from "@/store/useTranslatorStore";
 
 /**
@@ -83,3 +84,15 @@ export const translateSync = (text: string, targetLang: string): string => {
     .getCachedTranslation(text, targetLang);
   return cached || text;
 };
+
+/**
+ * Inline translation component — wrap any English string to auto-translate.
+ *
+ * @example
+ * <Text><T>Welcome to UniRide</T></Text>
+ * <Bullet><T>Full name and date of birth</T></Bullet>
+ */
+export function T({ children }: { children: string }) {
+  const translated = useTranslation(children);
+  return React.createElement(React.Fragment, null, translated);
+}

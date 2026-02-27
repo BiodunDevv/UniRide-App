@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useTranslations } from "@/hooks/use-translation";
+import { T, useTranslation } from "@/hooks/use-translation";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -24,39 +24,12 @@ export default function ForgotPasswordScreen() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
-  const [
-    tEmailRequired,
-    tEnterValidEmail,
-    tError,
-    tSomethingWentWrong,
-    tCheckYourEmail,
-    tAccountExistsPrefix,
-    tAccountExistsSuffix,
-    tEnterResetCode,
-    tBackToLogin,
-    tForgotPassword,
-    tEnterEmailSubtitle,
-    tEmailLabel,
-    tEmailPlaceholder,
-    tSending,
-    tSendResetCode,
-  ] = useTranslations([
-    "Email is required",
-    "Enter a valid email",
-    "Error",
-    "Something went wrong",
-    "Check your email",
-    "If an account exists for ",
-    ", you'll receive a password reset code shortly.",
-    "Enter Reset Code",
-    "Back to login",
-    "Forgot password?",
-    "Enter your email and we'll send you a code to reset your password.",
-    "Email",
-    "your@university.edu",
-    "Sending...",
-    "Send Reset Code",
-  ]);
+  const tEmailRequired = useTranslation("Email is required");
+  const tEnterValidEmail = useTranslation("Enter a valid email");
+  const tError = useTranslation("Error");
+  const tSomethingWentWrong = useTranslation("Something went wrong");
+  const tEmailLabel = useTranslation("Email");
+  const tEmailPlaceholder = useTranslation("your@university.edu");
 
   const handleSubmit = async () => {
     if (!email.trim()) {
@@ -94,15 +67,15 @@ export default function ForgotPasswordScreen() {
             entering={FadeInDown.delay(120).duration(400)}
             className="text-primary text-2xl font-bold mb-2 text-center"
           >
-            {tCheckYourEmail}
+            <T>Check your email</T>
           </Animated.Text>
           <Animated.Text
             entering={FadeInDown.delay(200).duration(400)}
             className="text-gray-400 text-sm text-center leading-5 max-w-[280px] mb-8"
           >
-            {tAccountExistsPrefix}
+            <T>If an account exists for </T>
             {email}
-            {tAccountExistsSuffix}
+            <T>, you'll receive a password reset code shortly.</T>
           </Animated.Text>
           <Pressable
             onPress={() =>
@@ -114,11 +87,13 @@ export default function ForgotPasswordScreen() {
             className="bg-primary rounded-full py-4 px-12 items-center shadow-lg active:opacity-90"
           >
             <Text className="text-white text-base font-bold">
-              {tEnterResetCode}
+              <T>Enter Reset Code</T>
             </Text>
           </Pressable>
           <Pressable onPress={() => router.back()} className="mt-4">
-            <Text className="text-gray-400 text-sm">{tBackToLogin}</Text>
+            <Text className="text-gray-400 text-sm">
+              <T>Back to login</T>
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -157,13 +132,16 @@ export default function ForgotPasswordScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-2"
             >
-              {tForgotPassword}
+              <T>Forgot password?</T>
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm text-center leading-5 max-w-[280px]"
             >
-              {tEnterEmailSubtitle}
+              <T>
+                Enter your email and we'll send you a code to reset your
+                password.
+              </T>
             </Animated.Text>
           </View>
 
@@ -187,7 +165,7 @@ export default function ForgotPasswordScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? tSending : tSendResetCode}
+                {isLoading ? <T>Sending...</T> : <T>Send Reset Code</T>}
               </Text>
             </Pressable>
           </Animated.View>
