@@ -99,7 +99,7 @@ export default function BankPickerScreen() {
       ) : (
         <FlatList
           data={filtered}
-          keyExtractor={(item) => item.code}
+          keyExtractor={(item, index) => `${item.code}-${index}`}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item }) => {

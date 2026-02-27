@@ -15,6 +15,7 @@ import {
   type Notification,
 } from "@/store/useNotificationStore";
 import NotificationSkeleton from "@/components/ui/NotificationSkeleton";
+import { useTranslations } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -51,7 +52,13 @@ const typeConfig: Record<
   },
 };
 
-function formatTime(dateStr: string) {
+function formatTimeRaw(
+  dateStr: string,
+  tJustNow: string,
+  tMAgo: string,
+  tHAgo: string,
+  tDAgo: string,
+) {
   const date = new Date(dateStr);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -59,19 +66,21 @@ function formatTime(dateStr: string) {
   const diffHr = Math.floor(diffMs / 3600000);
   const diffDay = Math.floor(diffMs / 86400000);
 
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffHr < 24) return `${diffHr}h ago`;
-  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffMin < 1) return tJustNow;
+  if (diffMin < 60) return `${diffMin}${tMAgo}`;
+  if (diffHr < 24) return `${diffHr}${tHAgo}`;
+  if (diffDay < 7) return `${diffDay}${tDAgo}`;
   return date.toLocaleDateString();
 }
 
 function NotificationItem({
   item,
   onPress,
+  formatTime,
 }: {
   item: Notification;
   onPress: () => void;
+  formatTime: (dateStr: string) => string;
 }) {
   const config = typeConfig[item.type] || typeConfig.system;
 
@@ -111,6 +120,41 @@ function NotificationItem({
 }
 
 export default function UserNotificationsScreen() {
+  const [
+    tNotifications,
+    tUnread,
+    tClearAll,
+    tDeleteAll,
+    tCancel,
+    tClearAllBtn,
+    tMarkAllRead,
+    tNoNotifications,
+    tEmptyMessage,
+    tJustNow,
+    tMAgo,
+    tHAgo,
+    tDAgo,
+  ] = useTranslations([
+    "Notifications",
+    "unread",
+    "Clear All",
+    "Delete all notifications? This cannot be undone.",
+    "Cancel",
+    "Clear All",
+    "Mark all read",
+    "No Notifications",
+    "You're all caught up! New notifications will appear here when you receive ride updates or announcements.",
+    "Just now",
+    "m ago",
+    "h ago",
+    "d ago",
+  ]);
+
+  const formatTime = useCallback(
+    (dateStr: string) => formatTimeRaw(dateStr, tJustNow, tMAgo, tHAgo, tDAgo),
+    [tJustNow, tMAgo, tHAgo, tDAgo],
+  );
+
   const router = useRouter();
   const {
     notifications,
@@ -145,18 +189,14 @@ export default function UserNotificationsScreen() {
   };
 
   const handleClearAll = () => {
-    Alert.alert(
-      "Clear All",
-      "Delete all notifications? This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: () => clearAll(),
-        },
-      ],
-    );
+    Alert.alert(tClearAll, tDeleteAll, [
+      { text: tCancel, style: "cancel" },
+      {
+        text: tClearAllBtn,
+        style: "destructive",
+        onPress: () => clearAll(),
+      },
+    ]);
   };
 
   if (initialLoad) {
@@ -172,10 +212,12 @@ export default function UserNotificationsScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 pt-4 pb-3">
         <View>
-          <Text className="text-primary text-xl font-bold">Notifications</Text>
+          <Text className="text-primary text-xl font-bold">
+            {tNotifications}
+          </Text>
           {unreadCount > 0 && (
             <Text className="text-xs text-gray-400 mt-0.5">
-              {unreadCount} unread
+              {unreadCount} {tUnread}
             </Text>
           )}
         </View>
@@ -186,7 +228,7 @@ export default function UserNotificationsScreen() {
               className="px-3 py-1.5 rounded-full bg-red-50 active:bg-red-100"
             >
               <Text className="text-red-500 text-xs font-semibold">
-                Clear All
+                {tClearAllBtn}
               </Text>
             </Pressable>
           )}
@@ -196,7 +238,7 @@ export default function UserNotificationsScreen() {
               className="px-3 py-1.5 rounded-full bg-primary/5 active:bg-primary/10"
             >
               <Text className="text-primary text-xs font-semibold">
-                Mark all read
+                {tMarkAllRead}
               </Text>
             </Pressable>
           )}
@@ -207,7 +249,11 @@ export default function UserNotificationsScreen() {
         data={notifications}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => (
-          <NotificationItem item={item} onPress={() => handlePress(item)} />
+          <NotificationItem
+            item={item}
+            onPress={() => handlePress(item)}
+            formatTime={formatTime}
+          />
         )}
         refreshControl={
           <RefreshControl
@@ -230,11 +276,10 @@ export default function UserNotificationsScreen() {
               />
             </View>
             <Text className="text-primary text-lg font-bold mb-2">
-              No Notifications
+              {tNoNotifications}
             </Text>
             <Text className="text-gray-400 text-sm text-center leading-5">
-              You're all caught up! New notifications will appear here when you
-              receive ride updates or announcements.
+              {tEmptyMessage}
             </Text>
           </View>
         }

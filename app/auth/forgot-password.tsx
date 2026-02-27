@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslations } from "@/hooks/use-translation";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
@@ -23,13 +24,47 @@ export default function ForgotPasswordScreen() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
+  const [
+    tEmailRequired,
+    tEnterValidEmail,
+    tError,
+    tSomethingWentWrong,
+    tCheckYourEmail,
+    tAccountExistsPrefix,
+    tAccountExistsSuffix,
+    tEnterResetCode,
+    tBackToLogin,
+    tForgotPassword,
+    tEnterEmailSubtitle,
+    tEmailLabel,
+    tEmailPlaceholder,
+    tSending,
+    tSendResetCode,
+  ] = useTranslations([
+    "Email is required",
+    "Enter a valid email",
+    "Error",
+    "Something went wrong",
+    "Check your email",
+    "If an account exists for ",
+    ", you'll receive a password reset code shortly.",
+    "Enter Reset Code",
+    "Back to login",
+    "Forgot password?",
+    "Enter your email and we'll send you a code to reset your password.",
+    "Email",
+    "your@university.edu",
+    "Sending...",
+    "Send Reset Code",
+  ]);
+
   const handleSubmit = async () => {
     if (!email.trim()) {
-      setError("Email is required");
+      setError(tEmailRequired);
       return;
     }
     if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setError("Enter a valid email");
+      setError(tEnterValidEmail);
       return;
     }
     setError("");
@@ -37,7 +72,7 @@ export default function ForgotPasswordScreen() {
       await forgotPassword(email.trim().toLowerCase());
       setSent(true);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Something went wrong");
+      Alert.alert(tError, err.message || tSomethingWentWrong);
     }
   };
 
@@ -59,14 +94,15 @@ export default function ForgotPasswordScreen() {
             entering={FadeInDown.delay(120).duration(400)}
             className="text-primary text-2xl font-bold mb-2 text-center"
           >
-            Check your email
+            {tCheckYourEmail}
           </Animated.Text>
           <Animated.Text
             entering={FadeInDown.delay(200).duration(400)}
             className="text-gray-400 text-sm text-center leading-5 max-w-[280px] mb-8"
           >
-            If an account exists for {email}, you'll receive a password reset
-            code shortly.
+            {tAccountExistsPrefix}
+            {email}
+            {tAccountExistsSuffix}
           </Animated.Text>
           <Pressable
             onPress={() =>
@@ -78,11 +114,11 @@ export default function ForgotPasswordScreen() {
             className="bg-primary rounded-full py-4 px-12 items-center shadow-lg active:opacity-90"
           >
             <Text className="text-white text-base font-bold">
-              Enter Reset Code
+              {tEnterResetCode}
             </Text>
           </Pressable>
           <Pressable onPress={() => router.back()} className="mt-4">
-            <Text className="text-gray-400 text-sm">Back to login</Text>
+            <Text className="text-gray-400 text-sm">{tBackToLogin}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -121,21 +157,21 @@ export default function ForgotPasswordScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-2"
             >
-              Forgot password?
+              {tForgotPassword}
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm text-center leading-5 max-w-[280px]"
             >
-              Enter your email and we'll send you a code to reset your password.
+              {tEnterEmailSubtitle}
             </Animated.Text>
           </View>
 
           {/* Form */}
           <Animated.View entering={FadeInDown.delay(280).duration(400)}>
             <AuthInput
-              label="Email"
-              placeholder="your@university.edu"
+              label={tEmailLabel}
+              placeholder={tEmailPlaceholder}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -151,7 +187,7 @@ export default function ForgotPasswordScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? "Sending..." : "Send Reset Code"}
+                {isLoading ? tSending : tSendResetCode}
               </Text>
             </Pressable>
           </Animated.View>

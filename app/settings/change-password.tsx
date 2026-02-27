@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslations } from "@/hooks/use-translation";
 import { FadeIn } from "@/components/ui/animations";
 
 export default function ChangePasswordScreen() {
@@ -28,6 +29,40 @@ export default function ChangePasswordScreen() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const [
+    tSuccess,
+    tPasswordChanged,
+    tOK,
+    tError,
+    tFailedToChange,
+    tChangePassword,
+    tStrongPassword,
+    tCurrentPassword,
+    tEnterCurrentPassword,
+    tNewPassword,
+    tEnterNewPassword,
+    tConfirmNewPassword,
+    tConfirmNewPasswordPlaceholder,
+    tPasswordsNoMatch,
+    tUpdatePassword,
+  ] = useTranslations([
+    "Success",
+    "Password changed successfully",
+    "OK",
+    "Error",
+    "Failed to change password",
+    "Change Password",
+    "Choose a strong password with at least 6 characters",
+    "Current Password",
+    "Enter current password",
+    "New Password",
+    "Enter new password",
+    "Confirm New Password",
+    "Confirm new password",
+    "Passwords do not match",
+    "Update Password",
+  ]);
+
   const valid =
     currentPw.length >= 6 && newPw.length >= 6 && newPw === confirmPw;
 
@@ -36,11 +71,11 @@ export default function ChangePasswordScreen() {
     setSaving(true);
     try {
       await changePassword(currentPw, newPw);
-      Alert.alert("Success", "Password changed successfully", [
-        { text: "OK", onPress: () => router.back() },
+      Alert.alert(tSuccess, tPasswordChanged, [
+        { text: tOK, onPress: () => router.back() },
       ]);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to change password");
+      Alert.alert(tError, err.message || tFailedToChange);
     } finally {
       setSaving(false);
     }
@@ -62,7 +97,7 @@ export default function ChangePasswordScreen() {
               <Ionicons name="close" size={20} color="#042F40" />
             </Pressable>
             <Text className="text-primary text-lg font-bold">
-              Change Password
+              {tChangePassword}
             </Text>
             <View className="w-10" />
           </View>
@@ -75,7 +110,7 @@ export default function ChangePasswordScreen() {
                   <Ionicons name="shield-checkmark" size={36} color="#042F40" />
                 </View>
                 <Text className="text-gray-400 text-xs mt-3 text-center px-8">
-                  Choose a strong password with at least 6 characters
+                  {tStrongPassword}
                 </Text>
               </View>
             </FadeIn>
@@ -84,14 +119,14 @@ export default function ChangePasswordScreen() {
             <FadeIn delay={100} duration={400}>
               <View className="mb-4">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5 px-1">
-                  Current Password
+                  {tCurrentPassword}
                 </Text>
                 <View className="flex-row items-center bg-gray-50 rounded-xl border border-gray-200">
                   <TextInput
                     value={currentPw}
                     onChangeText={setCurrentPw}
                     className="flex-1 px-4 py-3.5 text-sm text-black"
-                    placeholder="Enter current password"
+                    placeholder={tEnterCurrentPassword}
                     placeholderTextColor="#9CA3AF"
                     secureTextEntry={!showCurrent}
                   />
@@ -110,14 +145,14 @@ export default function ChangePasswordScreen() {
 
               <View className="mb-4">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5 px-1">
-                  New Password
+                  {tNewPassword}
                 </Text>
                 <View className="flex-row items-center bg-gray-50 rounded-xl border border-gray-200">
                   <TextInput
                     value={newPw}
                     onChangeText={setNewPw}
                     className="flex-1 px-4 py-3.5 text-sm text-black"
-                    placeholder="Enter new password"
+                    placeholder={tEnterNewPassword}
                     placeholderTextColor="#9CA3AF"
                     secureTextEntry={!showNew}
                   />
@@ -136,14 +171,14 @@ export default function ChangePasswordScreen() {
 
               <View className="mb-2">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5 px-1">
-                  Confirm New Password
+                  {tConfirmNewPassword}
                 </Text>
                 <View className="flex-row items-center bg-gray-50 rounded-xl border border-gray-200">
                   <TextInput
                     value={confirmPw}
                     onChangeText={setConfirmPw}
                     className="flex-1 px-4 py-3.5 text-sm text-black"
-                    placeholder="Confirm new password"
+                    placeholder={tConfirmNewPasswordPlaceholder}
                     placeholderTextColor="#9CA3AF"
                     secureTextEntry={!showConfirm}
                   />
@@ -162,7 +197,7 @@ export default function ChangePasswordScreen() {
 
               {newPw && confirmPw && newPw !== confirmPw ? (
                 <Text className="text-red-500 text-xs px-1 mb-4">
-                  Passwords do not match
+                  {tPasswordsNoMatch}
                 </Text>
               ) : (
                 <View className="mb-4" />
@@ -187,7 +222,7 @@ export default function ChangePasswordScreen() {
                     !valid ? "text-gray-400" : "text-white"
                   }`}
                 >
-                  Update Password
+                  {tUpdatePassword}
                 </Text>
               )}
             </Pressable>

@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { authApi } from "@/lib/api";
+import useTranslatorStore from "@/store/useTranslatorStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface DriverProfile {
@@ -36,6 +37,7 @@ export interface User {
   biometric_enabled: boolean;
   pin_enabled: boolean;
   first_login: boolean;
+  preferred_language?: string;
   email_verified?: boolean;
   devices?: { device_id: string; device_name?: string; device_type?: string }[];
   driver?: DriverProfile;
@@ -145,6 +147,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await SecureStore.setItemAsync("token", token);
       await SecureStore.setItemAsync("user_id", user.id);
       set({ user, token, isAuthenticated: true });
+
+      // Sync language preference from backend
+      if (user.preferred_language && user.preferred_language !== "en") {
+        useTranslatorStore.getState().setLanguage(user.preferred_language);
+      }
+
       return res;
     } finally {
       set({ isLoading: false });
@@ -313,6 +321,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const res = await authApi.getMe();
       set({ user: res.data, isAuthenticated: true });
+
+      // Sync language if user has a preference set
+      const lang = res.data?.preferred_language;
+      if (lang && lang !== useTranslatorStore.getState().language) {
+        useTranslatorStore.getState().setLanguage(lang);
+      }
     } catch {
       set({ user: null, token: null, isAuthenticated: false });
     }
@@ -336,6 +350,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         const res = await authApi.getMe();
         set({ user: res.data, isAuthenticated: true });
+
+        // Sync language on hydrate
+        const lang = res.data?.preferred_language;
+        if (lang && lang !== useTranslatorStore.getState().language) {
+          useTranslatorStore.getState().setLanguage(lang);
+        }
       } catch {
         await SecureStore.deleteItemAsync("token");
         set({ token: null, isAuthenticated: false });

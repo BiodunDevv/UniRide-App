@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { authApi } from "@/lib/api";
+import { useTranslations } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -23,6 +24,66 @@ export default function DevicesScreen() {
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
   const [loggingOutAll, setLoggingOutAll] = useState(false);
+
+  const [
+    tError,
+    tFailedLoadDevices,
+    tRemoveDevice,
+    tCancel,
+    tRemove,
+    tFailedRemoveDevice,
+    tLogoutAllDevices,
+    tLogoutAll,
+    tSuccess,
+    tAllDevicesLoggedOut,
+    tFailedLogoutDevices,
+    tYourDevices,
+    tDeviceSignedIn,
+    tDevicesSignedIn,
+    tOther,
+    tUnknownDevice,
+    tThisDevice,
+    tCurrentlyActive,
+    tLastActive,
+    tNoDevicesFound,
+    tLogoutAllOtherDevices,
+    tJustNow,
+    tMAgo,
+    tHAgo,
+    tDAgo,
+    tNever,
+    tRemoveFromAccount,
+    tLogoutAllBody,
+  ] = useTranslations([
+    "Error",
+    "Failed to load devices",
+    "Remove Device",
+    "Cancel",
+    "Remove",
+    "Failed to remove device",
+    "Logout All Devices",
+    "Logout All",
+    "Success",
+    "All other devices have been logged out.",
+    "Failed to logout devices",
+    "Your Devices",
+    "device signed in",
+    "devices signed in",
+    "other",
+    "Unknown Device",
+    "This device",
+    "Currently active",
+    "Last active",
+    "No devices found",
+    "Logout All Other Devices",
+    "Just now",
+    "m ago",
+    "h ago",
+    "d ago",
+    "Never",
+    "from your account? They will be logged out.",
+    "This will sign out all other devices. You'll stay signed in on this device.",
+  ]);
 
   useEffect(() => {
     loadCurrentDeviceId();
@@ -48,7 +109,7 @@ export default function DevicesScreen() {
       });
       setDevices(all);
     } catch {
-      Alert.alert("Error", "Failed to load devices");
+      Alert.alert(tError, tFailedLoadDevices);
     } finally {
       setLoading(false);
     }
@@ -56,12 +117,12 @@ export default function DevicesScreen() {
 
   const handleRemove = (deviceId: string, deviceName: string) => {
     Alert.alert(
-      "Remove Device",
-      `Remove "${deviceName}" from your account? They will be logged out.`,
+      tRemoveDevice,
+      `${tRemove} "${deviceName}" ${tRemoveFromAccount}`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: tCancel, style: "cancel" },
         {
-          text: "Remove",
+          text: tRemove,
           style: "destructive",
           onPress: async () => {
             setRemoving(deviceId);
@@ -69,7 +130,7 @@ export default function DevicesScreen() {
               await authApi.removeDevice(deviceId);
               setDevices((d) => d.filter((dev) => dev.device_id !== deviceId));
             } catch {
-              Alert.alert("Error", "Failed to remove device");
+              Alert.alert(tError, tFailedRemoveDevice);
             } finally {
               setRemoving(null);
             }
@@ -80,29 +141,25 @@ export default function DevicesScreen() {
   };
 
   const handleLogoutAll = () => {
-    Alert.alert(
-      "Logout All Devices",
-      "This will sign out all other devices. You'll stay signed in on this device.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout All",
-          style: "destructive",
-          onPress: async () => {
-            setLoggingOutAll(true);
-            try {
-              await authApi.logoutAllDevices();
-              Alert.alert("Success", "All other devices have been logged out.");
-              loadDevices();
-            } catch {
-              Alert.alert("Error", "Failed to logout devices");
-            } finally {
-              setLoggingOutAll(false);
-            }
-          },
+    Alert.alert(tLogoutAllDevices, tLogoutAllBody, [
+      { text: tCancel, style: "cancel" },
+      {
+        text: tLogoutAll,
+        style: "destructive",
+        onPress: async () => {
+          setLoggingOutAll(true);
+          try {
+            await authApi.logoutAllDevices();
+            Alert.alert(tSuccess, tAllDevicesLoggedOut);
+            loadDevices();
+          } catch {
+            Alert.alert(tError, tFailedLogoutDevices);
+          } finally {
+            setLoggingOutAll(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const getDeviceIcon = (type: string): IoniconsName => {
@@ -112,17 +169,17 @@ export default function DevicesScreen() {
   };
 
   const formatLastActive = (date: string | undefined) => {
-    if (!date) return "Never";
+    if (!date) return tNever;
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1) return "Just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 1) return tJustNow;
+    if (diffMin < 60) return `${diffMin}${tMAgo}`;
     const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffHr < 24) return `${diffHr}${tHAgo}`;
     const diffDay = Math.floor(diffHr / 24);
-    if (diffDay < 7) return `${diffDay}d ago`;
+    if (diffDay < 7) return `${diffDay}${tDAgo}`;
     return d.toLocaleDateString();
   };
 
@@ -144,7 +201,7 @@ export default function DevicesScreen() {
         >
           <Ionicons name="close" size={20} color="#042F40" />
         </Pressable>
-        <Text className="text-primary text-lg font-bold">Your Devices</Text>
+        <Text className="text-primary text-lg font-bold">{tYourDevices}</Text>
         <View className="w-10" />
       </Animated.View>
 
@@ -155,8 +212,9 @@ export default function DevicesScreen() {
       >
         <Ionicons name="shield-checkmark-outline" size={18} color="#042F40" />
         <Text className="text-primary/70 text-xs ml-2 flex-1">
-          {devices.length} device{devices.length !== 1 ? "s" : ""} signed in
-          {otherDeviceCount > 0 && ` · ${otherDeviceCount} other`}
+          {devices.length}{" "}
+          {devices.length !== 1 ? tDevicesSignedIn : tDeviceSignedIn}
+          {otherDeviceCount > 0 && ` · ${otherDeviceCount} ${tOther}`}
         </Text>
       </Animated.View>
 
@@ -200,20 +258,20 @@ export default function DevicesScreen() {
                         className="text-sm font-semibold text-primary flex-shrink"
                         numberOfLines={1}
                       >
-                        {device.device_name || "Unknown Device"}
+                        {device.device_name || tUnknownDevice}
                       </Text>
                       {isCurrent && (
                         <View className="bg-primary px-2 py-0.5 rounded-full">
                           <Text className="text-[9px] font-bold text-white uppercase tracking-wider">
-                            This device
+                            {tThisDevice}
                           </Text>
                         </View>
                       )}
                     </View>
                     <Text className="text-xs text-gray-400 mt-0.5">
                       {isCurrent
-                        ? "Currently active"
-                        : `Last active ${formatLastActive(device.last_login)}`}
+                        ? tCurrentlyActive
+                        : `${tLastActive} ${formatLastActive(device.last_login)}`}
                     </Text>
                   </View>
                   {!isCurrent &&
@@ -224,7 +282,7 @@ export default function DevicesScreen() {
                         onPress={() =>
                           handleRemove(
                             device.device_id,
-                            device.device_name || "Device",
+                            device.device_name || tUnknownDevice,
                           )
                         }
                         className="w-9 h-9 rounded-full bg-red-50 items-center justify-center"
@@ -249,7 +307,7 @@ export default function DevicesScreen() {
                 color="#D1D5DB"
               />
               <Text className="text-gray-400 text-sm mt-4 font-medium">
-                No devices found
+                {tNoDevicesFound}
               </Text>
             </View>
           )}
@@ -271,7 +329,7 @@ export default function DevicesScreen() {
                   <ActivityIndicator size="small" color="#EF4444" />
                 ) : (
                   <Text className="text-red-500 text-sm font-bold">
-                    Logout All Other Devices
+                    {tLogoutAllOtherDevices}
                   </Text>
                 )}
               </Pressable>

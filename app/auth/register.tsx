@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Logo from "@/components/Logo";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslations } from "@/hooks/use-translation";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -26,6 +27,58 @@ export default function RegisterScreen() {
   const router = useRouter();
   const { role } = useLocalSearchParams<{ role?: string }>();
   const { register, isLoading } = useAuthStore();
+
+  const [
+    tFullNameRequired,
+    tEmailRequired,
+    tValidEmail,
+    tPasswordRequired,
+    tPasswordMinChars,
+    tPasswordsNoMatch,
+    tRegFailed,
+    tSomethingWrong,
+    tDriver,
+    tRider,
+    tCreateAccountHeading,
+    tJoinCommunity,
+    tFullName,
+    tJohnDoe,
+    tEmail,
+    tYourEmail,
+    tPassword,
+    tMinChars,
+    tConfirmPassword,
+    tReenterPassword,
+    tCreatingAccount,
+    tCreateAccountBtn,
+    tAlreadyHaveAccount,
+    tSignIn,
+  ] = useTranslations([
+    "Full name is required",
+    "Email is required",
+    "Enter a valid email",
+    "Password is required",
+    "Password must be at least 6 characters",
+    "Passwords do not match",
+    "Registration Failed",
+    "Something went wrong",
+    "Driver",
+    "Rider",
+    "Create account",
+    "Join the UniRide community",
+    "Full Name",
+    "John Doe",
+    "Email",
+    "your@university.edu",
+    "Password",
+    "Min 6 characters",
+    "Confirm Password",
+    "Re-enter your password",
+    "Creating account...",
+    "Create Account",
+    "Already have an account? ",
+    "Sign In",
+  ]);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -35,14 +88,12 @@ export default function RegisterScreen() {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!name.trim()) e.name = "Full name is required";
-    if (!email.trim()) e.email = "Email is required";
-    else if (!/^\S+@\S+\.\S+$/.test(email)) e.email = "Enter a valid email";
-    if (!password) e.password = "Password is required";
-    else if (password.length < 6)
-      e.password = "Password must be at least 6 characters";
-    if (password !== confirmPassword)
-      e.confirmPassword = "Passwords do not match";
+    if (!name.trim()) e.name = tFullNameRequired;
+    if (!email.trim()) e.email = tEmailRequired;
+    else if (!/^\S+@\S+\.\S+$/.test(email)) e.email = tValidEmail;
+    if (!password) e.password = tPasswordRequired;
+    else if (password.length < 6) e.password = tPasswordMinChars;
+    if (password !== confirmPassword) e.confirmPassword = tPasswordsNoMatch;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -50,22 +101,17 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validate() || isLoading) return;
     try {
-      await register(
-        name.trim(),
-        email.trim().toLowerCase(),
-        password,
-        role || "user",
-      );
+      await register(name.trim(), email.trim().toLowerCase(), password, "user");
       router.push({
         pathname: "/auth/verify-email",
-        params: { email: email.trim().toLowerCase() },
+        params: { email: email.trim().toLowerCase(), role: "user" },
       });
     } catch (err: any) {
-      Alert.alert("Registration Failed", err.message || "Something went wrong");
+      Alert.alert(tRegFailed, err.message || tSomethingWrong);
     }
   };
 
-  const isDriver = role === "driver";
+  const isDriver = false;
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top", "bottom"]}>
@@ -108,7 +154,7 @@ export default function RegisterScreen() {
                   isDriver ? "text-amber-700" : "text-primary"
                 }`}
               >
-                {isDriver ? "Driver" : "Rider"}
+                {isDriver ? tDriver : tRider}
               </Text>
             </View>
           </Animated.View>
@@ -125,23 +171,21 @@ export default function RegisterScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-1"
             >
-              Create account
+              {tCreateAccountHeading}
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm"
             >
-              {isDriver
-                ? "Register as a campus driver"
-                : "Join the UniRide community"}
+              {tJoinCommunity}
             </Animated.Text>
           </View>
 
           {/* Form */}
           <Animated.View entering={FadeInDown.delay(280).duration(400)}>
             <AuthInput
-              label="Full Name"
-              placeholder="John Doe"
+              label={tFullName}
+              placeholder={tJohnDoe}
               value={name}
               onChangeText={setName}
               autoCapitalize="words"
@@ -149,8 +193,8 @@ export default function RegisterScreen() {
               error={errors.name}
             />
             <AuthInput
-              label="Email"
-              placeholder="your@university.edu"
+              label={tEmail}
+              placeholder={tYourEmail}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -158,8 +202,8 @@ export default function RegisterScreen() {
               error={errors.email}
             />
             <AuthInput
-              label="Password"
-              placeholder="Min 6 characters"
+              label={tPassword}
+              placeholder={tMinChars}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -167,8 +211,8 @@ export default function RegisterScreen() {
               error={errors.password}
             />
             <AuthInput
-              label="Confirm Password"
-              placeholder="Re-enter your password"
+              label={tConfirmPassword}
+              placeholder={tReenterPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -187,14 +231,14 @@ export default function RegisterScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? "Creating account..." : "Create Account"}
+                {isLoading ? tCreatingAccount : tCreateAccountBtn}
               </Text>
             </Pressable>
 
             {/* Login link */}
             <View className="flex-row justify-center mt-6">
               <Text className="text-gray-400 text-sm">
-                Already have an account?{" "}
+                {tAlreadyHaveAccount}
               </Text>
               <Pressable
                 onPress={() =>
@@ -204,7 +248,9 @@ export default function RegisterScreen() {
                   })
                 }
               >
-                <Text className="text-primary text-sm font-bold">Sign In</Text>
+                <Text className="text-primary text-sm font-bold">
+                  {tSignIn}
+                </Text>
               </Pressable>
             </View>
           </Animated.View>

@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,34 +18,110 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslations } from "@/hooks/use-translation";
 
 const CODE_LENGTH = 6;
 
 export default function VerifyEmailScreen() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{ email: string }>();
+  const { email, role } = useLocalSearchParams<{
+    email: string;
+    role?: string;
+  }>();
   const { verifyEmail, resendVerification, isLoading } = useAuthStore();
+
+  const [
+    tVerificationFailed,
+    tInvalidCode,
+    tSent,
+    tNewCodeSent,
+    tError,
+    tFailedResend,
+    tEmailVerified,
+    tRedirecting,
+    tVerifyYourEmail,
+    tWeSentCode,
+    tPasteHint,
+    tVerifying,
+    tVerifyEmail,
+    tDidntReceive,
+    tSending,
+    tResend,
+  ] = useTranslations([
+    "Verification Failed",
+    "Invalid code",
+    "Sent",
+    "A new verification code has been sent to your email.",
+    "Error",
+    "Failed to resend code",
+    "Email Verified!",
+    "Redirecting you to sign in...",
+    "Verify your email",
+    "We sent a 6-digit code to",
+    "Tip: Long-press any box to paste your code",
+    "Verifying...",
+    "Verify Email",
+    "Didn't receive a code?",
+    "Sending...",
+    "Resend",
+  ]);
 
   const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [resending, setResending] = useState(false);
+  const [verified, setVerified] = useState(false);
   const inputs = useRef<(TextInput | null)[]>([]);
+  const submittedRef = useRef(false);
+
+  // Auto-submit when all 6 digits are filled (e.g. after paste)
+  useEffect(() => {
+    const fullCode = code.join("");
+    if (
+      fullCode.length === CODE_LENGTH &&
+      /^\d{6}$/.test(fullCode) &&
+      !submittedRef.current &&
+      !isLoading &&
+      !verified
+    ) {
+      submittedRef.current = true;
+      Keyboard.dismiss();
+      handleVerify(fullCode);
+    }
+  }, [code]);
 
   const handleChange = (text: string, index: number) => {
-    const newCode = [...code];
-    // Handle paste
-    if (text.length > 1) {
-      const chars = text.slice(0, CODE_LENGTH).split("");
-      chars.forEach((c, i) => {
-        if (i + index < CODE_LENGTH) newCode[i + index] = c;
-      });
+    // Filter to digits only
+    const digits = text.replace(/\D/g, "");
+
+    if (!digits) {
+      const newCode = [...code];
+      newCode[index] = "";
       setCode(newCode);
-      const nextIndex = Math.min(index + chars.length, CODE_LENGTH - 1);
-      inputs.current[nextIndex]?.focus();
+      submittedRef.current = false;
       return;
     }
-    newCode[index] = text;
+
+    const newCode = [...code];
+
+    // Paste: multiple digits
+    if (digits.length > 1) {
+      // If pasting a full code, always start from box 0
+      const startIdx = digits.length >= CODE_LENGTH ? 0 : index;
+      digits
+        .slice(0, CODE_LENGTH - startIdx)
+        .split("")
+        .forEach((c, i) => {
+          if (startIdx + i < CODE_LENGTH) newCode[startIdx + i] = c;
+        });
+      setCode(newCode);
+      const nextIdx = Math.min(startIdx + digits.length, CODE_LENGTH - 1);
+      inputs.current[nextIdx]?.focus();
+      return;
+    }
+
+    // Single digit
+    newCode[index] = digits;
     setCode(newCode);
-    if (text && index < CODE_LENGTH - 1) {
+    if (index < CODE_LENGTH - 1) {
       inputs.current[index + 1]?.focus();
     }
   };
@@ -55,19 +132,26 @@ export default function VerifyEmailScreen() {
       newCode[index - 1] = "";
       setCode(newCode);
       inputs.current[index - 1]?.focus();
+      submittedRef.current = false;
     }
   };
 
-  const handleVerify = async () => {
-    const fullCode = code.join("");
-    if (fullCode.length < CODE_LENGTH || isLoading) return;
+  const handleVerify = async (fullCode?: string) => {
+    const codeStr = fullCode || code.join("");
+    if (codeStr.length < CODE_LENGTH || isLoading || verified) return;
     try {
-      await verifyEmail(email, fullCode);
-      Alert.alert("Success", "Email verified! You can now sign in.", [
-        { text: "OK", onPress: () => router.replace("/auth/login") },
-      ]);
+      await verifyEmail(email, codeStr);
+      setVerified(true);
+      // Brief success animation, then navigate to login with correct role
+      setTimeout(() => {
+        router.replace({
+          pathname: "/auth/login",
+          params: { role: role || "user" },
+        } as any);
+      }, 1500);
     } catch (err: any) {
-      Alert.alert("Verification Failed", err.message || "Invalid code");
+      submittedRef.current = false;
+      Alert.alert(tVerificationFailed, err.message || tInvalidCode);
     }
   };
 
@@ -76,17 +160,46 @@ export default function VerifyEmailScreen() {
     setResending(true);
     try {
       await resendVerification(email);
-      Alert.alert(
-        "Sent",
-        "A new verification code has been sent to your email.",
-      );
+      setCode(Array(CODE_LENGTH).fill(""));
+      submittedRef.current = false;
+      inputs.current[0]?.focus();
+      Alert.alert(tSent, tNewCodeSent);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to resend code");
+      Alert.alert(tError, err.message || tFailedResend);
     } finally {
       setResending(false);
     }
   };
 
+  // ── Success state ──────────────────────────────────────────────────────────
+  if (verified) {
+    return (
+      <SafeAreaView className="flex-1 bg-white" edges={["top", "bottom"]}>
+        <View className="flex-1 items-center justify-center px-6">
+          <Animated.View
+            entering={FadeIn.duration(300)}
+            className="w-20 h-20 rounded-full bg-emerald-50 items-center justify-center mb-5"
+          >
+            <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+          </Animated.View>
+          <Animated.Text
+            entering={FadeInDown.delay(100).duration(300)}
+            className="text-primary text-2xl font-bold mb-2"
+          >
+            {tEmailVerified}
+          </Animated.Text>
+          <Animated.Text
+            entering={FadeInDown.delay(200).duration(300)}
+            className="text-gray-400 text-sm text-center"
+          >
+            {tRedirecting}
+          </Animated.Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Main form ──────────────────────────────────────────────────────────────
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top", "bottom"]}>
       <KeyboardAvoidingView
@@ -114,21 +227,22 @@ export default function VerifyEmailScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-2"
             >
-              Verify your email
+              {tVerifyYourEmail}
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm text-center leading-5"
             >
-              We sent a 6-digit code to{"\n"}
+              {tWeSentCode}
+              {"\n"}
               <Text className="text-primary font-semibold">{email}</Text>
             </Animated.Text>
           </View>
 
-          {/* Code inputs */}
+          {/* Code inputs — no maxLength so paste distributes across all boxes */}
           <Animated.View
             entering={FadeInDown.delay(280).duration(400)}
-            className="flex-row justify-center gap-3 mb-8"
+            className="flex-row justify-center gap-3 mb-2"
           >
             {code.map((digit, index) => (
               <TextInput
@@ -147,16 +261,24 @@ export default function VerifyEmailScreen() {
                   handleKeyPress(nativeEvent.key, index)
                 }
                 keyboardType="number-pad"
-                maxLength={1}
                 selectTextOnFocus
+                autoComplete="one-time-code"
               />
             ))}
           </Animated.View>
 
+          {/* Paste hint */}
+          <Animated.Text
+            entering={FadeInDown.delay(320).duration(400)}
+            className="text-gray-300 text-xs text-center mb-8"
+          >
+            {tPasteHint}
+          </Animated.Text>
+
           {/* Verify button */}
           <Animated.View entering={FadeInUp.delay(350).duration(400)}>
             <Pressable
-              onPress={handleVerify}
+              onPress={() => handleVerify()}
               disabled={isLoading || code.join("").length < CODE_LENGTH}
               className={`bg-primary rounded-full py-4 items-center shadow-lg ${
                 isLoading || code.join("").length < CODE_LENGTH
@@ -165,18 +287,16 @@ export default function VerifyEmailScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? "Verifying..." : "Verify Email"}
+                {isLoading ? tVerifying : tVerifyEmail}
               </Text>
             </Pressable>
 
             {/* Resend */}
             <View className="flex-row justify-center mt-6">
-              <Text className="text-gray-400 text-sm">
-                Didn't receive a code?{" "}
-              </Text>
+              <Text className="text-gray-400 text-sm">{tDidntReceive} </Text>
               <Pressable onPress={handleResend} disabled={resending}>
                 <Text className="text-primary text-sm font-bold">
-                  {resending ? "Sending..." : "Resend"}
+                  {resending ? tSending : tResend}
                 </Text>
               </Pressable>
             </View>

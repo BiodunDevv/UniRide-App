@@ -29,6 +29,17 @@ import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import Logo from "@/components/Logo";
 import { useAuthStore } from "@/store/useAuthStore";
+import useTranslatorStore from "@/store/useTranslatorStore";
+import { useTranslations } from "@/hooks/use-translation";
+
+const LANG_LABEL: Record<string, string> = {
+  en: "EN",
+  yo: "YO",
+  ha: "HA",
+  ig: "IG",
+  fr: "FR",
+  ar: "AR",
+};
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -102,6 +113,7 @@ export default function CurrentUserScreen() {
   const router = useRouter();
   const { user, biometricLogin, pinLogin, forgotPin, resetPin, logout } =
     useAuthStore();
+  const { language } = useTranslatorStore();
   const [authenticating, setAuthenticating] = useState(false);
 
   // PIN state
@@ -126,6 +138,88 @@ export default function CurrentUserScreen() {
   const hasBiometric = user?.biometric_enabled || false;
   const hasPin = user?.pin_enabled || false;
   const hasSecureLogin = hasBiometric || hasPin;
+
+  // ── Translations ────────────────────────────────────────────────
+  const [
+    tDriver,
+    tRider,
+    tWelcomeBack,
+    tResetYourPin,
+    tEnterCode,
+    tChooseNewPin,
+    tTapToEnterCode,
+    tNewPin,
+    tConfirmPin,
+    tResetPin,
+    tCancel,
+    tEnterPin,
+    tTypePin,
+    tDigitsEntered,
+    tTapToEnterPin,
+    tVerifying,
+    tForgotPin,
+    tSending,
+    tQuickSecure,
+    tPinCode,
+    tEnter4Digit,
+    tContinue,
+    tGoToDashboard,
+    tUseAnother,
+    tCodeSent,
+    tCodeSentMsg,
+    tAuthFailed,
+    tBioFailed,
+    tFailed,
+    tInvalidPin,
+    tInvalidCode,
+    tEnter6Digit,
+    tInvalidPinMsg,
+    tMismatch,
+    tMismatchMsg,
+    tSuccess,
+    tPinResetSuccess,
+    tError,
+  ] = useTranslations([
+    "Driver",
+    "Rider",
+    "Welcome back",
+    "Reset Your PIN",
+    "Enter the 6-digit code sent to your email",
+    "Choose a new 4-digit PIN",
+    "Tap to enter code",
+    "New PIN",
+    "Confirm PIN",
+    "Reset PIN",
+    "Cancel",
+    "Enter PIN",
+    "Type your 4-digit PIN to sign in",
+    "digits entered",
+    "Tap to enter PIN",
+    "Verifying...",
+    "Forgot PIN?",
+    "Sending...",
+    "Quick & secure sign-in",
+    "PIN Code",
+    "Enter 4-digit PIN",
+    "Continue",
+    "Go to your dashboard",
+    "Use another account",
+    "Code Sent",
+    "A 6-digit reset code has been sent to your email.",
+    "Authentication Failed",
+    "Biometric login failed.",
+    "Failed",
+    "Invalid PIN.",
+    "Invalid Code",
+    "Enter the 6-digit code from your email.",
+    "Invalid PIN",
+    "New PIN must be exactly 4 digits.",
+    "Mismatch",
+    "PINs don't match. Try again.",
+    "Success",
+    "PIN reset! Sign in with your new PIN.",
+    "Error",
+  ]);
 
   // Animated values for entrance
   const cardProgress = useSharedValue(0);
@@ -196,10 +290,7 @@ export default function CurrentUserScreen() {
         navigateHome();
       }
     } catch (err: any) {
-      Alert.alert(
-        "Authentication Failed",
-        err.message || "Biometric login failed.",
-      );
+      Alert.alert(tAuthFailed, err.message || tBioFailed);
     } finally {
       setAuthenticating(false);
     }
@@ -212,7 +303,7 @@ export default function CurrentUserScreen() {
       await pinLogin(pinValue);
       navigateHome();
     } catch (err: any) {
-      Alert.alert("Failed", err.message || "Invalid PIN.");
+      Alert.alert(tFailed, err.message || tInvalidPin);
       setPinValue("");
       pinRef.current?.focus();
     } finally {
@@ -226,7 +317,7 @@ export default function CurrentUserScreen() {
       await pinLogin(pin);
       navigateHome();
     } catch (err: any) {
-      Alert.alert("Failed", err.message || "Invalid PIN.");
+      Alert.alert(tFailed, err.message || tInvalidPin);
       setPinValue("");
       pinRef.current?.focus();
     } finally {
@@ -242,13 +333,10 @@ export default function CurrentUserScreen() {
       setShowPinInput(false);
       setResetStep("code");
       setResetCode("");
-      Alert.alert(
-        "Code Sent",
-        "A 6-digit reset code has been sent to your email.",
-      );
+      Alert.alert(tCodeSent, tCodeSentMsg);
       setTimeout(() => codeRef.current?.focus(), 400);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to send reset code.");
+      Alert.alert(tError, err.message || "Failed to send reset code.");
     } finally {
       setResetLoading(false);
     }
@@ -256,25 +344,25 @@ export default function CurrentUserScreen() {
 
   const handleResetPin = async () => {
     if (resetCode.length !== 6) {
-      Alert.alert("Invalid Code", "Enter the 6-digit code from your email.");
+      Alert.alert(tInvalidCode, tEnter6Digit);
       return;
     }
     if (!/^\d{4}$/.test(newResetPin)) {
-      Alert.alert("Invalid PIN", "New PIN must be exactly 4 digits.");
+      Alert.alert(tInvalidPinMsg, "New PIN must be exactly 4 digits.");
       return;
     }
     if (newResetPin !== confirmResetPin) {
-      Alert.alert("Mismatch", "PINs don't match. Try again.");
+      Alert.alert(tMismatch, tMismatchMsg);
       setConfirmResetPin("");
       return;
     }
     setResetLoading(true);
     try {
       await resetPin(resetCode, newResetPin);
-      Alert.alert("Success", "PIN reset! Sign in with your new PIN.");
+      Alert.alert(tSuccess, tPinResetSuccess);
       cancelReset();
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to reset PIN.");
+      Alert.alert(tError, err.message || "Failed to reset PIN.");
     } finally {
       setResetLoading(false);
     }
@@ -327,20 +415,39 @@ export default function CurrentUserScreen() {
                     UniRide
                   </Text>
                 </View>
-                <View
-                  className={`px-3 py-1 rounded-full ${
-                    user?.role === "driver" ? "bg-[#D4A017]/10" : "bg-primary/5"
-                  }`}
-                >
-                  <Text
-                    className={`text-[11px] font-bold capitalize ${
+                <View className="flex-row items-center gap-2">
+                  <Pressable
+                    onPress={() => router.push("/language-picker")}
+                    className="flex-row items-center px-3 py-2 rounded-full bg-primary/5 border border-primary/10 active:opacity-70"
+                  >
+                    <Ionicons name="globe-outline" size={16} color="#042F40" />
+                    <Text className="text-primary text-xs font-bold ml-1.5">
+                      {LANG_LABEL[language] || language.toUpperCase()}
+                    </Text>
+                    <Ionicons
+                      name="chevron-down"
+                      size={12}
+                      color="#042F40"
+                      style={{ marginLeft: 2 }}
+                    />
+                  </Pressable>
+                  <View
+                    className={`px-3 py-1 rounded-full ${
                       user?.role === "driver"
-                        ? "text-[#D4A017]"
-                        : "text-primary"
+                        ? "bg-[#D4A017]/10"
+                        : "bg-primary/5"
                     }`}
                   >
-                    {user?.role === "driver" ? "Driver" : "Rider"}
-                  </Text>
+                    <Text
+                      className={`text-[11px] font-bold capitalize ${
+                        user?.role === "driver"
+                          ? "text-[#D4A017]"
+                          : "text-primary"
+                      }`}
+                    >
+                      {user?.role === "driver" ? tDriver : tRider}
+                    </Text>
+                  </View>
                 </View>
               </Animated.View>
 
@@ -363,7 +470,7 @@ export default function CurrentUserScreen() {
                   </Animated.View>
                   <Animated.View style={nameStyle} className="items-center">
                     <Text className="text-gray-400 text-xs font-medium tracking-wide uppercase">
-                      Welcome back
+                      {tWelcomeBack}
                     </Text>
                     <Text className="text-primary text-xl font-bold mt-1">
                       {firstName}
@@ -391,12 +498,10 @@ export default function CurrentUserScreen() {
                           />
                         </View>
                         <Text className="text-primary text-lg font-bold">
-                          Reset Your PIN
+                          {tResetYourPin}
                         </Text>
                         <Text className="text-gray-400 text-xs mt-1 text-center px-4">
-                          {resetStep === "code"
-                            ? "Enter the 6-digit code sent to your email"
-                            : "Choose a new 4-digit PIN"}
+                          {resetStep === "code" ? tEnterCode : tChooseNewPin}
                         </Text>
                       </View>
 
@@ -434,7 +539,7 @@ export default function CurrentUserScreen() {
                             className="bg-gray-50 rounded-2xl py-4 items-center mb-3 border border-gray-100 active:bg-gray-100"
                           >
                             <Text className="text-primary text-sm font-semibold">
-                              Tap to enter code
+                              {tTapToEnterCode}
                             </Text>
                           </Pressable>
                         </Animated.View>
@@ -443,7 +548,7 @@ export default function CurrentUserScreen() {
                           entering={FadeInDown.delay(100).duration(350)}
                         >
                           <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-1 mt-2">
-                            New PIN
+                            {tNewPin}
                           </Text>
                           <PinDots length={4} filled={newResetPin.length} />
                           <TextInput
@@ -463,7 +568,7 @@ export default function CurrentUserScreen() {
                           />
 
                           <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5 px-1">
-                            Confirm PIN
+                            {tConfirmPin}
                           </Text>
                           <PinDots length={4} filled={confirmResetPin.length} />
                           <TextInput
@@ -507,7 +612,7 @@ export default function CurrentUserScreen() {
                                     : "text-gray-400"
                                 }`}
                               >
-                                Reset PIN
+                                {tResetPin}
                               </Text>
                             )}
                           </Pressable>
@@ -519,7 +624,7 @@ export default function CurrentUserScreen() {
                         className="py-3 items-center"
                       >
                         <Text className="text-gray-400 text-sm font-medium">
-                          Cancel
+                          {tCancel}
                         </Text>
                       </Pressable>
                     </Animated.View>
@@ -541,10 +646,10 @@ export default function CurrentUserScreen() {
                           />
                         </Animated.View>
                         <Text className="text-primary text-lg font-bold">
-                          Enter PIN
+                          {tEnterPin}
                         </Text>
                         <Text className="text-gray-400 text-xs mt-1">
-                          Type your 4-digit PIN to sign in
+                          {tTypePin}
                         </Text>
                       </View>
 
@@ -581,8 +686,8 @@ export default function CurrentUserScreen() {
                       >
                         <Text className="text-primary text-sm font-semibold">
                           {pinValue.length > 0
-                            ? `${pinValue.length} of 4 digits entered`
-                            : "Tap to enter PIN"}
+                            ? `${pinValue.length} / 4 ${tDigitsEntered}`
+                            : tTapToEnterPin}
                         </Text>
                       </Pressable>
 
@@ -593,7 +698,7 @@ export default function CurrentUserScreen() {
                         >
                           <ActivityIndicator size="small" color="#042F40" />
                           <Text className="text-gray-400 text-xs mt-2">
-                            Verifying...
+                            {tVerifying}
                           </Text>
                         </Animated.View>
                       )}
@@ -607,7 +712,7 @@ export default function CurrentUserScreen() {
                           className="py-2"
                         >
                           <Text className="text-gray-400 text-xs font-semibold">
-                            Cancel
+                            {tCancel}
                           </Text>
                         </Pressable>
                         <Pressable
@@ -616,7 +721,7 @@ export default function CurrentUserScreen() {
                           className="py-2"
                         >
                           <Text className="text-primary text-xs font-semibold">
-                            {resetLoading ? "Sending..." : "Forgot PIN?"}
+                            {resetLoading ? tSending : tForgotPin}
                           </Text>
                         </Pressable>
                       </View>
@@ -645,7 +750,7 @@ export default function CurrentUserScreen() {
                                 {biometricLabel}
                               </Text>
                               <Text className="text-white/50 text-xs mt-0.5">
-                                Quick & secure sign-in
+                                {tQuickSecure}
                               </Text>
                             </View>
                             {authenticating ? (
@@ -695,7 +800,7 @@ export default function CurrentUserScreen() {
                                   hasBiometric ? "text-primary" : "text-white"
                                 }`}
                               >
-                                PIN Code
+                                {tPinCode}
                               </Text>
                               <Text
                                 className={`text-xs mt-0.5 ${
@@ -704,7 +809,7 @@ export default function CurrentUserScreen() {
                                     : "text-white/50"
                                 }`}
                               >
-                                Enter 4-digit PIN
+                                {tEnter4Digit}
                               </Text>
                             </View>
                             <Ionicons
@@ -737,10 +842,10 @@ export default function CurrentUserScreen() {
                             </View>
                             <View className="flex-1">
                               <Text className="text-white text-base font-bold">
-                                Continue
+                                {tContinue}
                               </Text>
                               <Text className="text-white/50 text-xs mt-0.5">
-                                Go to your dashboard
+                                {tGoToDashboard}
                               </Text>
                             </View>
                             <Ionicons
@@ -775,7 +880,7 @@ export default function CurrentUserScreen() {
                       color="#9CA3AF"
                     />
                     <Text className="text-gray-400 text-sm font-medium ml-1.5">
-                      Use another account
+                      {tUseAnother}
                     </Text>
                   </Pressable>
                 </Animated.View>

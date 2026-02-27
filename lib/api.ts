@@ -244,6 +244,18 @@ export const authApi = {
   },
 
   // ─── Notification Settings ────────────────────────────────────────────────
+  // ─── Language ─────────────────────────────────────────────────────────
+  getAvailableLanguages() {
+    return request("/api/auth/languages");
+  },
+
+  updateLanguagePreference(language: string) {
+    return request("/api/auth/language", {
+      method: "PATCH",
+      body: JSON.stringify({ language }),
+    });
+  },
+
   getNotificationSettings() {
     return request("/api/settings/notifications");
   },

@@ -13,6 +13,9 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
+import useTranslatorStore from "@/store/useTranslatorStore";
+import { useTranslation } from "@/hooks/use-translation";
+import * as WebBrowser from "expo-web-browser";
 import { driverApi } from "@/lib/driverApi";
 import ProfileRow from "@/components/profile/ProfileRow";
 import ProfileSkeleton from "@/components/ui/ProfileSkeleton";
@@ -21,10 +24,42 @@ import { FadeIn, ImagePreviewModal } from "@/components/ui/animations";
 export default function DriverProfileScreen() {
   const router = useRouter();
   const { user, isLoading, fetchMe, logout } = useAuthStore();
+  const { language, availableLanguages } = useTranslatorStore();
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // ─── Translated strings ─────────────────────────────────────────────
+  const signOutText = useTranslation("Sign Out");
+  const signOutConfirmText = useTranslation(
+    "Are you sure you want to sign out?",
+  );
+  const cancelText = useTranslation("Cancel");
+  const accountText = useTranslation("Account");
+  const editProfileText = useTranslation("Edit Profile");
+  const editProfileDescText = useTranslation("Phone, bank, vehicle details");
+  const changePwText = useTranslation("Change Password");
+  const changePwDescText = useTranslation("Update your password");
+  const securitySectionText = useTranslation("Security");
+  const devicesText = useTranslation("Your Devices");
+  const notificationsText = useTranslation("Notifications");
+  const notifSettingsText = useTranslation("Notification Settings");
+  const notifDescText = useTranslation("Manage push & email alerts");
+  const appSectionText = useTranslation("App");
+  const aboutText = useTranslation("About UniRide");
+  const termsText = useTranslation("Terms & Privacy");
+  const supportText = useTranslation("Help & Support");
+  const languageLabelText = useTranslation("Language");
+  const biometricPinText = useTranslation("Biometric & PIN enabled");
+  const biometricOnlyText = useTranslation("Biometric enabled");
+  const pinOnlyText = useTranslation("PIN enabled");
+  const setupSecurityText = useTranslation("Set up biometric or PIN");
+
+  const currentLang = availableLanguages.find((l) => l.code === language);
+  const langDisplayName = currentLang
+    ? `${currentLang.name}${currentLang.native_name && currentLang.native_name !== currentLang.name ? ` (${currentLang.native_name})` : ""}`
+    : language.toUpperCase();
 
   useEffect(() => {
     fetchMe().finally(() => setInitialLoad(false));
@@ -49,10 +84,10 @@ export default function DriverProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(signOutText, signOutConfirmText, [
+      { text: cancelText, style: "cancel" },
       {
-        text: "Sign Out",
+        text: signOutText,
         style: "destructive",
         onPress: async () => {
           await logout();
@@ -224,67 +259,6 @@ export default function DriverProfileScreen() {
           </FadeIn>
         )}
 
-        {/* Vehicle Info */}
-        {driver && (
-          <FadeIn delay={120}>
-            <View className="mx-4 mb-6 bg-primary/5 rounded-2xl p-4">
-              <View className="flex-row items-center mb-3">
-                <View className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center mr-3">
-                  <Ionicons name="car-sport" size={18} color="#042F40" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-primary text-sm font-bold">
-                    {driver.vehicle_model || "Vehicle"}
-                  </Text>
-                  <Text className="text-gray-400 text-xs">
-                    {driver.vehicle_color ? `${driver.vehicle_color} · ` : ""}
-                    {driver.plate_number || ""}
-                  </Text>
-                </View>
-                {driver.rating > 0 && (
-                  <View className="flex-row items-center bg-white px-2.5 py-1 rounded-full">
-                    <Ionicons name="star" size={12} color="#F59E0B" />
-                    <Text className="text-primary text-xs font-bold ml-1">
-                      {driver.rating.toFixed(1)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <View className="flex-row gap-3">
-                <View className="flex-1 bg-white rounded-xl p-3 items-center">
-                  <Text className="text-primary text-xs font-semibold">
-                    {driver.available_seats ?? 0}
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] mt-0.5">
-                    Seats
-                  </Text>
-                </View>
-                <View className="flex-1 bg-white rounded-xl p-3 items-center">
-                  <Text className="text-primary text-xs font-semibold">
-                    {driver.total_ratings ?? 0}
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] mt-0.5">
-                    Ratings
-                  </Text>
-                </View>
-                <View className="flex-1 bg-white rounded-xl p-3 items-center">
-                  <Text className="text-primary text-xs font-semibold font-mono">
-                    {driver.plate_number || "N/A"}
-                  </Text>
-                  <Text className="text-gray-400 text-[10px] mt-0.5">
-                    Plate
-                  </Text>
-                </View>
-              </View>
-              {driver.vehicle_description ? (
-                <Text className="text-gray-500 text-xs mt-3 leading-4">
-                  {driver.vehicle_description}
-                </Text>
-              ) : null}
-            </View>
-          </FadeIn>
-        )}
-
         {/* Vehicle Image */}
         {driver?.vehicle_image && (
           <FadeIn delay={160}>
@@ -303,6 +277,98 @@ export default function DriverProfileScreen() {
                   resizeMode="cover"
                 />
               </Pressable>
+            </View>
+          </FadeIn>
+        )}
+
+        {/* Vehicle Info */}
+        {driver && (
+          <FadeIn delay={120}>
+            <View className="mx-4 mb-6 bg-primary/5 rounded-2xl p-4">
+              {/* Vehicle header row */}
+              <View className="flex-row items-center mb-4">
+                <View className="w-9 h-9 rounded-full bg-primary/10 items-center justify-center mr-3">
+                  <Ionicons name="car-sport" size={18} color="#042F40" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-primary text-sm font-bold">
+                    {driver.vehicle_model || "Vehicle"}
+                  </Text>
+                  <Text className="text-gray-400 text-xs">
+                    {driver.vehicle_color ? `${driver.vehicle_color} · ` : ""}
+                    {driver.plate_number || ""}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Rating display */}
+              <View className="bg-white rounded-xl p-3.5 mb-3">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="flex-row items-center mr-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Ionicons
+                          key={star}
+                          name={
+                            (driver.total_ratings ?? 0) > 0
+                              ? star <= Math.round(driver.rating ?? 0)
+                                ? "star"
+                                : star - 0.5 <= (driver.rating ?? 0)
+                                  ? "star-half"
+                                  : "star-outline"
+                              : "star-outline"
+                          }
+                          size={16}
+                          color={
+                            (driver.total_ratings ?? 0) > 0
+                              ? "#F59E0B"
+                              : "#D1D5DB"
+                          }
+                          style={{ marginRight: 1 }}
+                        />
+                      ))}
+                    </View>
+                    <Text className="text-primary text-base font-bold">
+                      {(driver.total_ratings ?? 0) > 0
+                        ? (driver.rating ?? 0).toFixed(1)
+                        : "—"}
+                    </Text>
+                  </View>
+                  <Text className="text-gray-400 text-xs">
+                    {(driver.total_ratings ?? 0) > 0
+                      ? `${driver.total_ratings} ${driver.total_ratings === 1 ? "review" : "reviews"}`
+                      : "No reviews yet"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Stats row */}
+              <View className="flex-row gap-3">
+                <View className="flex-1 bg-white rounded-xl p-3 items-center">
+                  <Text className="text-primary text-sm font-bold">
+                    {driver.available_seats ?? 0}
+                  </Text>
+                  <Text className="text-gray-400 text-[10px] mt-0.5">
+                    Seats
+                  </Text>
+                </View>
+                <View className="flex-1 bg-white rounded-xl p-3 items-center">
+                  <Text className="text-primary text-sm font-bold">
+                    {driver.total_ratings ?? 0}
+                  </Text>
+                  <Text className="text-gray-400 text-[10px] mt-0.5">
+                    Reviews
+                  </Text>
+                </View>
+                <View className="flex-1 bg-white rounded-xl p-3 items-center">
+                  <Text className="text-primary text-sm font-bold font-mono">
+                    {driver.plate_number || "N/A"}
+                  </Text>
+                  <Text className="text-gray-400 text-[10px] mt-0.5">
+                    Plate
+                  </Text>
+                </View>
+              </View>
             </View>
           </FadeIn>
         )}
@@ -344,21 +410,21 @@ export default function DriverProfileScreen() {
         <FadeIn delay={240}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Account
+              {accountText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="create-outline"
-                label="Edit Profile"
-                value="Phone, bank, vehicle details"
+                label={editProfileText}
+                value={editProfileDescText}
                 onPress={() => router.push("/settings/edit-driver-profile")}
                 accent
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileRow
                 icon="lock-closed-outline"
-                label="Change Password"
-                value="Update your password"
+                label={changePwText}
+                value={changePwDescText}
                 onPress={() => router.push("/settings/change-password")}
               />
             </View>
@@ -369,27 +435,27 @@ export default function DriverProfileScreen() {
         <FadeIn delay={280}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Security
+              {securitySectionText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="shield-checkmark-outline"
-                label="Security"
+                label={securitySectionText}
                 value={
                   user?.biometric_enabled && user?.pin_enabled
-                    ? "Biometric & PIN enabled"
+                    ? biometricPinText
                     : user?.biometric_enabled
-                      ? "Biometric enabled"
+                      ? biometricOnlyText
                       : user?.pin_enabled
-                        ? "PIN enabled"
-                        : "Set up biometric or PIN"
+                        ? pinOnlyText
+                        : setupSecurityText
                 }
                 onPress={() => router.push("/settings/security")}
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileRow
                 icon="phone-portrait-outline"
-                label="Your Devices"
+                label={devicesText}
                 value={`${user?.devices?.length || 0} device(s) signed in`}
                 onPress={() => router.push("/settings/devices")}
               />
@@ -401,13 +467,13 @@ export default function DriverProfileScreen() {
         <FadeIn delay={320}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Notifications
+              {notificationsText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="notifications-outline"
-                label="Notification Settings"
-                value="Manage push & email alerts"
+                label={notifSettingsText}
+                value={notifDescText}
                 onPress={() => router.push("/settings/notification-settings")}
               />
             </View>
@@ -418,19 +484,42 @@ export default function DriverProfileScreen() {
         <FadeIn delay={360}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              App
+              {appSectionText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
+                icon="globe-outline"
+                label={languageLabelText}
+                value={langDisplayName}
+                onPress={() => router.push("/language-picker")}
+              />
+              <View className="h-px bg-gray-100 mx-4" />
+              <ProfileRow
                 icon="information-circle-outline"
-                label="About UniRide"
+                label={aboutText}
                 value="Version 1.0.0"
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileRow
                 icon="document-text-outline"
-                label="Terms & Privacy"
+                label={termsText}
                 onPress={() => router.push("/auth/terms")}
+              />
+              <View className="h-px bg-gray-100 mx-4" />
+              <ProfileRow
+                icon="help-circle-outline"
+                label={supportText}
+                onPress={() =>
+                  WebBrowser.openBrowserAsync(
+                    `${process.env.EXPO_PUBLIC_WEB_URL || "http://172.20.10.4:3000"}/support`,
+                    {
+                      presentationStyle:
+                        WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                      controlsColor: "#042F40",
+                      toolbarColor: "#FFFFFF",
+                    },
+                  )
+                }
               />
             </View>
           </View>
@@ -442,7 +531,7 @@ export default function DriverProfileScreen() {
             <View className="bg-white rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="log-out-outline"
-                label="Sign Out"
+                label={signOutText}
                 onPress={handleLogout}
                 danger
               />

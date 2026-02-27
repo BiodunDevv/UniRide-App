@@ -1,5 +1,6 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import ComingSoon from "@/components/ui/ComingSoon";
+import LanguageOnboarding from "@/components/LanguageOnboarding";
 
 export default function HomeScreen() {
   return (
@@ -8,6 +9,7 @@ export default function HomeScreen() {
         title="Home"
         subtitle="Your campus ride-hailing dashboard is on its way. Book rides, track in real-time, and travel safely."
       />
+      <LanguageOnboarding />
     </SafeAreaView>
   );
 }

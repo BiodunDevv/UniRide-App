@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslations } from "@/hooks/use-translation";
 import { FadeIn } from "@/components/ui/animations";
 
 export default function BiometricScreen() {
@@ -28,6 +29,62 @@ export default function BiometricScreen() {
   const biometricIcon: React.ComponentProps<typeof Ionicons>["name"] = isIOS
     ? "scan-outline"
     : "finger-print";
+
+  const [
+    tAuthToEnable,
+    tUsePasscode,
+    tEnabled,
+    tLoginEnabled,
+    tError,
+    tFailedToEnable,
+    tDisable,
+    tConfirmDisablePre,
+    tConfirmDisablePost,
+    tCancel,
+    tDisabled,
+    tLoginDisabled,
+    tFailedToDisable,
+    tEnable,
+    tSignInDescPre,
+    tSignInDescPost,
+    tQuickSignInPre,
+    tQuickSignInPost,
+    tActive,
+    tInactive,
+    tUsedForSignIn,
+    tNotEnabled,
+    tHardwareNotAvailable,
+    tNo,
+    tIsEnrolledSetUp,
+    tInDeviceSettings,
+  ] = useTranslations([
+    "Authenticate to enable",
+    "Use passcode",
+    "Enabled",
+    "login has been enabled.",
+    "Error",
+    "Failed to enable",
+    "Disable",
+    "Are you sure you want to disable",
+    "login? You'll need to enter your password to sign in.",
+    "Cancel",
+    "Disabled",
+    "login has been disabled.",
+    "Failed to disable",
+    "Enable",
+    "You can sign in to UniRide using",
+    "This is faster and more secure than entering your password.",
+    "Sign in quickly and securely with",
+    "No need to type your password every time.",
+    "Active",
+    "Inactive",
+    "is being used for sign-in",
+    "is not enabled",
+    "hardware not available on this device.",
+    "No",
+    "is enrolled. Set up",
+    "in your device settings first.",
+  ]);
 
   useEffect(() => {
     checkCapability();
@@ -51,18 +108,18 @@ export default function BiometricScreen() {
     setToggling(true);
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Authenticate to enable ${biometricName}`,
-        fallbackLabel: "Use passcode",
+        promptMessage: `${tAuthToEnable} ${biometricName}`,
+        fallbackLabel: tUsePasscode,
         disableDeviceFallback: false,
       });
 
       if (result.success) {
         await enableBiometric();
         await fetchMe();
-        Alert.alert("Enabled", `${biometricName} login has been enabled.`);
+        Alert.alert(tEnabled, `${biometricName} ${tLoginEnabled}`);
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || `Failed to enable ${biometricName}`);
+      Alert.alert(tError, err.message || `${tFailedToEnable} ${biometricName}`);
     } finally {
       setToggling(false);
     }
@@ -70,26 +127,23 @@ export default function BiometricScreen() {
 
   const handleDisable = async () => {
     Alert.alert(
-      `Disable ${biometricName}`,
-      `Are you sure you want to disable ${biometricName} login? You'll need to enter your password to sign in.`,
+      `${tDisable} ${biometricName}`,
+      `${tConfirmDisablePre} ${biometricName} ${tConfirmDisablePost}`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: tCancel, style: "cancel" },
         {
-          text: "Disable",
+          text: tDisable,
           style: "destructive",
           onPress: async () => {
             setToggling(true);
             try {
               await disableBiometric();
               await fetchMe();
-              Alert.alert(
-                "Disabled",
-                `${biometricName} login has been disabled.`,
-              );
+              Alert.alert(tDisabled, `${biometricName} ${tLoginDisabled}`);
             } catch (err: any) {
               Alert.alert(
-                "Error",
-                err.message || `Failed to disable ${biometricName}`,
+                tError,
+                err.message || `${tFailedToDisable} ${biometricName}`,
               );
             } finally {
               setToggling(false);
@@ -139,13 +193,13 @@ export default function BiometricScreen() {
             </View>
             <Text className="text-primary text-xl font-bold mb-2">
               {isEnabled
-                ? `${biometricName} Enabled`
-                : `Enable ${biometricName}`}
+                ? `${biometricName} ${tEnabled}`
+                : `${tEnable} ${biometricName}`}
             </Text>
             <Text className="text-gray-400 text-sm text-center px-8 leading-5">
               {isEnabled
-                ? `You can sign in to UniRide using ${biometricName}. This is faster and more secure than entering your password.`
-                : `Sign in quickly and securely with ${biometricName}. No need to type your password every time.`}
+                ? `${tSignInDescPre} ${biometricName}. ${tSignInDescPost}`
+                : `${tQuickSignInPre} ${biometricName}. ${tQuickSignInPost}`}
             </Text>
           </View>
         </FadeIn>
@@ -175,12 +229,12 @@ export default function BiometricScreen() {
                 <Text
                   className={`text-sm font-bold ${isEnabled ? "text-green-700" : "text-gray-500"}`}
                 >
-                  {isEnabled ? "Active" : "Inactive"}
+                  {isEnabled ? tActive : tInactive}
                 </Text>
                 <Text className="text-xs text-gray-400 mt-0.5">
                   {isEnabled
-                    ? `${biometricName} is being used for sign-in`
-                    : `${biometricName} is not enabled`}
+                    ? `${biometricName} ${tUsedForSignIn}`
+                    : `${biometricName} ${tNotEnabled}`}
                 </Text>
               </View>
             </View>
@@ -193,7 +247,7 @@ export default function BiometricScreen() {
             <View className="flex-row items-center">
               <Ionicons name="warning-outline" size={20} color="#D97706" />
               <Text className="text-amber-700 text-sm font-medium ml-2 flex-1">
-                {biometricName} hardware not available on this device.
+                {biometricName} {tHardwareNotAvailable}
               </Text>
             </View>
           </View>
@@ -204,8 +258,8 @@ export default function BiometricScreen() {
             <View className="flex-row items-center">
               <Ionicons name="warning-outline" size={20} color="#D97706" />
               <Text className="text-amber-700 text-sm font-medium ml-2 flex-1">
-                No {biometricName} is enrolled. Set up {biometricName} in your
-                device settings first.
+                {tNo} {biometricName} {tIsEnrolledSetUp} {biometricName}{" "}
+                {tInDeviceSettings}
               </Text>
             </View>
           </View>
@@ -224,7 +278,7 @@ export default function BiometricScreen() {
               <ActivityIndicator size="small" color="#EF4444" />
             ) : (
               <Text className="text-red-500 text-base font-bold">
-                Disable {biometricName}
+                {tDisable} {biometricName}
               </Text>
             )}
           </Pressable>
@@ -244,7 +298,7 @@ export default function BiometricScreen() {
                   !available || !enrolled ? "text-gray-400" : "text-white"
                 }`}
               >
-                Enable {biometricName}
+                {tEnable} {biometricName}
               </Text>
             )}
           </Pressable>

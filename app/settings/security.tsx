@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useAuthStore } from "@/store/useAuthStore";
 import { FadeIn } from "@/components/ui/animations";
+import { useTranslations } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -54,6 +55,124 @@ export default function SecurityScreen() {
   const biometricEnabled = user?.biometric_enabled || false;
   const pinEnabled = user?.pin_enabled || false;
 
+  const [
+    tDisable,
+    tAreYouSureDisable,
+    tLoginQuestion,
+    tCancel,
+    tError,
+    tFailed,
+    tAuthenticateToEnable,
+    tUsePasscode,
+    tEnabled,
+    tLoginEnabledMsg,
+    tInvalidPin,
+    tPinMust4Digits,
+    tMismatch,
+    tPinsDontMatch,
+    tRequired,
+    tEnterCurrentPasswordVerify,
+    tSuccess,
+    tPinLoginEnabled,
+    tFailedSetupPin,
+    tNewPinMust4Digits,
+    tEnterCurrentPinMsg,
+    tPinUpdatedSuccessfully,
+    tFailedUpdatePin,
+    tRemovePin,
+    tEnterPasswordRemovePin,
+    tRemove,
+    tRemoved,
+    tPinLoginDisabled,
+    tSecurity,
+    tBiometric,
+    t4DigitPin,
+    tLogin,
+    tEnabledTapToDisable,
+    tHardwareNotAvailable,
+    tSetUp,
+    tInDeviceSettings,
+    tTapToEnableQuickSignIn,
+    tPinLogin,
+    tEnabledSignInWith4DigitPin,
+    tSetUpQuick4DigitPin,
+    tOn,
+    tOff,
+    tSetUpPin,
+    tChangePin,
+    tEnter4DigitPin,
+    tConfirmPin,
+    tCurrentPasswordForVerification,
+    tEnablePin,
+    tCurrentPin,
+    tNew4DigitPin,
+    tUpdatePin,
+    tSecurityTips,
+    tUse,
+    tForFastestSignIn,
+    tPinProvidesQuickAlt,
+    tIsntAvailable,
+    tBothOptionsKeep,
+  ] = useTranslations([
+    "Disable",
+    "Are you sure you want to disable",
+    "login?",
+    "Cancel",
+    "Error",
+    "Failed",
+    "Authenticate to enable",
+    "Use passcode",
+    "Enabled",
+    "login enabled.",
+    "Invalid PIN",
+    "PIN must be exactly 4 digits.",
+    "Mismatch",
+    "PINs don't match.",
+    "Required",
+    "Enter your current password to verify.",
+    "Success",
+    "PIN login has been enabled.",
+    "Failed to set up PIN.",
+    "New PIN must be exactly 4 digits.",
+    "Enter your current PIN.",
+    "PIN updated successfully.",
+    "Failed to update PIN.",
+    "Remove PIN",
+    "Enter your password to remove PIN login.",
+    "Remove",
+    "Removed",
+    "PIN login has been disabled.",
+    "Security",
+    "Biometric",
+    "4-Digit PIN",
+    "Login",
+    "Enabled — tap to disable",
+    "Hardware not available",
+    "Set up",
+    "in device settings",
+    "Tap to enable quick sign-in",
+    "PIN Login",
+    "Enabled — sign in with 4-digit PIN",
+    "Set up a quick 4-digit PIN for sign-in",
+    "ON",
+    "OFF",
+    "Set Up PIN",
+    "Change PIN",
+    "Enter 4-digit PIN",
+    "Confirm PIN",
+    "Current password (for verification)",
+    "Enable PIN",
+    "Current PIN",
+    "New 4-digit PIN",
+    "Update PIN",
+    "Security Tips",
+    "Use",
+    "for the fastest, most secure sign-in",
+    "PIN provides a quick alternative when",
+    "isn't available",
+    "Both options keep your password safe and secure",
+  ]);
+
   useEffect(() => {
     checkCapability();
   }, []);
@@ -77,12 +196,12 @@ export default function SecurityScreen() {
   const handleToggleBiometric = async () => {
     if (biometricEnabled) {
       Alert.alert(
-        `Disable ${biometricName}`,
-        `Are you sure you want to disable ${biometricName} login?`,
+        `${tDisable} ${biometricName}`,
+        `${tAreYouSureDisable} ${biometricName} ${tLoginQuestion}`,
         [
-          { text: "Cancel", style: "cancel" },
+          { text: tCancel, style: "cancel" },
           {
-            text: "Disable",
+            text: tDisable,
             style: "destructive",
             onPress: async () => {
               setToggling(true);
@@ -90,7 +209,7 @@ export default function SecurityScreen() {
                 await disableBiometric();
                 await fetchMe();
               } catch (err: any) {
-                Alert.alert("Error", err.message || "Failed");
+                Alert.alert(tError, err.message || tFailed);
               } finally {
                 setToggling(false);
               }
@@ -102,17 +221,17 @@ export default function SecurityScreen() {
       setToggling(true);
       try {
         const result = await LocalAuthentication.authenticateAsync({
-          promptMessage: `Authenticate to enable ${biometricName}`,
-          fallbackLabel: "Use passcode",
+          promptMessage: `${tAuthenticateToEnable} ${biometricName}`,
+          fallbackLabel: tUsePasscode,
           disableDeviceFallback: false,
         });
         if (result.success) {
           await enableBiometric();
           await fetchMe();
-          Alert.alert("Enabled", `${biometricName} login enabled.`);
+          Alert.alert(tEnabled, `${biometricName} ${tLoginEnabledMsg}`);
         }
       } catch (err: any) {
-        Alert.alert("Error", err.message || "Failed");
+        Alert.alert(tError, err.message || tFailed);
       } finally {
         setToggling(false);
       }
@@ -123,25 +242,25 @@ export default function SecurityScreen() {
 
   const handleSetupPin = async () => {
     if (!/^\d{4}$/.test(pin)) {
-      Alert.alert("Invalid PIN", "PIN must be exactly 4 digits.");
+      Alert.alert(tInvalidPin, tPinMust4Digits);
       return;
     }
     if (pin !== confirmPin) {
-      Alert.alert("Mismatch", "PINs don't match.");
+      Alert.alert(tMismatch, tPinsDontMatch);
       return;
     }
     if (!password) {
-      Alert.alert("Required", "Enter your current password to verify.");
+      Alert.alert(tRequired, tEnterCurrentPasswordVerify);
       return;
     }
     setPinLoading(true);
     try {
       await setupPin(pin, password);
       await fetchMe();
-      Alert.alert("Success", "PIN login has been enabled.");
+      Alert.alert(tSuccess, tPinLoginEnabled);
       resetPinForm();
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to set up PIN.");
+      Alert.alert(tError, err.message || tFailedSetupPin);
     } finally {
       setPinLoading(false);
     }
@@ -149,20 +268,20 @@ export default function SecurityScreen() {
 
   const handleUpdatePin = async () => {
     if (!/^\d{4}$/.test(newPin)) {
-      Alert.alert("Invalid PIN", "New PIN must be exactly 4 digits.");
+      Alert.alert(tInvalidPin, tNewPinMust4Digits);
       return;
     }
     if (!currentPin) {
-      Alert.alert("Required", "Enter your current PIN.");
+      Alert.alert(tRequired, tEnterCurrentPinMsg);
       return;
     }
     setPinLoading(true);
     try {
       await updatePin(currentPin, newPin);
-      Alert.alert("Success", "PIN updated successfully.");
+      Alert.alert(tSuccess, tPinUpdatedSuccessfully);
       resetPinForm();
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to update PIN.");
+      Alert.alert(tError, err.message || tFailedUpdatePin);
     } finally {
       setPinLoading(false);
     }
@@ -170,12 +289,12 @@ export default function SecurityScreen() {
 
   const handleRemovePin = () => {
     Alert.prompt(
-      "Remove PIN",
-      "Enter your password to remove PIN login.",
+      tRemovePin,
+      tEnterPasswordRemovePin,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: tCancel, style: "cancel" },
         {
-          text: "Remove",
+          text: tRemove,
           style: "destructive",
           onPress: async (pw: string | undefined) => {
             if (!pw) return;
@@ -183,9 +302,9 @@ export default function SecurityScreen() {
             try {
               await removePin(pw);
               await fetchMe();
-              Alert.alert("Removed", "PIN login has been disabled.");
+              Alert.alert(tRemoved, tPinLoginDisabled);
             } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed");
+              Alert.alert(tError, err.message || tFailed);
             } finally {
               setPinLoading(false);
             }
@@ -229,7 +348,7 @@ export default function SecurityScreen() {
             >
               <Ionicons name="close" size={20} color="#042F40" />
             </Pressable>
-            <Text className="text-primary text-lg font-bold">Security</Text>
+            <Text className="text-primary text-lg font-bold">{tSecurity}</Text>
             <View className="w-10" />
           </View>
 
@@ -242,7 +361,7 @@ export default function SecurityScreen() {
             {/* ── Biometric Section ─────────────────────────────────────── */}
             <FadeIn delay={0} duration={400}>
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 mt-2">
-                Biometric
+                {tBiometric}
               </Text>
               <View className="bg-white rounded-2xl border border-gray-100 mb-6">
                 <Pressable
@@ -263,16 +382,16 @@ export default function SecurityScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-bold text-primary">
-                      {biometricName} Login
+                      {biometricName} {tLogin}
                     </Text>
                     <Text className="text-xs text-gray-400 mt-0.5">
                       {biometricEnabled
-                        ? "Enabled — tap to disable"
+                        ? tEnabledTapToDisable
                         : !available
-                          ? "Hardware not available"
+                          ? tHardwareNotAvailable
                           : !enrolled
-                            ? `Set up ${biometricName} in device settings`
-                            : "Tap to enable quick sign-in"}
+                            ? `${tSetUp} ${biometricName} ${tInDeviceSettings}`
+                            : tTapToEnableQuickSignIn}
                     </Text>
                   </View>
                   {toggling ? (
@@ -297,7 +416,7 @@ export default function SecurityScreen() {
             {/* ── PIN Section ───────────────────────────────────────────── */}
             <FadeIn delay={100} duration={400}>
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                4-Digit PIN
+                {t4DigitPin}
               </Text>
               <View className="bg-white rounded-2xl border border-gray-100 mb-6">
                 {/* PIN Status */}
@@ -315,12 +434,12 @@ export default function SecurityScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-bold text-primary">
-                      PIN Login
+                      {tPinLogin}
                     </Text>
                     <Text className="text-xs text-gray-400 mt-0.5">
                       {pinEnabled
-                        ? "Enabled — sign in with 4-digit PIN"
-                        : "Set up a quick 4-digit PIN for sign-in"}
+                        ? tEnabledSignInWith4DigitPin
+                        : tSetUpQuick4DigitPin}
                     </Text>
                   </View>
                   <View
@@ -333,7 +452,7 @@ export default function SecurityScreen() {
                         pinEnabled ? "text-green-600" : "text-gray-400"
                       }`}
                     >
-                      {pinEnabled ? "ON" : "OFF"}
+                      {pinEnabled ? tOn : tOff}
                     </Text>
                   </View>
                 </View>
@@ -352,7 +471,7 @@ export default function SecurityScreen() {
                       color="#042F40"
                     />
                     <Text className="text-sm font-semibold text-primary ml-3">
-                      Set Up PIN
+                      {tSetUpPin}
                     </Text>
                   </Pressable>
                 )}
@@ -369,7 +488,7 @@ export default function SecurityScreen() {
                         color="#042F40"
                       />
                       <Text className="text-sm font-semibold text-primary ml-3">
-                        Change PIN
+                        {tChangePin}
                       </Text>
                     </Pressable>
                     <View className="h-px bg-gray-100 mx-4" />
@@ -384,7 +503,7 @@ export default function SecurityScreen() {
                         color="#EF4444"
                       />
                       <Text className="text-sm font-semibold text-red-500 ml-3">
-                        Remove PIN
+                        {tRemovePin}
                       </Text>
                     </Pressable>
                   </>
@@ -394,7 +513,7 @@ export default function SecurityScreen() {
                 {showPinSetup && (
                   <View className="p-4 pt-2">
                     <TextInput
-                      placeholder="Enter 4-digit PIN"
+                      placeholder={tEnter4DigitPin}
                       placeholderTextColor="#9CA3AF"
                       value={pin}
                       onChangeText={(t) =>
@@ -406,7 +525,7 @@ export default function SecurityScreen() {
                       className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-primary mb-3"
                     />
                     <TextInput
-                      placeholder="Confirm PIN"
+                      placeholder={tConfirmPin}
                       placeholderTextColor="#9CA3AF"
                       value={confirmPin}
                       onChangeText={(t) =>
@@ -418,7 +537,7 @@ export default function SecurityScreen() {
                       className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-primary mb-3"
                     />
                     <TextInput
-                      placeholder="Current password (for verification)"
+                      placeholder={tCurrentPasswordForVerification}
                       placeholderTextColor="#9CA3AF"
                       value={password}
                       onChangeText={setPassword}
@@ -431,7 +550,7 @@ export default function SecurityScreen() {
                         className="flex-1 py-3 rounded-xl items-center border border-gray-200"
                       >
                         <Text className="text-gray-500 text-sm font-semibold">
-                          Cancel
+                          {tCancel}
                         </Text>
                       </Pressable>
                       <Pressable
@@ -443,7 +562,7 @@ export default function SecurityScreen() {
                           <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <Text className="text-white text-sm font-bold">
-                            Enable PIN
+                            {tEnablePin}
                           </Text>
                         )}
                       </Pressable>
@@ -455,7 +574,7 @@ export default function SecurityScreen() {
                 {showPinUpdate && (
                   <View className="p-4 pt-2">
                     <TextInput
-                      placeholder="Current PIN"
+                      placeholder={tCurrentPin}
                       placeholderTextColor="#9CA3AF"
                       value={currentPin}
                       onChangeText={(t) =>
@@ -467,7 +586,7 @@ export default function SecurityScreen() {
                       className="border border-gray-200 rounded-xl px-4 py-3 text-sm text-primary mb-3"
                     />
                     <TextInput
-                      placeholder="New 4-digit PIN"
+                      placeholder={tNew4DigitPin}
                       placeholderTextColor="#9CA3AF"
                       value={newPin}
                       onChangeText={(t) =>
@@ -484,7 +603,7 @@ export default function SecurityScreen() {
                         className="flex-1 py-3 rounded-xl items-center border border-gray-200"
                       >
                         <Text className="text-gray-500 text-sm font-semibold">
-                          Cancel
+                          {tCancel}
                         </Text>
                       </Pressable>
                       <Pressable
@@ -496,7 +615,7 @@ export default function SecurityScreen() {
                           <ActivityIndicator size="small" color="#fff" />
                         ) : (
                           <Text className="text-white text-sm font-bold">
-                            Update PIN
+                            {tUpdatePin}
                           </Text>
                         )}
                       </Pressable>
@@ -516,14 +635,14 @@ export default function SecurityScreen() {
                     color="#042F40"
                   />
                   <Text className="text-primary text-sm font-bold ml-2">
-                    Security Tips
+                    {tSecurityTips}
                   </Text>
                 </View>
                 <Text className="text-gray-400 text-xs leading-5">
-                  • Use {biometricName} for the fastest, most secure sign-in
-                  {"\n"}• PIN provides a quick alternative when {biometricName}{" "}
-                  isn't available{"\n"}• Both options keep your password safe
-                  and secure
+                  • {tUse} {biometricName} {tForFastestSignIn}
+                  {"\n"}• {tPinProvidesQuickAlt} {biometricName}{" "}
+                  {tIsntAvailable}
+                  {"\n"}• {tBothOptionsKeep}
                 </Text>
               </View>
             </FadeIn>

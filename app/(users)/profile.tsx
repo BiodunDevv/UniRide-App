@@ -12,6 +12,9 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
+import useTranslatorStore from "@/store/useTranslatorStore";
+import { useTranslation } from "@/hooks/use-translation";
+import * as WebBrowser from "expo-web-browser";
 import ProfileRow from "@/components/profile/ProfileRow";
 import ProfileSkeleton from "@/components/ui/ProfileSkeleton";
 import { FadeIn, ImagePreviewModal } from "@/components/ui/animations";
@@ -19,9 +22,43 @@ import { FadeIn, ImagePreviewModal } from "@/components/ui/animations";
 export default function UserProfileScreen() {
   const router = useRouter();
   const { user, isLoading, fetchMe, logout } = useAuthStore();
+  const { language, availableLanguages } = useTranslatorStore();
   const [refreshing, setRefreshing] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // ─── Translated strings ─────────────────────────────────────────────
+  const signOutText = useTranslation("Sign Out");
+  const signOutConfirmText = useTranslation(
+    "Are you sure you want to sign out?",
+  );
+  const cancelText = useTranslation("Cancel");
+  const accountText = useTranslation("Account");
+  const editProfileText = useTranslation("Edit Profile");
+  const editProfileDescText = useTranslation("Update your name and details");
+  const changePwText = useTranslation("Change Password");
+  const changePwDescText = useTranslation("Update your password");
+  const securityText = useTranslation("Security");
+  const devicesText = useTranslation("Your Devices");
+  const notificationsText = useTranslation("Notifications");
+  const notifSettingsText = useTranslation("Notification Settings");
+  const notifDescText = useTranslation("Manage push & email alerts");
+  const appText = useTranslation("App");
+  const aboutText = useTranslation("About UniRide");
+  const termsText = useTranslation("Terms & Privacy");
+  const supportText = useTranslation("Help & Support");
+  const verifiedText = useTranslation("Verified");
+  const unverifiedText = useTranslation("Unverified");
+  const languageText = useTranslation("Language");
+  const biometricPinText = useTranslation("Biometric & PIN enabled");
+  const biometricOnlyText = useTranslation("Biometric enabled");
+  const pinOnlyText = useTranslation("PIN enabled");
+  const setupSecurityText = useTranslation("Set up biometric or PIN");
+
+  const currentLang = availableLanguages.find((l) => l.code === language);
+  const langDisplayName = currentLang
+    ? `${currentLang.name}${currentLang.native_name && currentLang.native_name !== currentLang.name ? ` (${currentLang.native_name})` : ""}`
+    : language.toUpperCase();
 
   useEffect(() => {
     fetchMe().finally(() => setInitialLoad(false));
@@ -34,10 +71,10 @@ export default function UserProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(signOutText, signOutConfirmText, [
+      { text: cancelText, style: "cancel" },
       {
-        text: "Sign Out",
+        text: signOutText,
         style: "destructive",
         onPress: async () => {
           await logout();
@@ -116,13 +153,13 @@ export default function UserProfileScreen() {
                 <View className="bg-green-50 px-3 py-1 rounded-full flex-row items-center gap-1">
                   <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
                   <Text className="text-green-600 text-xs font-semibold">
-                    Verified
+                    {verifiedText}
                   </Text>
                 </View>
               ) : (
                 <View className="bg-amber-50 px-3 py-1 rounded-full">
                   <Text className="text-amber-600 text-xs font-semibold">
-                    Unverified
+                    {unverifiedText}
                   </Text>
                 </View>
               )}
@@ -134,20 +171,20 @@ export default function UserProfileScreen() {
         <FadeIn delay={80}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Account
+              {accountText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="person-outline"
-                label="Edit Profile"
-                value="Update your name and details"
+                label={editProfileText}
+                value={editProfileDescText}
                 onPress={() => router.push("/settings/edit-profile")}
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileRow
                 icon="lock-closed-outline"
-                label="Change Password"
-                value="Update your password"
+                label={changePwText}
+                value={changePwDescText}
                 onPress={() => router.push("/settings/change-password")}
               />
             </View>
@@ -158,27 +195,27 @@ export default function UserProfileScreen() {
         <FadeIn delay={140}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Security
+              {securityText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="shield-checkmark-outline"
-                label="Security"
+                label={securityText}
                 value={
                   user?.biometric_enabled && user?.pin_enabled
-                    ? "Biometric & PIN enabled"
+                    ? biometricPinText
                     : user?.biometric_enabled
-                      ? "Biometric enabled"
+                      ? biometricOnlyText
                       : user?.pin_enabled
-                        ? "PIN enabled"
-                        : "Set up biometric or PIN"
+                        ? pinOnlyText
+                        : setupSecurityText
                 }
                 onPress={() => router.push("/settings/security")}
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileRow
                 icon="phone-portrait-outline"
-                label="Your Devices"
+                label={devicesText}
                 value={`${user?.devices?.length || 0} device(s) signed in`}
                 onPress={() => router.push("/settings/devices")}
               />
@@ -190,13 +227,13 @@ export default function UserProfileScreen() {
         <FadeIn delay={200}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Notifications
+              {notificationsText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="notifications-outline"
-                label="Notification Settings"
-                value="Manage push & email alerts"
+                label={notifSettingsText}
+                value={notifDescText}
                 onPress={() => router.push("/settings/notification-settings")}
               />
             </View>
@@ -207,19 +244,42 @@ export default function UserProfileScreen() {
         <FadeIn delay={260}>
           <View className="mb-6">
             <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              App
+              {appText}
             </Text>
             <View className="bg-white mx-4 rounded-2xl border border-gray-100">
               <ProfileRow
+                icon="globe-outline"
+                label={languageText}
+                value={langDisplayName}
+                onPress={() => router.push("/language-picker")}
+              />
+              <View className="h-px bg-gray-100 mx-4" />
+              <ProfileRow
                 icon="information-circle-outline"
-                label="About UniRide"
+                label={aboutText}
                 value="Version 1.0.0"
               />
               <View className="h-px bg-gray-100 mx-4" />
               <ProfileRow
                 icon="document-text-outline"
-                label="Terms & Privacy"
+                label={termsText}
                 onPress={() => router.push("/auth/terms")}
+              />
+              <View className="h-px bg-gray-100 mx-4" />
+              <ProfileRow
+                icon="help-circle-outline"
+                label={supportText}
+                onPress={() =>
+                  WebBrowser.openBrowserAsync(
+                    `${process.env.EXPO_PUBLIC_WEB_URL || "http://172.20.10.4:3000"}/support`,
+                    {
+                      presentationStyle:
+                        WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                      controlsColor: "#042F40",
+                      toolbarColor: "#FFFFFF",
+                    },
+                  )
+                }
               />
             </View>
           </View>
@@ -231,7 +291,7 @@ export default function UserProfileScreen() {
             <View className="bg-white rounded-2xl border border-gray-100">
               <ProfileRow
                 icon="log-out-outline"
-                label="Sign Out"
+                label={signOutText}
                 onPress={handleLogout}
                 danger
               />

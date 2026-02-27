@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslations } from "@/hooks/use-translation";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -25,14 +26,54 @@ export default function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [
+    tResetCodeRequired,
+    tNewPasswordRequired,
+    tPasswordMinChars,
+    tPasswordsNoMatch,
+    tPasswordResetTitle,
+    tPasswordResetMsg,
+    tOK,
+    tError,
+    tFailedReset,
+    tResetPassword,
+    tSubtitle,
+    tResetCodeLabel,
+    tResetCodePlaceholder,
+    tNewPasswordLabel,
+    tNewPasswordPlaceholder,
+    tConfirmPasswordLabel,
+    tConfirmPasswordPlaceholder,
+    tResetting,
+    tResetPasswordBtn,
+  ] = useTranslations([
+    "Reset code is required",
+    "New password is required",
+    "Password must be at least 6 characters",
+    "Passwords do not match",
+    "Password Reset",
+    "Your password has been reset. You can now sign in.",
+    "OK",
+    "Error",
+    "Failed to reset password",
+    "Reset password",
+    "Enter the code sent to your email and choose a new password.",
+    "Reset Code",
+    "6-digit code",
+    "New Password",
+    "Min 6 characters",
+    "Confirm Password",
+    "Re-enter new password",
+    "Resetting...",
+    "Reset Password",
+  ]);
+
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!code.trim()) e.code = "Reset code is required";
-    if (!newPassword) e.newPassword = "New password is required";
-    else if (newPassword.length < 6)
-      e.newPassword = "Password must be at least 6 characters";
-    if (newPassword !== confirmPassword)
-      e.confirmPassword = "Passwords do not match";
+    if (!code.trim()) e.code = tResetCodeRequired;
+    if (!newPassword) e.newPassword = tNewPasswordRequired;
+    else if (newPassword.length < 6) e.newPassword = tPasswordMinChars;
+    if (newPassword !== confirmPassword) e.confirmPassword = tPasswordsNoMatch;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -41,13 +82,11 @@ export default function ResetPasswordScreen() {
     if (!validate() || isLoading) return;
     try {
       await resetPassword(email || "", code.trim(), newPassword);
-      Alert.alert(
-        "Password Reset",
-        "Your password has been reset. You can now sign in.",
-        [{ text: "OK", onPress: () => router.replace("/auth/login") }],
-      );
+      Alert.alert(tPasswordResetTitle, tPasswordResetMsg, [
+        { text: tOK, onPress: () => router.replace("/auth/login") },
+      ]);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to reset password");
+      Alert.alert(tError, err.message || tFailedReset);
     }
   };
 
@@ -87,21 +126,21 @@ export default function ResetPasswordScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-2"
             >
-              Reset password
+              {tResetPassword}
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm text-center leading-5 max-w-[280px]"
             >
-              Enter the code sent to your email and choose a new password.
+              {tSubtitle}
             </Animated.Text>
           </View>
 
           {/* Form */}
           <Animated.View entering={FadeInDown.delay(280).duration(400)}>
             <AuthInput
-              label="Reset Code"
-              placeholder="6-digit code"
+              label={tResetCodeLabel}
+              placeholder={tResetCodePlaceholder}
               value={code}
               onChangeText={setCode}
               keyboardType="numeric"
@@ -109,8 +148,8 @@ export default function ResetPasswordScreen() {
               error={errors.code}
             />
             <AuthInput
-              label="New Password"
-              placeholder="Min 6 characters"
+              label={tNewPasswordLabel}
+              placeholder={tNewPasswordPlaceholder}
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
@@ -118,8 +157,8 @@ export default function ResetPasswordScreen() {
               error={errors.newPassword}
             />
             <AuthInput
-              label="Confirm Password"
-              placeholder="Re-enter new password"
+              label={tConfirmPasswordLabel}
+              placeholder={tConfirmPasswordPlaceholder}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -135,7 +174,7 @@ export default function ResetPasswordScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? "Resetting..." : "Reset Password"}
+                {isLoading ? tResetting : tResetPasswordBtn}
               </Text>
             </Pressable>
           </Animated.View>

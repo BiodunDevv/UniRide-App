@@ -2,6 +2,12 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "@/hooks/use-translation";
+
+function T({ children }: { children: string }) {
+  const t = useTranslation(children);
+  return <>{t}</>;
+}
 
 function Section({
   number,
@@ -9,7 +15,7 @@ function Section({
   children,
 }: {
   number: number;
-  title: string;
+  title: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -65,10 +71,10 @@ export default function TermsScreen() {
         </Pressable>
         <View className="flex-1">
           <Text className="text-primary text-[16px] font-bold">
-            Terms of Service
+            <T>Terms of Service</T>
           </Text>
           <Text className="text-gray-300 text-[11px]">
-            Last updated November 27, 2025
+            <T>Last updated November 27, 2025</T>
           </Text>
         </View>
         <View className="w-8 h-8 rounded-lg bg-primary/5 items-center justify-center">
@@ -84,182 +90,268 @@ export default function TermsScreen() {
         {/* Intro */}
         <View className="bg-primary/5 rounded-xl p-4 mb-6 border-l-[3px] border-primary">
           <P>
-            Welcome to UniRide. These Terms of Service govern your access to and
-            use of the UniRide platform, including our website, mobile
-            applications, and services. By accessing or using the Platform, you
-            agree to be bound by these Terms.
+            <T>
+              Welcome to UniRide. These Terms of Service govern your access to
+              and use of the UniRide platform, including our website, mobile
+              applications, and services. By accessing or using the Platform,
+              you agree to be bound by these Terms.
+            </T>
           </P>
         </View>
 
-        <Section number={1} title="Acceptance of Terms">
+        <Section number={1} title={<T>Acceptance of Terms</T>}>
           <P>
-            By creating an account, submitting a driver application, or using
-            any part of the UniRide Platform, you acknowledge that you have
-            read, understood, and agree to be bound by these Terms and our
-            Privacy Policy.
+            <T>
+              By creating an account, submitting a driver application, or using
+              any part of the UniRide Platform, you acknowledge that you have
+              read, understood, and agree to be bound by these Terms and our
+              Privacy Policy.
+            </T>
           </P>
           <P>
-            If you do not agree to these Terms, you must not access or use the
-            Platform. We reserve the right to refuse service to anyone for any
-            reason at any time.
-          </P>
-        </Section>
-
-        <Divider />
-
-        <Section number={2} title="Platform Overview">
-          <P>
-            UniRide is a ridesharing platform designed specifically for
-            university students and approved drivers. The Platform connects
-            passengers seeking rides with drivers who have available seats.
-          </P>
-          <P>
-            UniRide acts solely as a technology platform and marketplace. We are
-            not a transportation carrier, and we do not provide transportation
-            services. All rides are provided by independent drivers.
+            <T>
+              If you do not agree to these Terms, you must not access or use the
+              Platform. We reserve the right to refuse service to anyone for any
+              reason at any time.
+            </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={3} title="Driver Requirements & Eligibility">
+        <Section number={2} title={<T>Platform Overview</T>}>
           <P>
-            To become a UniRide driver, you must meet the following
-            requirements:
-          </P>
-          <Bullet>Must be at least 21 years old</Bullet>
-          <Bullet>
-            Hold a valid driver's license issued in Nigeria for at least 2 years
-          </Bullet>
-          <Bullet>
-            No major traffic violations or DUI convictions in the past 3 years
-          </Bullet>
-          <Bullet>
-            Pass a comprehensive background check including criminal history
-          </Bullet>
-          <Bullet>
-            Must be a current student, staff, or faculty at a recognized
-            university
-          </Bullet>
-          <Bullet>
-            Maintain valid auto insurance meeting minimum requirements
-          </Bullet>
-        </Section>
-
-        <Divider />
-
-        <Section number={4} title="Driver Responsibilities">
-          <P>As a UniRide driver, you agree to:</P>
-          <Bullet>
-            Maintain a professional and courteous demeanor at all times
-          </Bullet>
-          <Bullet>Arrive at pickup locations on time</Bullet>
-          <Bullet>
-            Drive safely and obey all traffic laws and regulations
-          </Bullet>
-          <Bullet>
-            Maintain your vehicle in clean and safe operating condition
-          </Bullet>
-          <Bullet>Verify passenger identity before allowing them in</Bullet>
-          <Bullet>
-            Not discriminate against passengers based on any protected
-            characteristic
-          </Bullet>
-          <Bullet>Report any incidents or safety concerns immediately</Bullet>
-        </Section>
-
-        <Divider />
-
-        <Section number={5} title="Vehicle Requirements">
-          <P>All vehicles used on UniRide must meet the following standards:</P>
-          <Bullet>Model year 2010 or newer</Bullet>
-          <Bullet>4-door sedan, SUV, or hatchback</Bullet>
-          <Bullet>Working seat belts, AC, heating, and safety equipment</Bullet>
-          <Bullet>Clean interior and exterior</Bullet>
-          <Bullet>Valid registration and inspection certification</Bullet>
-        </Section>
-
-        <Divider />
-
-        <Section number={6} title="Payment & Earnings">
-          <P>
-            Drivers earn fares based on distance, time, and demand. UniRide
-            deducts a service fee from each completed ride. Tips from passengers
-            are retained in full by the driver.
+            <T>
+              UniRide is a ridesharing platform designed specifically for
+              university students and approved drivers. The Platform connects
+              passengers seeking rides with drivers who have available seats.
+            </T>
           </P>
           <P>
-            Earnings are processed weekly. Drivers are independent contractors
-            and are responsible for all applicable taxes.
+            <T>
+              UniRide acts solely as a technology platform and marketplace. We
+              are not a transportation carrier, and we do not provide
+              transportation services. All rides are provided by independent
+              drivers.
+            </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={7} title="Safety & Conduct">
-          <P>Prohibited activities include:</P>
-          <Bullet>Operating while impaired by drugs or alcohol</Bullet>
-          <Bullet>Aggressive, reckless, or distracted driving</Bullet>
-          <Bullet>Harassment, threats, or discrimination</Bullet>
-          <Bullet>Accepting cash payments outside the Platform</Bullet>
-          <Bullet>Recording passengers without consent</Bullet>
+        <Section number={3} title={<T>Driver Requirements & Eligibility</T>}>
+          <P>
+            <T>
+              To become a UniRide driver, you must meet the following
+              requirements:
+            </T>
+          </P>
+          <Bullet>
+            <T>Must be at least 21 years old</T>
+          </Bullet>
+          <Bullet>
+            <T>
+              Hold a valid driver's license issued in Nigeria for at least 2
+              years
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>
+              No major traffic violations or DUI convictions in the past 3 years
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>
+              Pass a comprehensive background check including criminal history
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>
+              Must be a current student, staff, or faculty at a recognized
+              university
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>Maintain valid auto insurance meeting minimum requirements</T>
+          </Bullet>
+        </Section>
+
+        <Divider />
+
+        <Section number={4} title={<T>Driver Responsibilities</T>}>
+          <P>
+            <T>As a UniRide driver, you agree to:</T>
+          </P>
+          <Bullet>
+            <T>Maintain a professional and courteous demeanor at all times</T>
+          </Bullet>
+          <Bullet>
+            <T>Arrive at pickup locations on time</T>
+          </Bullet>
+          <Bullet>
+            <T>Drive safely and obey all traffic laws and regulations</T>
+          </Bullet>
+          <Bullet>
+            <T>Maintain your vehicle in clean and safe operating condition</T>
+          </Bullet>
+          <Bullet>
+            <T>Verify passenger identity before allowing them in</T>
+          </Bullet>
+          <Bullet>
+            <T>
+              Not discriminate against passengers based on any protected
+              characteristic
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>Report any incidents or safety concerns immediately</T>
+          </Bullet>
+        </Section>
+
+        <Divider />
+
+        <Section number={5} title={<T>Vehicle Requirements</T>}>
+          <P>
+            <T>
+              All vehicles used on UniRide must meet the following standards:
+            </T>
+          </P>
+          <Bullet>
+            <T>Model year 2010 or newer</T>
+          </Bullet>
+          <Bullet>
+            <T>4-door sedan, SUV, or hatchback</T>
+          </Bullet>
+          <Bullet>
+            <T>Working seat belts, AC, heating, and safety equipment</T>
+          </Bullet>
+          <Bullet>
+            <T>Clean interior and exterior</T>
+          </Bullet>
+          <Bullet>
+            <T>Valid registration and inspection certification</T>
+          </Bullet>
+        </Section>
+
+        <Divider />
+
+        <Section number={6} title={<T>Payment & Earnings</T>}>
+          <P>
+            <T>
+              Drivers earn fares based on distance, time, and demand. UniRide
+              deducts a service fee from each completed ride. Tips from
+              passengers are retained in full by the driver.
+            </T>
+          </P>
+          <P>
+            <T>
+              Earnings are processed weekly. Drivers are independent contractors
+              and are responsible for all applicable taxes.
+            </T>
+          </P>
+        </Section>
+
+        <Divider />
+
+        <Section number={7} title={<T>Safety & Conduct</T>}>
+          <P>
+            <T>Prohibited activities include:</T>
+          </P>
+          <Bullet>
+            <T>Operating while impaired by drugs or alcohol</T>
+          </Bullet>
+          <Bullet>
+            <T>Aggressive, reckless, or distracted driving</T>
+          </Bullet>
+          <Bullet>
+            <T>Harassment, threats, or discrimination</T>
+          </Bullet>
+          <Bullet>
+            <T>Accepting cash payments outside the Platform</T>
+          </Bullet>
+          <Bullet>
+            <T>Recording passengers without consent</T>
+          </Bullet>
           <View className="bg-red-50 rounded-lg p-3 mt-2 mb-1">
             <Text className="text-red-800 text-[11px] font-semibold">
-              Zero Tolerance: Violations may result in immediate account
-              suspension or permanent deactivation.
+              <T>
+                Zero Tolerance: Violations may result in immediate account
+                suspension or permanent deactivation.
+              </T>
             </Text>
           </View>
         </Section>
 
         <Divider />
 
-        <Section number={8} title="Passenger Obligations">
-          <Bullet>Provide accurate pickup and drop-off locations</Bullet>
-          <Bullet>Be ready at the designated time and location</Bullet>
-          <Bullet>Treat drivers with respect</Bullet>
-          <Bullet>Wear seat belts at all times</Bullet>
-          <Bullet>Pay all fares and fees through the Platform</Bullet>
-          <Bullet>Report safety concerns immediately</Bullet>
+        <Section number={8} title={<T>Passenger Obligations</T>}>
+          <Bullet>
+            <T>Provide accurate pickup and drop-off locations</T>
+          </Bullet>
+          <Bullet>
+            <T>Be ready at the designated time and location</T>
+          </Bullet>
+          <Bullet>
+            <T>Treat drivers with respect</T>
+          </Bullet>
+          <Bullet>
+            <T>Wear seat belts at all times</T>
+          </Bullet>
+          <Bullet>
+            <T>Pay all fares and fees through the Platform</T>
+          </Bullet>
+          <Bullet>
+            <T>Report safety concerns immediately</T>
+          </Bullet>
         </Section>
 
         <Divider />
 
-        <Section number={9} title="Privacy & Data Protection">
+        <Section number={9} title={<T>Privacy & Data Protection</T>}>
           <P>
-            Your privacy is important to us. Our Privacy Policy explains how we
-            collect, use, store, and protect your personal information. We
-            collect your name, contact details, location data, payment
-            information, and ride history to provide and improve our services.
+            <T>
+              Your privacy is important to us. Our Privacy Policy explains how
+              we collect, use, store, and protect your personal information. We
+              collect your name, contact details, location data, payment
+              information, and ride history to provide and improve our services.
+            </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={10} title="Disclaimers & Liability">
+        <Section number={10} title={<T>Disclaimers & Liability</T>}>
           <P>
-            The Platform is provided "as is" without warranties of any kind.
-            UniRide does not guarantee uninterrupted or error-free service.
+            <T>
+              The Platform is provided "as is" without warranties of any kind.
+              UniRide does not guarantee uninterrupted or error-free service.
+            </T>
           </P>
           <P>
-            To the maximum extent permitted by law, UniRide shall not be liable
-            for any indirect, incidental, special, or consequential damages
-            arising from your use of the Platform.
-          </P>
-        </Section>
-
-        <Divider />
-
-        <Section number={11} title="Dispute Resolution">
-          <P>
-            Disputes shall first be addressed through good faith negotiations.
-            If unresolved within 30 days, disputes shall be resolved through
-            binding arbitration under the Arbitration and Conciliation Act of
-            Nigeria.
+            <T>
+              To the maximum extent permitted by law, UniRide shall not be
+              liable for any indirect, incidental, special, or consequential
+              damages arising from your use of the Platform.
+            </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={12} title="Contact Information">
+        <Section number={11} title={<T>Dispute Resolution</T>}>
+          <P>
+            <T>
+              Disputes shall first be addressed through good faith negotiations.
+              If unresolved within 30 days, disputes shall be resolved through
+              binding arbitration under the Arbitration and Conciliation Act of
+              Nigeria.
+            </T>
+          </P>
+        </Section>
+
+        <Divider />
+
+        <Section number={12} title={<T>Contact Information</T>}>
           <View className="bg-gray-50 rounded-xl p-4 gap-2">
             <View className="flex-row items-center gap-2">
               <Ionicons name="mail-outline" size={14} color="#9CA3AF" />
@@ -286,15 +378,17 @@ export default function TermsScreen() {
         <View className="mt-4 mb-8">
           <View className="bg-primary/5 rounded-xl p-4">
             <Text className="text-primary text-[12px] font-semibold mb-1">
-              Acknowledgment
+              <T>Acknowledgment</T>
             </Text>
             <Text className="text-gray-400 text-[11px] leading-[17px]">
-              By using UniRide, you acknowledge that you have read, understood,
-              and agree to be bound by these Terms of Service.
+              <T>
+                By using UniRide, you acknowledge that you have read,
+                understood, and agree to be bound by these Terms of Service.
+              </T>
             </Text>
           </View>
           <Text className="text-gray-300 text-[11px] text-center mt-4">
-            © {new Date().getFullYear()} UniRide. All rights reserved.
+            © {new Date().getFullYear()} UniRide. <T>All rights reserved.</T>
           </Text>
         </View>
       </ScrollView>

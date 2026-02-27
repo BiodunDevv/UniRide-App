@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { settingsApi } from "@/lib/driverApi";
 import { FadeIn } from "@/components/ui/animations";
+import { useTranslations } from "@/hooks/use-translation";
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -33,6 +34,61 @@ export default function NotificationSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [
+    tError,
+    tFailedLoadSettings,
+    tFailedUpdateSetting,
+    tFailedUpdatePreference,
+    tNotifications,
+    tControlNotifications,
+    tChannels,
+    tPushNotifications,
+    tInAppAlerts,
+    tEmailNotifications,
+    tEmailUpdates,
+    tCategories,
+    tRideRequests,
+    tRideAccepted,
+    tRideStarted,
+    tRideCompleted,
+    tDriverNearby,
+    tPaymentReceived,
+    tPromotions,
+    tBroadcasts,
+  ] = useTranslations([
+    "Error",
+    "Failed to load notification settings",
+    "Failed to update setting",
+    "Failed to update preference",
+    "Notifications",
+    "Control how you receive notifications from UniRide",
+    "Channels",
+    "Push Notifications",
+    "In-app alerts and badges",
+    "Email Notifications",
+    "Updates sent to your email",
+    "Categories",
+    "Ride Requests",
+    "Ride Accepted",
+    "Ride Started",
+    "Ride Completed",
+    "Driver Nearby",
+    "Payment Received",
+    "Promotions",
+    "Broadcasts",
+  ]);
+
+  const translatedPrefLabels: Record<string, string> = {
+    ride_requests: tRideRequests,
+    ride_accepted: tRideAccepted,
+    ride_started: tRideStarted,
+    ride_completed: tRideCompleted,
+    driver_nearby: tDriverNearby,
+    payment_received: tPaymentReceived,
+    promotional_messages: tPromotions,
+    broadcast_messages: tBroadcasts,
+  };
+
   useEffect(() => {
     loadSettings();
   }, []);
@@ -43,7 +99,7 @@ export default function NotificationSettingsScreen() {
       const res = await settingsApi.getNotificationSettings();
       setSettings(res.data);
     } catch {
-      Alert.alert("Error", "Failed to load notification settings");
+      Alert.alert(tError, tFailedLoadSettings);
     } finally {
       setLoading(false);
     }
@@ -55,7 +111,7 @@ export default function NotificationSettingsScreen() {
       await settingsApi.updateNotificationSettings({ [key]: value });
       setSettings((s: any) => ({ ...s, [key]: value }));
     } catch {
-      Alert.alert("Error", "Failed to update setting");
+      Alert.alert(tError, tFailedUpdateSetting);
     } finally {
       setSaving(false);
     }
@@ -70,7 +126,7 @@ export default function NotificationSettingsScreen() {
       });
       setSettings((s: any) => ({ ...s, notification_preferences: newPrefs }));
     } catch {
-      Alert.alert("Error", "Failed to update preference");
+      Alert.alert(tError, tFailedUpdatePreference);
     } finally {
       setSaving(false);
     }
@@ -86,7 +142,7 @@ export default function NotificationSettingsScreen() {
         >
           <Ionicons name="close" size={20} color="#042F40" />
         </Pressable>
-        <Text className="text-primary text-lg font-bold">Notifications</Text>
+        <Text className="text-primary text-lg font-bold">{tNotifications}</Text>
         <View className="w-10" />
       </View>
 
@@ -105,7 +161,7 @@ export default function NotificationSettingsScreen() {
             <View className="mb-5 bg-primary/5 rounded-2xl p-4 flex-row items-center">
               <Ionicons name="information-circle" size={20} color="#042F40" />
               <Text className="text-primary/70 text-xs ml-2 flex-1">
-                Control how you receive notifications from UniRide
+                {tControlNotifications}
               </Text>
             </View>
           </FadeIn>
@@ -113,7 +169,7 @@ export default function NotificationSettingsScreen() {
           {/* Master Toggles */}
           <FadeIn delay={100}>
             <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-              Channels
+              {tChannels}
             </Text>
             <View className="bg-gray-50 rounded-2xl border border-gray-100 mb-5">
               <View className="flex-row items-center justify-between px-4 py-4">
@@ -127,10 +183,10 @@ export default function NotificationSettingsScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-medium text-primary">
-                      Push Notifications
+                      {tPushNotifications}
                     </Text>
                     <Text className="text-[11px] text-gray-400 mt-0.5">
-                      In-app alerts and badges
+                      {tInAppAlerts}
                     </Text>
                   </View>
                 </View>
@@ -152,10 +208,10 @@ export default function NotificationSettingsScreen() {
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-medium text-primary">
-                      Email Notifications
+                      {tEmailNotifications}
                     </Text>
                     <Text className="text-[11px] text-gray-400 mt-0.5">
-                      Updates sent to your email
+                      {tEmailUpdates}
                     </Text>
                   </View>
                 </View>
@@ -175,7 +231,7 @@ export default function NotificationSettingsScreen() {
           {/* Per-preference Toggles */}
           <FadeIn delay={200}>
             <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-              Categories
+              {tCategories}
             </Text>
             <View className="bg-gray-50 rounded-2xl border border-gray-100">
               {Object.entries(settings.notification_preferences || {}).map(
@@ -194,7 +250,7 @@ export default function NotificationSettingsScreen() {
                             />
                           </View>
                           <Text className="text-sm font-medium text-primary">
-                            {pref.label}
+                            {translatedPrefLabels[key] || pref.label}
                           </Text>
                         </View>
                         <Switch

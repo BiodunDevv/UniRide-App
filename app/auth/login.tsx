@@ -21,6 +21,8 @@ import * as LocalAuthentication from "expo-local-authentication";
 import Logo from "@/components/Logo";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useTranslation } from "@/hooks/use-translation";
+import useTranslatorStore from "@/store/useTranslatorStore";
 
 const LOGIN_COUNT_KEY = "@uniride_login_count";
 const BIOMETRIC_PROMPTED_KEY = "@uniride_biometric_prompted";
@@ -29,18 +31,48 @@ export default function LoginScreen() {
   const router = useRouter();
   const { role } = useLocalSearchParams<{ role?: string }>();
   const { login, enableBiometric, isLoading } = useAuthStore();
+  const { language } = useTranslatorStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // ─── Translated strings ─────────────────────────────────────────────
+  const welcomeBackText = useTranslation("Welcome back");
+  const signInSubText = useTranslation(
+    role === "driver"
+      ? "Sign in to your driver account"
+      : "Sign in to your account",
+  );
+  const emailLabel = useTranslation("Email");
+  const emailPlaceholder = useTranslation("your@university.edu");
+  const passwordLabel = useTranslation("Password");
+  const passwordPlaceholder = useTranslation("Enter your password");
+  const forgotPwText = useTranslation("Forgot password?");
+  const signingInText = useTranslation("Signing in...");
+  const signInText = useTranslation("Sign In");
+  const noAccountText = useTranslation("Don't have an account?");
+  const signUpText = useTranslation("Sign Up");
+  const driverLabel = useTranslation("Driver");
+  const riderLabel = useTranslation("Rider");
+  const emailRequiredText = useTranslation("Email is required");
+  const validEmailText = useTranslation("Enter a valid email");
+  const passwordRequiredText = useTranslation("Password is required");
+
+  const LANG_LABEL: Record<string, string> = {
+    en: "EN",
+    yo: "YO",
+    ha: "HA",
+    ig: "IG",
+    fr: "FR",
+    ar: "AR",
+  };
+
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!email.trim()) e.email = "Email is required";
-    else if (!/^\S+@\S+\.\S+$/.test(email)) e.email = "Enter a valid email";
-    if (!password) e.password = "Password is required";
-    else if (password.length < 6)
-      e.password = "Password must be at least 6 characters";
+    if (!email.trim()) e.email = emailRequiredText;
+    else if (!/^\S+@\S+\.\S+$/.test(email)) e.email = validEmailText;
+    if (!password) e.password = passwordRequiredText;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -111,7 +143,7 @@ export default function LoginScreen() {
       if (err.data?.email_verification_required) {
         router.push({
           pathname: "/auth/verify-email",
-          params: { email: email.trim().toLowerCase() },
+          params: { email: email.trim().toLowerCase(), role: role || "user" },
         });
       } else if (err.data?.platform_restricted) {
         Alert.alert(
@@ -151,7 +183,7 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Top row: Back + Role badge */}
+          {/* Top row: Back + Language + Role badge */}
           <Animated.View
             entering={FadeIn.duration(350)}
             className="flex-row items-center justify-between mt-2 mb-6"
@@ -163,25 +195,39 @@ export default function LoginScreen() {
               <Ionicons name="arrow-back" size={20} color="#042F40" />
             </Pressable>
 
-            <View
-              className={`flex-row items-center px-3 py-1.5 rounded-full ${
-                isDriver
-                  ? "bg-amber-50 border border-amber-200"
-                  : "bg-primary/5 border border-primary/10"
-              }`}
-            >
-              <Ionicons
-                name={isDriver ? "car-sport" : "person"}
-                size={14}
-                color={isDriver ? "#D4A017" : "#042F40"}
-              />
-              <Text
-                className={`text-xs font-semibold ml-1.5 ${
-                  isDriver ? "text-amber-700" : "text-primary"
+            <View className="flex-row items-center gap-2">
+              {/* Language */}
+              <Pressable
+                onPress={() => router.push("/language-picker")}
+                className="flex-row items-center px-2.5 py-1.5 rounded-full bg-gray-50 active:opacity-70"
+              >
+                <Ionicons name="globe-outline" size={13} color="#6B7280" />
+                <Text className="text-gray-600 text-[11px] font-semibold ml-1">
+                  {LANG_LABEL[language] || language.toUpperCase()}
+                </Text>
+              </Pressable>
+
+              {/* Role badge */}
+              <View
+                className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                  isDriver
+                    ? "bg-amber-50 border border-amber-200"
+                    : "bg-primary/5 border border-primary/10"
                 }`}
               >
-                {isDriver ? "Driver" : "Rider"}
-              </Text>
+                <Ionicons
+                  name={isDriver ? "car-sport" : "person"}
+                  size={14}
+                  color={isDriver ? "#D4A017" : "#042F40"}
+                />
+                <Text
+                  className={`text-xs font-semibold ml-1.5 ${
+                    isDriver ? "text-amber-700" : "text-primary"
+                  }`}
+                >
+                  {isDriver ? driverLabel : riderLabel}
+                </Text>
+              </View>
             </View>
           </Animated.View>
 
@@ -197,21 +243,21 @@ export default function LoginScreen() {
               entering={FadeInDown.delay(150).duration(400)}
               className="text-primary text-2xl font-bold mb-1"
             >
-              Welcome back
+              {welcomeBackText}
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(220).duration(400)}
               className="text-gray-400 text-sm"
             >
-              Sign in to your{isDriver ? " driver" : ""} account
+              {signInSubText}
             </Animated.Text>
           </View>
 
           {/* Form */}
           <Animated.View entering={FadeInDown.delay(280).duration(400)}>
             <AuthInput
-              label="Email"
-              placeholder="your@university.edu"
+              label={emailLabel}
+              placeholder={emailPlaceholder}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -219,8 +265,8 @@ export default function LoginScreen() {
               error={errors.email}
             />
             <AuthInput
-              label="Password"
-              placeholder="Enter your password"
+              label={passwordLabel}
+              placeholder={passwordPlaceholder}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -235,7 +281,7 @@ export default function LoginScreen() {
             className="self-end mb-6"
           >
             <Text className="text-primary text-sm font-semibold">
-              Forgot password?
+              {forgotPwText}
             </Text>
           </Pressable>
 
@@ -249,15 +295,13 @@ export default function LoginScreen() {
               }`}
             >
               <Text className="text-white text-base font-bold">
-                {isLoading ? "Signing in..." : "Sign In"}
+                {isLoading ? signingInText : signInText}
               </Text>
             </Pressable>
 
             {/* Register link */}
             <View className="flex-row justify-center mt-6">
-              <Text className="text-gray-400 text-sm">
-                Don't have an account?{" "}
-              </Text>
+              <Text className="text-gray-400 text-sm">{noAccountText} </Text>
               <Pressable
                 onPress={() =>
                   router.push({
@@ -266,7 +310,9 @@ export default function LoginScreen() {
                   })
                 }
               >
-                <Text className="text-primary text-sm font-bold">Sign Up</Text>
+                <Text className="text-primary text-sm font-bold">
+                  {signUpText}
+                </Text>
               </Pressable>
             </View>
           </Animated.View>

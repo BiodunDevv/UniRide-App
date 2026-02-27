@@ -17,12 +17,46 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "@/store/useAuthStore";
 import { authApi } from "@/lib/api";
+import { useTranslations } from "@/hooks/use-translation";
 import { pickAndUploadImage } from "@/lib/cloudinary";
 import { FadeIn } from "@/components/ui/animations";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, fetchMe } = useAuthStore();
+  const [
+    tSuccess,
+    tProfilePictureUpdated,
+    tError,
+    tFailedUploadPhoto,
+    tProfileUpdatedSuccessfully,
+    tFailedUpdateProfile,
+    tEditProfile,
+    tTapToChangePhoto,
+    tPersonalInformation,
+    tFullName,
+    tEnterYourFullName,
+    tEmailAddress,
+    tEmailCannotBeChanged,
+    tSaving,
+    tSaveChanges,
+  ] = useTranslations([
+    "Success",
+    "Profile picture updated",
+    "Error",
+    "Failed to upload photo",
+    "Profile updated successfully",
+    "Failed to update profile",
+    "Edit Profile",
+    "Tap to change photo",
+    "Personal Information",
+    "Full Name",
+    "Enter your full name",
+    "Email Address",
+    "Email cannot be changed",
+    "Saving...",
+    "Save Changes",
+  ]);
   const [name, setName] = useState(user?.name || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -36,10 +70,10 @@ export default function EditProfileScreen() {
         setPreviewUri(result.secure_url);
         await authApi.updateProfile({ profile_picture: result.secure_url });
         await fetchMe();
-        Alert.alert("Success", "Profile picture updated");
+        Alert.alert(tSuccess, tProfilePictureUpdated);
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to upload photo");
+      Alert.alert(tError, err.message || tFailedUploadPhoto);
     } finally {
       setUploading(false);
     }
@@ -51,10 +85,10 @@ export default function EditProfileScreen() {
     try {
       await authApi.updateProfile({ name: name.trim() });
       await fetchMe();
-      Alert.alert("Success", "Profile updated successfully");
+      Alert.alert(tSuccess, tProfileUpdatedSuccessfully);
       router.back();
     } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to update profile");
+      Alert.alert(tError, err.message || tFailedUpdateProfile);
     } finally {
       setSaving(false);
     }
@@ -83,7 +117,9 @@ export default function EditProfileScreen() {
             >
               <Ionicons name="close" size={20} color="#042F40" />
             </Pressable>
-            <Text className="text-primary text-lg font-bold">Edit Profile</Text>
+            <Text className="text-primary text-lg font-bold">
+              {tEditProfile}
+            </Text>
             <View className="w-10" />
           </View>
 
@@ -115,7 +151,7 @@ export default function EditProfileScreen() {
                   </View>
                 </Pressable>
                 <Text className="text-gray-400 text-xs mt-3">
-                  Tap to change photo
+                  {tTapToChangePhoto}
                 </Text>
               </View>
             </FadeIn>
@@ -123,24 +159,24 @@ export default function EditProfileScreen() {
             {/* Form */}
             <FadeIn delay={100} duration={400}>
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-                Personal Information
+                {tPersonalInformation}
               </Text>
               <View className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-4">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5">
-                  Full Name
+                  {tFullName}
                 </Text>
                 <TextInput
                   value={name}
                   onChangeText={setName}
                   className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-sm text-black"
-                  placeholder="Enter your full name"
+                  placeholder={tEnterYourFullName}
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
 
               <View className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5">
-                  Email Address
+                  {tEmailAddress}
                 </Text>
                 <View className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex-row items-center">
                   <Text className="text-sm text-gray-400 flex-1">
@@ -149,7 +185,7 @@ export default function EditProfileScreen() {
                   <Ionicons name="lock-closed" size={14} color="#D1D5DB" />
                 </View>
                 <Text className="text-[10px] text-gray-300 mt-1.5 px-1">
-                  Email cannot be changed
+                  {tEmailCannotBeChanged}
                 </Text>
               </View>
             </FadeIn>
@@ -169,7 +205,7 @@ export default function EditProfileScreen() {
                   !name.trim() ? "text-gray-400" : "text-white"
                 }`}
               >
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? tSaving : tSaveChanges}
               </Text>
             </Pressable>
           </View>
