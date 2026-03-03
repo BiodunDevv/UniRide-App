@@ -7,17 +7,6 @@ import {
   View,
   ViewToken,
 } from "react-native";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-  SlideInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  interpolate,
-  Extrapolation,
-} from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -25,7 +14,6 @@ import Logo from "@/components/Logo";
 import { T } from "@/hooks/use-translation";
 
 const { width } = Dimensions.get("window");
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // ─── Onboarding Data (source-of-truth English) ───────────────────────────────
 const onboardingData = [
@@ -126,122 +114,108 @@ export default function WelcomeScreen() {
   const isLast = currentIndex === onboardingData.length - 1;
 
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["bottom"]}>
-      <SafeAreaView className="flex-1 bg-primary" edges={["top"]}>
-        <View className="flex-1">
-          {/* ── Top Bar ────────────────────────────────────────────── */}
-          <Animated.View
-            entering={FadeIn.delay(300).duration(500)}
-            className="flex-row justify-end items-center px-6 pt-4 pb-2"
-          >
-            <Pressable onPress={completeOnboarding} className="py-2 px-4">
-              <Text className="text-white text-base font-medium">
-                <T>Skip</T>
-              </Text>
-            </Pressable>
-          </Animated.View>
+    <SafeAreaView className="flex-1 bg-primary" edges={["top"]}>
+      <View className="flex-1">
+        {/* ── Top Bar ────────────────────────────────────────────── */}
+        <View className="flex-row justify-end items-center px-6 pt-4 pb-2">
+          <Pressable onPress={completeOnboarding} className="py-2 px-4">
+            <Text className="text-white text-base font-medium">
+              <T>Skip</T>
+            </Text>
+          </Pressable>
+        </View>
 
-          {/* ── Dark Section with Logo ─────────────────────────────── */}
-          <View className="flex-1 items-center justify-center px-6">
-            <Animated.View
-              entering={FadeIn.delay(100).duration(500)}
-              className="items-center"
-            >
-              <View className="w-72 h-72 items-center justify-center mb-8">
-                <Logo width={200} height={122} color="#F0F1F3" />
-              </View>
-            </Animated.View>
+        {/* ── Dark Section with Logo ─────────────────────────────── */}
+        <View className="flex-1 items-center justify-center px-6">
+          <View className="items-center">
+            <View className="w-72 h-72 items-center justify-center mb-8">
+              <Logo width={200} height={122} color="#F0F1F3" />
+            </View>
+          </View>
+        </View>
+
+        {/* ── UNIRIDE Pill (overlaps white card) ─────────────────── */}
+        <View
+          className="items-center"
+          style={{ marginBottom: -18, zIndex: 10 }}
+        >
+          <View className="bg-primary px-8 py-2 rounded-full shadow-lg">
+            <Text className="text-white text-xl font-bold tracking-widest">
+              UNIRIDE
+            </Text>
+          </View>
+        </View>
+
+        {/* ── White Bottom Card ───────────────────────────────────── */}
+        <View className="bg-white rounded-t-[40px] pt-10">
+          {/* Carousel */}
+          <View style={{ height: 120 }}>
+            <FlatList
+              ref={flatListRef}
+              data={onboardingData}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <OnboardingSlide
+                  title={item.title}
+                  description={item.description}
+                />
+              )}
+              onViewableItemsChanged={onViewableItemsChanged}
+              viewabilityConfig={viewabilityConfig}
+              scrollEventThrottle={16}
+              bounces={false}
+            />
           </View>
 
-          {/* ── UNIRIDE Pill (overlaps white card) ─────────────────── */}
-          <Animated.View
-            entering={FadeIn.delay(350).duration(400)}
-            className="items-center"
-            style={{ marginBottom: -18, zIndex: 10 }}
-          >
-            <View className="bg-primary px-8 py-2 rounded-full shadow-lg">
-              <Text className="text-white text-xl font-bold tracking-widest">
-                UNIRIDE
-              </Text>
-            </View>
-          </Animated.View>
-
-          {/* ── White Bottom Card ───────────────────────────────────── */}
-          <Animated.View
-            entering={SlideInDown.delay(250).duration(500)}
-            className="bg-white rounded-t-[40px] pt-10"
-          >
-            {/* Carousel */}
-            <View style={{ height: 120 }}>
-              <FlatList
-                ref={flatListRef}
-                data={onboardingData}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <OnboardingSlide
-                    title={item.title}
-                    description={item.description}
-                  />
-                )}
-                onViewableItemsChanged={onViewableItemsChanged}
-                viewabilityConfig={viewabilityConfig}
-                scrollEventThrottle={16}
-                bounces={false}
+          {/* Pagination Dots */}
+          <View className="flex-row justify-center mb-8 px-8">
+            {onboardingData.map((_, index) => (
+              <View
+                key={index}
+                className={`h-2 rounded-full mx-1 ${
+                  index === currentIndex ? "w-8 bg-primary" : "w-2 bg-gray-300"
+                }`}
               />
-            </View>
+            ))}
+          </View>
 
-            {/* Pagination Dots */}
-            <View className="flex-row justify-center mb-8 px-8">
-              {onboardingData.map((_, index) => (
-                <View
-                  key={index}
-                  className={`h-2 rounded-full mx-1 ${
-                    index === currentIndex
-                      ? "w-8 bg-primary"
-                      : "w-2 bg-gray-300"
-                  }`}
-                />
-              ))}
-            </View>
-
-            {/* Navigation Buttons */}
-            <View className="px-8">
-              {currentIndex > 0 ? (
-                <View className="flex-row gap-3">
-                  <Pressable
-                    onPress={handleBack}
-                    className="flex-1 bg-gray-200 rounded-full py-4 items-center active:opacity-80"
-                  >
-                    <Text className="text-primary text-base font-bold">
-                      <T>Back</T>
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleNext}
-                    className="flex-1 bg-primary rounded-full py-4 items-center active:opacity-90 shadow-lg"
-                  >
-                    <Text className="text-white text-base font-bold">
-                      {isLast ? <T>Get Started</T> : <T>Next</T>}
-                    </Text>
-                  </Pressable>
-                </View>
-              ) : (
+          {/* Navigation Buttons */}
+          <SafeAreaView edges={["bottom"]} className="px-8">
+            {currentIndex > 0 ? (
+              <View className="flex-row gap-3">
                 <Pressable
-                  onPress={handleNext}
-                  className="bg-primary rounded-full py-4 items-center active:opacity-90 shadow-lg"
+                  onPress={handleBack}
+                  className="flex-1 bg-gray-200 rounded-full py-4 items-center active:opacity-80"
                 >
-                  <Text className="text-white text-base font-bold">
-                    <T>Next</T>
+                  <Text className="text-primary text-base font-bold">
+                    <T>Back</T>
                   </Text>
                 </Pressable>
-              )}
-            </View>
-          </Animated.View>
+                <Pressable
+                  onPress={handleNext}
+                  className="flex-1 bg-primary rounded-full py-4 items-center active:opacity-90 shadow-lg"
+                >
+                  <Text className="text-white text-base font-bold">
+                    {isLast ? <T>Get Started</T> : <T>Next</T>}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={handleNext}
+                className="bg-primary rounded-full py-4 items-center active:opacity-90 shadow-lg"
+              >
+                <Text className="text-white text-base font-bold">
+                  <T>Next</T>
+                </Text>
+              </Pressable>
+            )}
+          </SafeAreaView>
         </View>
-      </SafeAreaView>
+      </View>
     </SafeAreaView>
   );
 }

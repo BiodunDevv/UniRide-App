@@ -78,7 +78,6 @@ export default function AnimatedTabBar({
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.04,
           shadowRadius: 12,
-          elevation: 10,
         }}
       >
         {/* Sliding indicator */}

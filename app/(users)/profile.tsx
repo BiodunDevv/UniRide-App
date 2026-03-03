@@ -1,309 +1,242 @@
-import { useEffect, useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
-  Alert,
-  Image,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  Text,
   View,
+  Text,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuthStore } from "@/store/useAuthStore";
-import useTranslatorStore from "@/store/useTranslatorStore";
-import { T, useTranslation } from "@/hooks/use-translation";
+import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import * as WebBrowser from "expo-web-browser";
-import ProfileRow from "@/components/profile/ProfileRow";
-import ProfileSkeleton from "@/components/ui/ProfileSkeleton";
-import { FadeIn, ImagePreviewModal } from "@/components/ui/animations";
+
+import { useAuthStore } from "@/store/useAuthStore";
+import { T } from "@/hooks/use-translation";
+
+const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL || "http://localhost:3000";
 
 export default function UserProfileScreen() {
   const router = useRouter();
-  const { user, isLoading, fetchMe, logout } = useAuthStore();
-  const { language, availableLanguages } = useTranslatorStore();
+  const { user, logout, fetchMe } = useAuthStore();
+  const [loggingOut, setLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [initialLoad, setInitialLoad] = useState(true);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // ─── Translated strings ─────────────────────────────────────────────
-  const signOutText = useTranslation("Sign Out");
-  const signOutConfirmText = useTranslation(
-    "Are you sure you want to sign out?",
-  );
-  const cancelText = useTranslation("Cancel");
-  const editProfileText = useTranslation("Edit Profile");
-  const editProfileDescText = useTranslation("Update your name and details");
-  const changePwText = useTranslation("Change Password");
-  const changePwDescText = useTranslation("Update your password");
-  const securityText = useTranslation("Security");
-  const devicesText = useTranslation("Your Devices");
-  const notifSettingsText = useTranslation("Notification Settings");
-  const notifDescText = useTranslation("Manage push & email alerts");
-  const aboutText = useTranslation("About UniRide");
-  const termsText = useTranslation("Terms & Privacy");
-  const supportText = useTranslation("Help & Support");
-
-  const languageText = useTranslation("Language");
-  const biometricPinText = useTranslation("Biometric & PIN enabled");
-  const biometricOnlyText = useTranslation("Biometric enabled");
-  const pinOnlyText = useTranslation("PIN enabled");
-  const setupSecurityText = useTranslation("Set up biometric or PIN");
-
-  const currentLang = availableLanguages.find((l) => l.code === language);
-  const langDisplayName = currentLang
-    ? `${currentLang.name}${currentLang.native_name && currentLang.native_name !== currentLang.name ? ` (${currentLang.native_name})` : ""}`
-    : language.toUpperCase();
-
-  useEffect(() => {
-    fetchMe().finally(() => setInitialLoad(false));
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchMe();
+    } catch {}
+    setRefreshing(false);
   }, []);
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchMe();
-    setRefreshing(false);
-  };
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "U";
 
   const handleLogout = () => {
-    Alert.alert(signOutText, signOutConfirmText, [
-      { text: cancelText, style: "cancel" },
+    Alert.alert("Logout", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
       {
-        text: signOutText,
+        text: "Logout",
         style: "destructive",
         onPress: async () => {
-          await logout();
-          router.replace("/auth/role-select");
+          setLoggingOut(true);
+          try {
+            await logout();
+          } catch {}
+          setLoggingOut(false);
         },
       },
     ]);
   };
 
-  if (initialLoad && isLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-        <ProfileSkeleton />
-      </SafeAreaView>
-    );
-  }
+  const menuItems = [
+    {
+      icon: "person-outline",
+      label: "Edit Profile",
+      route: "/settings/edit-profile",
+      color: "#042F40",
+    },
+    {
+      icon: "lock-closed-outline",
+      label: "Change Password",
+      route: "/settings/change-password",
+      color: "#042F40",
+    },
+    {
+      icon: "finger-print-outline",
+      label: "Security",
+      route: "/settings/security",
+      color: "#042F40",
+    },
+    {
+      icon: "notifications-outline",
+      label: "Notifications",
+      route: "/settings/notification-settings",
+      color: "#042F40",
+    },
+    {
+      icon: "phone-portrait-outline",
+      label: "Linked Devices",
+      route: "/settings/devices",
+      color: "#042F40",
+    },
+    {
+      icon: "language-outline",
+      label: "Language",
+      route: "/language-picker",
+      color: "#042F40",
+    },
+    {
+      icon: "help-circle-outline",
+      label: "Support",
+      route: "__support__",
+      color: "#6B7280",
+    },
+    {
+      icon: "document-text-outline",
+      label: "Terms of Service",
+      route: "/auth/terms",
+      color: "#6B7280",
+    },
+  ];
 
-  const initials =
-    user?.name
-      ?.split(" ")
-      .map((n: string) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "U";
-
+  // ═════════════════════════════════════════════════════════════════════
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="pb-24"
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#042F40"
-          />
-        }
-      >
-        {/* Header */}
-        <FadeIn>
-          <View className="items-center pt-6 pb-8 px-6">
+    <View className="flex-1 bg-white">
+      <SafeAreaView edges={["top"]} className="flex-1">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#042F40"
+            />
+          }
+        >
+          {/* Header */}
+          <Animated.View
+            entering={FadeInUp.duration(300)}
+            className="px-5 pt-3 pb-2"
+          >
+            <View className="flex-row items-center mb-6">
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
+              >
+                <Ionicons name="arrow-back" size={20} color="#042F40" />
+              </TouchableOpacity>
+              <Text className="text-xl font-bold text-gray-900">
+                <T>Profile</T>
+              </Text>
+            </View>
+          </Animated.View>
+
+          {/* Avatar + Info */}
+          <Animated.View
+            entering={FadeInUp.delay(100).duration(300)}
+            className="items-center mb-6"
+          >
             {user?.profile_picture ? (
-              <Pressable onPress={() => setPreviewImage(user.profile_picture!)}>
-                <Image
-                  source={{ uri: user.profile_picture }}
-                  className="w-20 h-20 rounded-full mb-4 border-2 border-white"
-                  style={{
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.08,
-                    shadowRadius: 6,
-                  }}
-                />
-              </Pressable>
+              <Image
+                source={{ uri: user.profile_picture }}
+                className="w-24 h-24 rounded-full mb-3"
+              />
             ) : (
-              <View className="w-20 h-20 rounded-full bg-primary items-center justify-center mb-4">
-                <Text className="text-white text-2xl font-bold">
+              <View className="w-24 h-24 rounded-full bg-primary items-center justify-center mb-3">
+                <Text className="text-white font-bold text-2xl">
                   {initials}
                 </Text>
               </View>
             )}
-            <Text className="text-primary text-xl font-bold">
+            <Text className="text-xl font-bold text-gray-900">
               {user?.name || "User"}
             </Text>
-            <Text className="text-gray-400 text-sm mt-1">
+            <Text className="text-sm text-gray-400 mt-0.5">
               {user?.email || ""}
             </Text>
-            <View className="flex-row mt-3 gap-2">
-              <View className="bg-primary/10 px-3 py-1 rounded-full">
-                <Text className="text-primary text-xs font-semibold capitalize">
-                  {user?.role || "user"}
-                </Text>
-              </View>
-              {user?.email_verified ? (
-                <View className="bg-green-50 px-3 py-1 rounded-full flex-row items-center gap-1">
-                  <Ionicons name="checkmark-circle" size={12} color="#16A34A" />
-                  <Text className="text-green-600 text-xs font-semibold">
-                    <T>Verified</T>
+            <View className="bg-primary/10 rounded-full px-3 py-1 mt-2">
+              <Text className="text-xs font-semibold text-primary capitalize">
+                {user?.role || "user"}
+              </Text>
+            </View>
+          </Animated.View>
+
+          {/* Menu */}
+          <View className="mx-5">
+            {menuItems.map((item, idx) => (
+              <Animated.View
+                key={item.label}
+                entering={FadeInDown.delay(idx * 40).duration(250)}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    if (item.route === "__support__") {
+                      WebBrowser.openBrowserAsync(`${WEB_URL}/support`, {
+                        presentationStyle:
+                          WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                        controlsColor: "#042F40",
+                        toolbarColor: "#FFFFFF",
+                      });
+                    } else {
+                      router.push(item.route as any);
+                    }
+                  }}
+                  className="flex-row items-center py-3.5 border-b border-gray-50"
+                  activeOpacity={0.7}
+                >
+                  <View className="w-9 h-9 rounded-full bg-gray-50 items-center justify-center mr-3">
+                    <Ionicons
+                      name={item.icon as any}
+                      size={18}
+                      color={item.color}
+                    />
+                  </View>
+                  <Text className="flex-1 text-sm text-gray-700">
+                    <T>{item.label}</T>
                   </Text>
-                </View>
+                  <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+
+          {/* Logout */}
+          <Animated.View
+            entering={FadeInDown.delay(350).duration(250)}
+            className="mx-5 mt-6"
+          >
+            <TouchableOpacity
+              onPress={handleLogout}
+              disabled={loggingOut}
+              className="bg-red-50 rounded-2xl py-4 items-center border border-red-100"
+            >
+              {loggingOut ? (
+                <ActivityIndicator color="#EF4444" />
               ) : (
-                <View className="bg-amber-50 px-3 py-1 rounded-full">
-                  <Text className="text-amber-600 text-xs font-semibold">
-                    <T>Unverified</T>
+                <View className="flex-row items-center">
+                  <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+                  <Text className="text-red-500 font-bold text-sm ml-2">
+                    <T>Logout</T>
                   </Text>
                 </View>
               )}
-            </View>
-          </View>
-        </FadeIn>
-
-        {/* Account */}
-        <FadeIn delay={80}>
-          <View className="mb-6">
-            <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              <T>Account</T>
-            </Text>
-            <View className="bg-white mx-4 rounded-2xl border border-gray-100">
-              <ProfileRow
-                icon="person-outline"
-                label={editProfileText}
-                value={editProfileDescText}
-                onPress={() => router.push("/settings/edit-profile")}
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileRow
-                icon="lock-closed-outline"
-                label={changePwText}
-                value={changePwDescText}
-                onPress={() => router.push("/settings/change-password")}
-              />
-            </View>
-          </View>
-        </FadeIn>
-
-        {/* Security */}
-        <FadeIn delay={140}>
-          <View className="mb-6">
-            <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              {securityText}
-            </Text>
-            <View className="bg-white mx-4 rounded-2xl border border-gray-100">
-              <ProfileRow
-                icon="shield-checkmark-outline"
-                label={securityText}
-                value={
-                  user?.biometric_enabled && user?.pin_enabled
-                    ? biometricPinText
-                    : user?.biometric_enabled
-                      ? biometricOnlyText
-                      : user?.pin_enabled
-                        ? pinOnlyText
-                        : setupSecurityText
-                }
-                onPress={() => router.push("/settings/security")}
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileRow
-                icon="phone-portrait-outline"
-                label={devicesText}
-                value={`${user?.devices?.length || 0} device(s) signed in`}
-                onPress={() => router.push("/settings/devices")}
-              />
-            </View>
-          </View>
-        </FadeIn>
-
-        {/* Notifications */}
-        <FadeIn delay={200}>
-          <View className="mb-6">
-            <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              <T>Notifications</T>
-            </Text>
-            <View className="bg-white mx-4 rounded-2xl border border-gray-100">
-              <ProfileRow
-                icon="notifications-outline"
-                label={notifSettingsText}
-                value={notifDescText}
-                onPress={() => router.push("/settings/notification-settings")}
-              />
-            </View>
-          </View>
-        </FadeIn>
-
-        {/* App */}
-        <FadeIn delay={260}>
-          <View className="mb-6">
-            <Text className="px-6 pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              <T>App</T>
-            </Text>
-            <View className="bg-white mx-4 rounded-2xl border border-gray-100">
-              <ProfileRow
-                icon="globe-outline"
-                label={languageText}
-                value={langDisplayName}
-                onPress={() => router.push("/language-picker")}
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileRow
-                icon="information-circle-outline"
-                label={aboutText}
-                value="Version 1.0.0"
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileRow
-                icon="document-text-outline"
-                label={termsText}
-                onPress={() => router.push("/auth/terms")}
-              />
-              <View className="h-px bg-gray-100 mx-4" />
-              <ProfileRow
-                icon="help-circle-outline"
-                label={supportText}
-                onPress={() =>
-                  WebBrowser.openBrowserAsync(
-                    `${process.env.EXPO_PUBLIC_WEB_URL || "http://172.20.10.4:3000"}/support`,
-                    {
-                      presentationStyle:
-                        WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-                      controlsColor: "#042F40",
-                      toolbarColor: "#FFFFFF",
-                    },
-                  )
-                }
-              />
-            </View>
-          </View>
-        </FadeIn>
-
-        {/* Sign Out */}
-        <FadeIn delay={320}>
-          <View className="mx-4 mb-4">
-            <View className="bg-white rounded-2xl border border-gray-100">
-              <ProfileRow
-                icon="log-out-outline"
-                label={signOutText}
-                onPress={handleLogout}
-                danger
-              />
-            </View>
-          </View>
-        </FadeIn>
-      </ScrollView>
-
-      {/* Image Preview */}
-      {previewImage && (
-        <ImagePreviewModal
-          visible={!!previewImage}
-          uri={previewImage}
-          onClose={() => setPreviewImage(null)}
-        />
-      )}
-    </SafeAreaView>
+            </TouchableOpacity>
+          </Animated.View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }

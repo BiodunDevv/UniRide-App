@@ -1,6 +1,32 @@
 import * as SecureStore from "expo-secure-store";
+import { router } from "expo-router";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
+
+// ─── Auto-logout flag (prevents multiple logouts firing at once) ─────────────
+let isLoggingOut = false;
+
+async function forceLogout() {
+  if (isLoggingOut) return;
+  isLoggingOut = true;
+  try {
+    await SecureStore.deleteItemAsync("token");
+    // Dynamically import to avoid circular deps
+    const { useAuthStore } = require("@/store/useAuthStore");
+    useAuthStore.setState({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+    });
+    router.replace("/auth/role-select");
+  } catch {
+    // best effort
+  } finally {
+    setTimeout(() => {
+      isLoggingOut = false;
+    }, 2000);
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function getToken(): Promise<string | null> {
@@ -18,10 +44,40 @@ async function request<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (networkError: any) {
+    // Network error — backend unreachable
+    // Only force logout for authenticated requests (not login/register)
+    const isAuthEndpoint =
+      endpoint.includes("/login") ||
+      endpoint.includes("/register") ||
+      endpoint.includes("/verify-email") ||
+      endpoint.includes("/forgot-password") ||
+      endpoint.includes("/reset-password") ||
+      endpoint.includes("/resend-verification") ||
+      endpoint === "/api/platform-settings";
+
+    if (token && !isAuthEndpoint) {
+      forceLogout();
+    }
+    throw networkError;
+  }
+
+  // Auto-logout on 401 (Unauthorized) — token expired/invalid
+  if (res.status === 401 && token) {
+    const isLoginEndpoint =
+      endpoint.includes("/login") ||
+      endpoint.includes("/pin/login") ||
+      endpoint.includes("/biometric");
+    if (!isLoginEndpoint) {
+      forceLogout();
+    }
+  }
 
   const data = await res.json();
 
@@ -269,5 +325,12 @@ export const authApi = {
       method: "PATCH",
       body: JSON.stringify(body),
     });
+  },
+};
+
+// ─── Platform Settings API ──────────────────────────────────────────────────
+export const platformApi = {
+  getSettings() {
+    return request("/api/platform-settings");
   },
 };

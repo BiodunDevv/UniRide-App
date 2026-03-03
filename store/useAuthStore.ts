@@ -320,6 +320,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchMe: async () => {
     try {
       const res = await authApi.getMe();
+      if (!res?.data) throw new Error("Invalid response");
       set({ user: res.data, isAuthenticated: true });
 
       // Sync language if user has a preference set
@@ -328,6 +329,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         useTranslatorStore.getState().setLanguage(lang);
       }
     } catch {
+      // Token invalid or backend down → force full logout
+      await SecureStore.deleteItemAsync("token");
       set({ user: null, token: null, isAuthenticated: false });
     }
   },
@@ -345,21 +348,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   hydrate: async () => {
     const token = await SecureStore.getItemAsync("token");
-    if (token) {
-      set({ token });
-      try {
-        const res = await authApi.getMe();
-        set({ user: res.data, isAuthenticated: true });
+    if (!token) {
+      set({ user: null, token: null, isAuthenticated: false });
+      return;
+    }
+    set({ token });
+    try {
+      const res = await authApi.getMe();
+      if (!res?.data) throw new Error("Invalid response");
+      set({ user: res.data, isAuthenticated: true });
 
-        // Sync language on hydrate
-        const lang = res.data?.preferred_language;
-        if (lang && lang !== useTranslatorStore.getState().language) {
-          useTranslatorStore.getState().setLanguage(lang);
-        }
-      } catch {
-        await SecureStore.deleteItemAsync("token");
-        set({ token: null, isAuthenticated: false });
+      // Sync language on hydrate
+      const lang = res.data?.preferred_language;
+      if (lang && lang !== useTranslatorStore.getState().language) {
+        useTranslatorStore.getState().setLanguage(lang);
       }
+    } catch {
+      // Any failure: expired token, network error, invalid response → logout
+      await SecureStore.deleteItemAsync("token");
+      set({ user: null, token: null, isAuthenticated: false });
     }
   },
 }));

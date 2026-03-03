@@ -1,18 +1,52 @@
-import { Tabs } from "expo-router";
+import { Stack } from "expo-router";
 import React from "react";
-import AnimatedTabBar from "@/components/navigation/AnimatedTabBar";
 
-export default function DriverTabLayout() {
+export default function DriverLayout() {
   return (
-    <Tabs
-      tabBar={(props) => <AnimatedTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: "#FFFFFF" },
+      }}
     >
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="rides" />
-      <Tabs.Screen name="earnings" />
-      <Tabs.Screen name="notifications" />
-      <Tabs.Screen name="profile" />
-    </Tabs>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="rides" options={{ animation: "slide_from_right" }} />
+      <Stack.Screen
+        name="notifications"
+        options={{ presentation: "modal", animation: "slide_from_bottom" }}
+      />
+      <Stack.Screen
+        name="profile"
+        options={{ animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="create-ride"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="ride-details"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="active-ride"
+        options={{ presentation: "modal", animation: "fade" }}
+      />
+      <Stack.Screen
+        name="notification-detail"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+        }}
+      />
+    </Stack>
   );
 }

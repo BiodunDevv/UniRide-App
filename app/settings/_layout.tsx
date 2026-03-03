@@ -22,6 +22,7 @@ export default function SettingsLayout() {
         <Stack.Screen name="notification-settings" />
         <Stack.Screen name="notification-detail" />
         <Stack.Screen name="bank-picker" />
+        <Stack.Screen name="vehicle" />
       </Stack>
     </>
   );

@@ -1,5 +1,10 @@
 import { Image, Modal, Pressable, type ViewStyle } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  ZoomIn,
+  SlideInRight,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 
 /* ─── FadeIn ───────────────────────────────────────────────────────────────── *
@@ -22,6 +27,81 @@ export function FadeIn({
   return (
     <Animated.View
       entering={FadeInDown.delay(delay).duration(duration)}
+      style={style}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/* ─── ScaleIn ──────────────────────────────────────────────────────────────── *
+ * Spring zoom-in for avatars, icons, and emphasis elements.                  *
+ * ────────────────────────────────────────────────────────────────────────── */
+export function ScaleIn({
+  delay = 0,
+  duration = 500,
+  style,
+  children,
+}: {
+  delay?: number;
+  duration?: number;
+  style?: ViewStyle;
+  children: React.ReactNode;
+}) {
+  return (
+    <Animated.View
+      entering={ZoomIn.delay(delay).duration(duration).springify().damping(14)}
+      style={style}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/* ─── SlideIn ─────────────────────────────────────────────────────────────── *
+ * Slide from the right — cards, list items, action rows.                    *
+ * ────────────────────────────────────────────────────────────────────────── */
+export function SlideIn({
+  delay = 0,
+  duration = 350,
+  style,
+  children,
+}: {
+  delay?: number;
+  duration?: number;
+  style?: ViewStyle;
+  children: React.ReactNode;
+}) {
+  return (
+    <Animated.View
+      entering={SlideInRight.delay(delay)
+        .duration(duration)
+        .springify()
+        .damping(18)}
+      style={style}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/* ─── FadeInUp ─────────────────────────────────────────────────────────────── *
+ * Fade + slide from bottom — alternative direction.                          *
+ * ────────────────────────────────────────────────────────────────────────── */
+export function FadeUp({
+  delay = 0,
+  duration = 400,
+  style,
+  children,
+}: {
+  delay?: number;
+  duration?: number;
+  style?: ViewStyle;
+  children: React.ReactNode;
+}) {
+  return (
+    <Animated.View
+      entering={FadeInUp.delay(delay).duration(duration)}
       style={style}
     >
       {children}

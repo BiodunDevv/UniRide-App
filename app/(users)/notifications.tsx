@@ -1,142 +1,48 @@
-import { useEffect, useCallback, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  Text,
   View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  useNotificationStore,
-  type Notification,
-} from "@/store/useNotificationStore";
-import NotificationSkeleton from "@/components/ui/NotificationSkeleton";
-import { T, useTranslation } from "@/hooks/use-translation";
+import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 
-type IoniconsName = React.ComponentProps<typeof Ionicons>["name"];
+import { useNotificationStore } from "@/store/useNotificationStore";
+import { T } from "@/hooks/use-translation";
 
-const typeConfig: Record<
-  string,
-  { icon: IoniconsName; color: string; bg: string }
-> = {
-  broadcast: {
-    icon: "radio-outline",
-    color: "#D4A017",
-    bg: "bg-[#D4A017]/10",
-  },
-  ride: { icon: "car-outline", color: "#042F40", bg: "bg-primary/5" },
-  booking: {
-    icon: "calendar-outline",
-    color: "#7C3AED",
-    bg: "bg-purple-50",
-  },
-  system: { icon: "settings-outline", color: "#6B7280", bg: "bg-gray-100" },
-  promotion: {
-    icon: "megaphone-outline",
-    color: "#059669",
-    bg: "bg-green-50",
-  },
-  security: {
-    icon: "shield-checkmark-outline",
-    color: "#DC2626",
-    bg: "bg-red-50",
-  },
-  account: {
-    icon: "person-circle-outline",
-    color: "#2563EB",
-    bg: "bg-blue-50",
-  },
-};
+const TYPE_ICONS: Record<string, { icon: string; bg: string; color: string }> =
+  {
+    booking_confirmed: {
+      icon: "checkmark-circle",
+      bg: "bg-green-50",
+      color: "#16A34A",
+    },
+    booking_declined: {
+      icon: "close-circle",
+      bg: "bg-red-50",
+      color: "#EF4444",
+    },
+    booking_cancelled: { icon: "close", bg: "bg-red-50", color: "#EF4444" },
+    ride_started: { icon: "navigate", bg: "bg-blue-50", color: "#2563EB" },
+    ride_completed: {
+      icon: "checkmark-done",
+      bg: "bg-gray-50",
+      color: "#6B7280",
+    },
+    ride_cancelled: { icon: "close-circle", bg: "bg-red-50", color: "#EF4444" },
+    check_in_success: { icon: "key", bg: "bg-accent/10", color: "#D4A017" },
+    payment_received: { icon: "cash", bg: "bg-green-50", color: "#16A34A" },
+    broadcast: { icon: "megaphone", bg: "bg-purple-50", color: "#7C3AED" },
+    default: { icon: "notifications", bg: "bg-gray-50", color: "#6B7280" },
+  };
 
-function formatTimeRaw(
-  dateStr: string,
-  tJustNow: string,
-  tMAgo: string,
-  tHAgo: string,
-  tDAgo: string,
-) {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDay = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return tJustNow;
-  if (diffMin < 60) return `${diffMin}${tMAgo}`;
-  if (diffHr < 24) return `${diffHr}${tHAgo}`;
-  if (diffDay < 7) return `${diffDay}${tDAgo}`;
-  return date.toLocaleDateString();
-}
-
-function NotificationItem({
-  item,
-  onPress,
-  formatTime,
-}: {
-  item: Notification;
-  onPress: () => void;
-  formatTime: (dateStr: string) => string;
-}) {
-  const config = typeConfig[item.type] || typeConfig.system;
-
-  return (
-    <Pressable
-      onPress={onPress}
-      className={`flex-row px-6 py-4 ${!item.is_read ? "bg-primary/[0.02]" : ""} active:bg-gray-50`}
-    >
-      <View
-        className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${config.bg}`}
-      >
-        <Ionicons name={config.icon} size={18} color={config.color} />
-      </View>
-      <View className="flex-1">
-        <View className="flex-row items-center justify-between mb-0.5">
-          <Text
-            className={`text-sm flex-1 mr-2 ${!item.is_read ? "font-bold text-primary" : "font-medium text-gray-600"}`}
-            numberOfLines={1}
-          >
-            {item.title}
-          </Text>
-          <Text className="text-[10px] text-gray-400">
-            {formatTime(item.createdAt)}
-          </Text>
-        </View>
-        <Text className="text-xs text-gray-400 leading-4" numberOfLines={2}>
-          {item.message}
-        </Text>
-      </View>
-      {!item.is_read && (
-        <View className="ml-2 mt-1.5">
-          <View className="w-2 h-2 rounded-full bg-[#D4A017]" />
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
-export default function UserNotificationsScreen() {
-  const tUnread = useTranslation("unread");
-  const tClearAll = useTranslation("Clear All");
-  const tDeleteAll = useTranslation(
-    "Delete all notifications? This cannot be undone.",
-  );
-  const tCancel = useTranslation("Cancel");
-  const tClearAllBtn = useTranslation("Clear All");
-  const tJustNow = useTranslation("Just now");
-  const tMAgo = useTranslation("m ago");
-  const tHAgo = useTranslation("h ago");
-  const tDAgo = useTranslation("d ago");
-
-  const formatTime = useCallback(
-    (dateStr: string) => formatTimeRaw(dateStr, tJustNow, tMAgo, tHAgo, tDAgo),
-    [tJustNow, tMAgo, tHAgo, tDAgo],
-  );
-
+export default function NotificationsScreen() {
   const router = useRouter();
   const {
     notifications,
@@ -146,129 +52,152 @@ export default function UserNotificationsScreen() {
     markRead,
     markAllRead,
     clearAll,
-    startPolling,
-    stopPolling,
   } = useNotificationStore();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [initialLoad, setInitialLoad] = useState(true);
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, []),
+  );
 
-  useEffect(() => {
-    fetchNotifications().finally(() => setInitialLoad(false));
-    startPolling(15000);
-    return () => stopPolling();
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchNotifications();
+    setRefreshing(false);
   }, []);
 
-  const onRefresh = useCallback(() => {
-    fetchNotifications();
-  }, []);
-
-  const handlePress = (item: Notification) => {
-    if (!item.is_read) markRead(item._id);
+  const handlePress = async (notif: any) => {
+    if (!notif.is_read) await markRead(notif._id);
+    // Navigate to detail modal
     router.push({
-      pathname: "/settings/notification-detail",
-      params: { id: item._id },
+      pathname: "/(users)/notification-detail" as any,
+      params: { notificationId: notif._id },
     });
   };
 
-  const handleClearAll = () => {
-    Alert.alert(tClearAll, tDeleteAll, [
-      { text: tCancel, style: "cancel" },
-      {
-        text: tClearAllBtn,
-        style: "destructive",
-        onPress: () => clearAll(),
-      },
-    ]);
-  };
-
-  if (initialLoad) {
-    return (
-      <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-        <NotificationSkeleton />
-      </SafeAreaView>
-    );
-  }
-
+  // ═════════════════════════════════════════════════════════════════════
   return (
-    <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-6 pt-4 pb-3">
-        <View>
-          <Text className="text-primary text-xl font-bold">
-            <T>Notifications</T>
-          </Text>
-          {unreadCount > 0 && (
-            <Text className="text-xs text-gray-400 mt-0.5">
-              {unreadCount} {tUnread}
+    <View className="flex-1 bg-white">
+      <SafeAreaView edges={["top"]} className="flex-1">
+        <Animated.View
+          entering={FadeInUp.duration(300)}
+          className="px-5 pt-3 pb-2"
+        >
+          <View className="flex-row items-center mb-1">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
+            >
+              <Ionicons name="arrow-back" size={20} color="#042F40" />
+            </TouchableOpacity>
+            <Text className="text-xl font-bold text-gray-900 flex-1">
+              <T>Notifications</T>
             </Text>
-          )}
-        </View>
-        <View className="flex-row items-center gap-2">
-          {notifications.length > 0 && (
-            <Pressable
-              onPress={handleClearAll}
-              className="px-3 py-1.5 rounded-full bg-red-50 active:bg-red-100"
-            >
-              <Text className="text-red-500 text-xs font-semibold">
-                {tClearAllBtn}
-              </Text>
-            </Pressable>
-          )}
-          {unreadCount > 0 && (
-            <Pressable
-              onPress={markAllRead}
-              className="px-3 py-1.5 rounded-full bg-primary/5 active:bg-primary/10"
-            >
-              <Text className="text-primary text-xs font-semibold">
-                <T>Mark all read</T>
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
+            {unreadCount > 0 && (
+              <TouchableOpacity
+                onPress={markAllRead}
+                className="px-3 py-1.5 rounded-full bg-primary/10"
+              >
+                <Text className="text-xs font-semibold text-primary">
+                  <T>Mark all read</T>
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
 
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <NotificationItem
-            item={item}
-            onPress={() => handlePress(item)}
-            formatTime={formatTime}
+        {isLoading && notifications.length === 0 ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color="#042F40" />
+          </View>
+        ) : (
+          <FlatList
+            data={notifications}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingBottom: 40,
+              paddingTop: 8,
+            }}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#042F40"
+              />
+            }
+            ListEmptyComponent={
+              <View className="items-center mt-16">
+                <Ionicons
+                  name="notifications-off-outline"
+                  size={48}
+                  color="#D1D5DB"
+                />
+                <Text className="text-base text-gray-400 mt-4">
+                  <T>No notifications</T>
+                </Text>
+              </View>
+            }
+            renderItem={({ item, index }) => {
+              const info = TYPE_ICONS[item.type] || TYPE_ICONS.default;
+              const d = new Date(item.createdAt);
+              return (
+                <Animated.View
+                  entering={FadeInDown.delay(index * 40).duration(250)}
+                >
+                  <TouchableOpacity
+                    onPress={() => handlePress(item)}
+                    className={`flex-row items-start p-3.5 rounded-xl mb-2 ${item.is_read ? "bg-white" : "bg-primary/[0.02]"}`}
+                    activeOpacity={0.7}
+                  >
+                    <View
+                      className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${info.bg}`}
+                    >
+                      <Ionicons
+                        name={info.icon as any}
+                        size={18}
+                        color={info.color}
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text
+                        className={`text-sm ${item.is_read ? "text-gray-600" : "text-gray-900 font-semibold"}`}
+                        numberOfLines={2}
+                      >
+                        {item.title || item.message}
+                      </Text>
+                      {item.message && item.title && (
+                        <Text
+                          className="text-xs text-gray-400 mt-0.5"
+                          numberOfLines={2}
+                        >
+                          {item.message}
+                        </Text>
+                      )}
+                      <Text className="text-[10px] text-gray-300 mt-1">
+                        {d.toLocaleDateString([], {
+                          month: "short",
+                          day: "numeric",
+                        })}{" "}
+                        ·{" "}
+                        {d.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Text>
+                    </View>
+                    {!item.is_read && (
+                      <View className="w-2 h-2 rounded-full bg-accent mt-2" />
+                    )}
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            }}
           />
         )}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={onRefresh}
-            tintColor="#042F40"
-          />
-        }
-        contentContainerStyle={
-          notifications.length === 0 ? { flex: 1 } : { paddingBottom: 100 }
-        }
-        ItemSeparatorComponent={() => <View className="h-px bg-gray-50 mx-6" />}
-        ListEmptyComponent={
-          <View className="flex-1 items-center justify-center px-8">
-            <View className="w-20 h-20 rounded-full bg-primary/5 items-center justify-center mb-4">
-              <Ionicons
-                name="notifications-off-outline"
-                size={36}
-                color="#D1D5DB"
-              />
-            </View>
-            <Text className="text-primary text-lg font-bold mb-2">
-              <T>No Notifications</T>
-            </Text>
-            <Text className="text-gray-400 text-sm text-center leading-5">
-              <T>
-                You're all caught up! New notifications will appear here when
-                you receive ride updates or announcements.
-              </T>
-            </Text>
-          </View>
-        }
-      />
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
