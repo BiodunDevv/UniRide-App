@@ -162,7 +162,6 @@ function ToastCard({
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.08,
             shadowRadius: 8,
-            elevation: 4,
           }}
         >
           {/* Icon circle — w-10 h-10 rounded-full, same as list */}
