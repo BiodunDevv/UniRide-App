@@ -3,11 +3,13 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef } from "react";
 import { Platform, View, AppState } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import "../global.css";
 // Register background location task at module level (must be top-level)
 import "@/lib/backgroundLocation";
-import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { useInAppNotifications } from "@/hooks/use-in-app-notifications";
+import InAppNotificationToast from "@/components/InAppNotificationToast";
 import {
   MapProviderProvider,
   useMapProvider,
@@ -97,8 +99,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 export default function RootLayout() {
-  // Register for Expo push notifications
-  usePushNotifications();
+  const { routeBase } = useInAppNotifications();
 
   useEffect(() => {
     // Hide native splash once our custom one renders
@@ -106,46 +107,49 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <MapProviderProvider>
-      <PlatformSettingsLoader />
-      <View style={{ flex: 1 }}>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            ...screenTransition,
-            gestureEnabled: true,
-            gestureDirection: "horizontal",
-          }}
-        >
-          <Stack.Screen name="index" options={{ animation: "none" }} />
-          <Stack.Screen
-            name="maintenance"
-            options={{ animation: "fade", gestureEnabled: false }}
-          />
-          <Stack.Screen name="welcome" options={{ animation: "fade" }} />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="lock" options={{ animation: "fade" }} />
-          <Stack.Screen name="(users)" options={{ animation: "fade" }} />
-          <Stack.Screen name="(drivers)" options={{ animation: "fade" }} />
-          <Stack.Screen
-            name="settings"
-            options={{
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <MapProviderProvider>
+        <PlatformSettingsLoader />
+        <View style={{ flex: 1 }}>
+          <StatusBar style="dark" />
+          <InAppNotificationToast routeBase={routeBase} />
+          <Stack
+            screenOptions={{
               headerShown: false,
-              presentation: "modal",
-              animation: "slide_from_bottom",
+              ...screenTransition,
+              gestureEnabled: true,
+              gestureDirection: "horizontal",
             }}
-          />
-          <Stack.Screen
-            name="language-picker"
-            options={{
-              headerShown: false,
-              presentation: "modal",
-              animation: "slide_from_bottom",
-            }}
-          />
-        </Stack>
-      </View>
-    </MapProviderProvider>
+          >
+            <Stack.Screen name="index" options={{ animation: "none" }} />
+            <Stack.Screen
+              name="maintenance"
+              options={{ animation: "fade", gestureEnabled: false }}
+            />
+            <Stack.Screen name="welcome" options={{ animation: "fade" }} />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="lock" options={{ animation: "fade" }} />
+            <Stack.Screen name="(users)" options={{ animation: "fade" }} />
+            <Stack.Screen name="(drivers)" options={{ animation: "fade" }} />
+            <Stack.Screen
+              name="settings"
+              options={{
+                headerShown: false,
+                presentation: "modal",
+                animation: "slide_from_bottom",
+              }}
+            />
+            <Stack.Screen
+              name="language-picker"
+              options={{
+                headerShown: false,
+                presentation: "modal",
+                animation: "slide_from_bottom",
+              }}
+            />
+          </Stack>
+        </View>
+      </MapProviderProvider>
+    </GestureHandlerRootView>
   );
 }

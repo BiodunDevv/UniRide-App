@@ -28,6 +28,7 @@ import { useLocation } from "@/hooks/use-location";
 import { useSocket } from "@/hooks/use-socket";
 import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
+import { useReviewPrompt } from "@/hooks/use-review-prompt";
 import LanguageOnboarding from "@/components/LanguageOnboarding";
 
 const MAPBOX_TOKEN =
@@ -38,6 +39,7 @@ Mapbox.setAccessToken(MAPBOX_TOKEN);
 export default function DriverHomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  useReviewPrompt(!!user);
   const {
     userLocation,
     isDriverOnline: isOnline,
@@ -80,24 +82,38 @@ export default function DriverHomeScreen() {
   // ── Init ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
-      const ok = await requestPermission();
-      if (ok) {
-        startWatching();
-        await getCurrentLocation();
+      try {
+        const ok = await requestPermission();
+        if (ok) {
+          startWatching();
+          await getCurrentLocation();
+        }
+      } catch (e) {
+        console.warn("Location init error:", e);
       }
-      await connect();
-      if (user) {
-        joinRoom(user.id, user.role);
-        joinDriverFeed();
+      try {
+        await connect();
+        if (user) {
+          joinRoom(user.id, user.role);
+          joinDriverFeed();
+        }
+        joinLiveMap();
+      } catch (e) {
+        console.warn("Socket init error:", e);
       }
-      joinLiveMap();
-      fetchDriverRides();
-      fetchDriverBookings();
-      fetchAvailableRequests();
-      fetchNotifications();
-      startPolling(30000);
+      try {
+        fetchDriverRides();
+        fetchDriverBookings();
+        fetchAvailableRequests();
+        fetchNotifications();
+        startPolling(30000);
+      } catch (e) {
+        console.warn("Data fetch init error:", e);
+      }
       // Restore persistent online state if driver was online before
-      restoreOnlineState();
+      try {
+        restoreOnlineState();
+      } catch {}
     })();
     return () => {
       if (locationInterval.current) clearInterval(locationInterval.current);

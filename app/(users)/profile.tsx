@@ -55,6 +55,7 @@ export default function UserProfileScreen() {
             await logout();
           } catch {}
           setLoggingOut(false);
+          router.replace("/auth/role-select");
         },
       },
     ]);
@@ -102,6 +103,12 @@ export default function UserProfileScreen() {
       label: "Support",
       route: "__support__",
       color: "#6B7280",
+    },
+    {
+      icon: "star-outline",
+      label: "Leave a Review",
+      route: "__review__",
+      color: "#D4A017",
     },
     {
       icon: "document-text-outline",
@@ -185,6 +192,17 @@ export default function UserProfileScreen() {
                   onPress={() => {
                     if (item.route === "__support__") {
                       WebBrowser.openBrowserAsync(`${WEB_URL}/support`, {
+                        presentationStyle:
+                          WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                        controlsColor: "#042F40",
+                        toolbarColor: "#FFFFFF",
+                      });
+                    } else if (item.route === "__review__") {
+                      const authToken = useAuthStore.getState().token;
+                      const reviewUrl = authToken
+                        ? `${WEB_URL}/reviews?token=${authToken}`
+                        : `${WEB_URL}/reviews`;
+                      WebBrowser.openBrowserAsync(reviewUrl, {
                         presentationStyle:
                           WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
                         controlsColor: "#042F40",

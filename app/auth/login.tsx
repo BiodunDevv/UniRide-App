@@ -65,6 +65,12 @@ export default function LoginScreen() {
   const tSomethingWrong = useTranslation("Something went wrong");
   const tNotNow = useTranslation("Not Now");
   const tEnable = useTranslation("Enable");
+  const tDeviceLimitTitle = useTranslation("Too Many Devices");
+  const tDeviceLimitMsg = useTranslation(
+    "Your account is signed in on the maximum number of devices. Reset your password to sign out all devices and regain access.",
+  );
+  const tResetPassword = useTranslation("Reset Password");
+  const tCancel = useTranslation("Cancel");
 
   const LANG_LABEL: Record<string, string> = {
     en: "EN",
@@ -102,48 +108,53 @@ export default function LoginScreen() {
       await AsyncStorage.setItem(LOGIN_COUNT_KEY, String(count));
 
       // Only offer biometric after 5 logins and if not already prompted
-      if (!res.data?.user?.biometric_enabled && count >= 5) {
-        const alreadyPrompted = await AsyncStorage.getItem(
-          BIOMETRIC_PROMPTED_KEY,
-        );
-        if (alreadyPrompted !== "true") {
-          const compatible = await LocalAuthentication.hasHardwareAsync();
-          const enrolled = await LocalAuthentication.isEnrolledAsync();
-          if (compatible && enrolled) {
-            const biometricLabel =
-              Platform.OS === "ios" ? "Face ID" : "Fingerprint";
-            await AsyncStorage.setItem(BIOMETRIC_PROMPTED_KEY, "true");
-            Alert.alert(
-              `Enable ${biometricLabel}?`,
-              `Sign in faster next time using ${biometricLabel}.`,
-              [
-                {
-                  text: tNotNow,
-                  style: "cancel",
-                  onPress: () => router.replace(destination as any),
-                },
-                {
-                  text: tEnable,
-                  onPress: async () => {
-                    try {
-                      const authResult =
-                        await LocalAuthentication.authenticateAsync({
-                          promptMessage: `Authenticate to enable ${biometricLabel}`,
-                        });
-                      if (authResult.success) {
-                        await enableBiometric();
-                      }
-                    } catch {
-                      // Ignore biometric setup errors
-                    }
-                    router.replace(destination as any);
+      try {
+        if (!res.data?.user?.biometric_enabled && count >= 5) {
+          const alreadyPrompted = await AsyncStorage.getItem(
+            BIOMETRIC_PROMPTED_KEY,
+          );
+          if (alreadyPrompted !== "true") {
+            const compatible = await LocalAuthentication.hasHardwareAsync();
+            const enrolled = await LocalAuthentication.isEnrolledAsync();
+            if (compatible && enrolled) {
+              const biometricLabel =
+                Platform.OS === "ios" ? "Face ID" : "Fingerprint";
+              await AsyncStorage.setItem(BIOMETRIC_PROMPTED_KEY, "true");
+              Alert.alert(
+                `Enable ${biometricLabel}?`,
+                `Sign in faster next time using ${biometricLabel}.`,
+                [
+                  {
+                    text: tNotNow,
+                    style: "cancel",
+                    onPress: () => router.replace(destination as any),
                   },
-                },
-              ],
-            );
-            return;
+                  {
+                    text: tEnable,
+                    onPress: async () => {
+                      try {
+                        const authResult =
+                          await LocalAuthentication.authenticateAsync({
+                            promptMessage: `Authenticate to enable ${biometricLabel}`,
+                          });
+                        if (authResult.success) {
+                          await enableBiometric();
+                        }
+                      } catch {
+                        // Ignore biometric setup errors
+                      }
+                      router.replace(destination as any);
+                    },
+                  },
+                ],
+              );
+              return;
+            }
           }
         }
+      } catch (biometricErr) {
+        // Biometric check failed — skip and navigate normally
+        console.warn("Biometric check error:", biometricErr);
       }
       router.replace(destination as any);
     } catch (err: any) {
@@ -152,6 +163,19 @@ export default function LoginScreen() {
           pathname: "/auth/verify-email",
           params: { email: email.trim().toLowerCase(), role: role || "user" },
         });
+      } else if (err.status === 403 && err.data?.devices) {
+        // Device limit reached — offer password reset to clear all sessions
+        Alert.alert(tDeviceLimitTitle, tDeviceLimitMsg, [
+          { text: tCancel, style: "cancel" },
+          {
+            text: tResetPassword,
+            onPress: () =>
+              router.push({
+                pathname: "/auth/forgot-password",
+                params: { email: email.trim().toLowerCase() },
+              }),
+          },
+        ]);
       } else if (err.data?.platform_restricted) {
         Alert.alert(tAccessDenied, tAccessDeniedMsg);
       } else if (err.data?.is_flagged) {

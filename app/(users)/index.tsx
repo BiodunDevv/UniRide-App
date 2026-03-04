@@ -34,6 +34,7 @@ import { useLocation } from "@/hooks/use-location";
 import { useSocket } from "@/hooks/use-socket";
 import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
+import { useReviewPrompt } from "@/hooks/use-review-prompt";
 import LanguageOnboarding from "@/components/LanguageOnboarding";
 
 const MAPBOX_TOKEN =
@@ -55,6 +56,7 @@ const CATEGORIES: Record<string, { label: string; icon: string }> = {
 export default function UserHomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  useReviewPrompt(!!user);
   const { onlineDrivers, fetchOnlineDrivers, userLocation } =
     useLocationStore();
   const {
@@ -105,14 +107,20 @@ export default function UserHomeScreen() {
           joinUserFeed(user.id);
         }
         joinLiveMap();
-      } catch {}
-      fetchOnlineDrivers();
-      fetchLocations();
-      fetchGroupedLocations();
-      fetchActiveRides();
-      fetchMyBookings();
-      fetchNotifications();
-      startPolling(30000);
+      } catch (e) {
+        console.warn("Init error:", e);
+      }
+      try {
+        fetchOnlineDrivers();
+        fetchLocations();
+        fetchGroupedLocations();
+        fetchActiveRides();
+        fetchMyBookings();
+        fetchNotifications();
+        startPolling(30000);
+      } catch (e) {
+        console.warn("Data fetch init error:", e);
+      }
     })();
     const ivDrivers = setInterval(() => fetchOnlineDrivers(), 30000);
     const ivData = setInterval(() => {

@@ -51,20 +51,9 @@ async function request<T = any>(
       headers,
     });
   } catch (networkError: any) {
-    // Network error — backend unreachable
-    // Only force logout for authenticated requests (not login/register)
-    const isAuthEndpoint =
-      endpoint.includes("/login") ||
-      endpoint.includes("/register") ||
-      endpoint.includes("/verify-email") ||
-      endpoint.includes("/forgot-password") ||
-      endpoint.includes("/reset-password") ||
-      endpoint.includes("/resend-verification") ||
-      endpoint === "/api/platform-settings";
-
-    if (token && !isAuthEndpoint) {
-      forceLogout();
-    }
+    // Network error — backend unreachable.
+    // Do NOT force logout here — the server may just be temporarily down.
+    // Only force logout on explicit 401 responses below.
     throw networkError;
   }
 

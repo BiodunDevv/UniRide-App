@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "uniride",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.biodun42.uniride",
@@ -67,8 +66,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},

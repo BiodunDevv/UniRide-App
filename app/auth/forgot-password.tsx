@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AuthInput from "@/components/auth/AuthInput";
@@ -18,9 +18,10 @@ import { T, useTranslation } from "@/hooks/use-translation";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { email: prefillEmail } = useLocalSearchParams<{ email?: string }>();
   const { forgotPassword, isLoading } = useAuthStore();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(prefillEmail || "");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
 
