@@ -11,9 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.biodun42.uniride",
       "infoPlist": {
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "UniRide needs your location in the background to keep you visible to passengers while you're online as a driver.",
-        "NSLocationWhenInUseUsageDescription": "UniRide needs your location to show nearby rides and enable navigation.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "NSLocationWhenInUseUsageDescription": "UniRide needs your location to show nearby rides and enable navigation."
       }
     },
     "android": {
@@ -25,13 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.biodun42.uniride",
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
-      ]
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
     },
     "web": {
       "output": "static",
@@ -59,9 +51,16 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "UniRide needs your location in the background to keep you visible to passengers while online.",
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "locationWhenInUsePermission": "UniRide needs your location to show nearby rides and enable navigation.",
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#042F40"
         }
       ]
     ],

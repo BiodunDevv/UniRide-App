@@ -57,8 +57,7 @@ export default function DriverHomeScreen() {
     fetchAvailableRequests,
     isLoadingDriverRides,
   } = useRideStore();
-  const { unreadCount, fetchNotifications, startPolling, stopPolling } =
-    useNotificationStore();
+  const { unreadCount, fetchNotifications } = useNotificationStore();
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
   const { connect, joinRoom, joinDriverFeed, joinLiveMap } = useSocket();
@@ -106,7 +105,6 @@ export default function DriverHomeScreen() {
         fetchDriverBookings();
         fetchAvailableRequests();
         fetchNotifications();
-        startPolling(30000);
       } catch (e) {
         console.warn("Data fetch init error:", e);
       }
@@ -117,7 +115,6 @@ export default function DriverHomeScreen() {
     })();
     return () => {
       if (locationInterval.current) clearInterval(locationInterval.current);
-      stopPolling();
     };
   }, []);
 

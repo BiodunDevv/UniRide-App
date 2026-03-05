@@ -5,6 +5,22 @@ import { Platform } from "react-native";
 import { authApi } from "@/lib/api";
 import useTranslatorStore from "@/store/useTranslatorStore";
 
+// ─── Pre-logout hooks ─────────────────────────────────────────────────────────
+// Other modules (e.g. push notifications) can register a callback that runs
+// BEFORE the auth token is cleared so they can still make authenticated API
+// calls during logout cleanup.
+type PreLogoutHook = () => Promise<void>;
+const preLogoutHooks: PreLogoutHook[] = [];
+
+export function registerPreLogoutHook(hook: PreLogoutHook) {
+  preLogoutHooks.push(hook);
+  // Return unregister function
+  return () => {
+    const idx = preLogoutHooks.indexOf(hook);
+    if (idx !== -1) preLogoutHooks.splice(idx, 1);
+  };
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface DriverProfile {
   _id: string;
@@ -336,6 +352,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    // Run pre-logout hooks (e.g. unregister push token) while auth token is
+    // still valid so they can make authenticated API calls
+    for (const hook of preLogoutHooks) {
+      try {
+        await hook();
+      } catch {
+        // Non-critical — continue with logout
+      }
+    }
+
     try {
       const deviceId = await getDeviceId();
       await authApi.logout({ device_id: deviceId });

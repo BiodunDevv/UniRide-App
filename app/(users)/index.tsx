@@ -71,8 +71,7 @@ export default function UserHomeScreen() {
     fetchMyBookings,
     rateDriver,
   } = useRideStore();
-  const { unreadCount, fetchNotifications, startPolling, stopPolling } =
-    useNotificationStore();
+  const { unreadCount, fetchNotifications } = useNotificationStore();
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
   const {
@@ -117,7 +116,6 @@ export default function UserHomeScreen() {
         fetchActiveRides();
         fetchMyBookings();
         fetchNotifications();
-        startPolling(30000);
       } catch (e) {
         console.warn("Data fetch init error:", e);
       }
@@ -130,7 +128,6 @@ export default function UserHomeScreen() {
     return () => {
       clearInterval(ivDrivers);
       clearInterval(ivData);
-      stopPolling();
     };
   }, []);
 

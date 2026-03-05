@@ -1,10 +1,5 @@
 import { create } from "zustand";
 import { locationApi } from "@/lib/rideApi";
-import {
-  startBackgroundLocation,
-  stopBackgroundLocation,
-  wasDriverOnline,
-} from "@/lib/backgroundLocation";
 
 export interface OnlineDriver {
   driver_id: string;
@@ -135,10 +130,6 @@ export const useLocationStore = create<LocationState>((set, get) => ({
       set({ isTogglingOnline: true });
       await locationApi.goOnline({ latitude, longitude, heading });
       set({ isDriverOnline: true, isTogglingOnline: false });
-      // Start background location so driver stays online even if app closes
-      startBackgroundLocation().catch((e) =>
-        console.log("Background location start failed:", e),
-      );
     } catch (error) {
       set({ isTogglingOnline: false });
       throw error;
@@ -148,8 +139,6 @@ export const useLocationStore = create<LocationState>((set, get) => ({
   goOffline: async () => {
     try {
       set({ isTogglingOnline: true });
-      // Stop background location first
-      await stopBackgroundLocation();
       await locationApi.goOffline();
       set({ isDriverOnline: false, isTogglingOnline: false });
     } catch (error) {
@@ -169,18 +158,7 @@ export const useLocationStore = create<LocationState>((set, get) => ({
   setDriverOnlineStatus: (isOnline) => set({ isDriverOnline: isOnline }),
 
   restoreOnlineState: async () => {
-    try {
-      const wasOnline = await wasDriverOnline();
-      if (wasOnline) {
-        // Driver was online before app closed — restore the state
-        set({ isDriverOnline: true });
-        // Ensure background location is still running
-        startBackgroundLocation().catch((e) =>
-          console.log("Restore background location failed:", e),
-        );
-      }
-    } catch (e) {
-      console.log("Restore online state failed:", e);
-    }
+    // With foreground-only location, driver online status resets when app closes.
+    // This is now a no-op — driver must tap "Go Online" each session.
   },
 }));

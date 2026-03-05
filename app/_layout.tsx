@@ -6,10 +6,7 @@ import { Platform, View, AppState } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import "../global.css";
-// Register background location task at module level (must be top-level)
-import "@/lib/backgroundLocation";
-import { useInAppNotifications } from "@/hooks/use-in-app-notifications";
-import InAppNotificationToast from "@/components/InAppNotificationToast";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 import {
   MapProviderProvider,
   useMapProvider,
@@ -99,7 +96,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 export default function RootLayout() {
-  const { routeBase } = useInAppNotifications();
+  usePushNotifications();
 
   useEffect(() => {
     // Hide native splash once our custom one renders
@@ -112,7 +109,6 @@ export default function RootLayout() {
         <PlatformSettingsLoader />
         <View style={{ flex: 1 }}>
           <StatusBar style="dark" />
-          <InAppNotificationToast routeBase={routeBase} />
           <Stack
             screenOptions={{
               headerShown: false,
