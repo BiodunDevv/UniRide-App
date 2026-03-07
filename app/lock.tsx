@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -115,6 +116,14 @@ export default function CurrentUserScreen() {
     useAuthStore();
   const { language } = useTranslatorStore();
   const [authenticating, setAuthenticating] = useState(false);
+  const isMounted = useRef(true);
+
+  // Cleanup on unmount to prevent state updates on dead component
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   // PIN state
   const [showPinInput, setShowPinInput] = useState(false);
@@ -183,8 +192,15 @@ export default function CurrentUserScreen() {
       200,
       withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) }),
     );
-    // Auto-trigger biometric
-    if (u.biometric_enabled) handleBiometric();
+    // Auto-trigger biometric — wait for React Native interactions + Android Activity
+    if (u.biometric_enabled) {
+      const handle = InteractionManager.runAfterInteractions(() => {
+        setTimeout(() => {
+          if (isMounted.current) handleBiometric();
+        }, 600);
+      });
+      return () => handle.cancel();
+    }
   }, []);
 
   const avatarStyle = useAnimatedStyle(() => ({
@@ -223,6 +239,7 @@ export default function CurrentUserScreen() {
   };
 
   const handleBiometric = async () => {
+    if (!isMounted.current) return;
     setAuthenticating(true);
     try {
       const result = await LocalAuthentication.authenticateAsync({
@@ -232,14 +249,16 @@ export default function CurrentUserScreen() {
         fallbackLabel: "Use passcode",
         disableDeviceFallback: false,
       });
+      if (!isMounted.current) return;
       if (result.success) {
         await biometricLogin();
-        navigateHome();
+        if (isMounted.current) navigateHome();
       }
     } catch (err: any) {
+      if (!isMounted.current) return;
       Alert.alert(tAuthFailed, err.message || tBioFailed);
     } finally {
-      setAuthenticating(false);
+      if (isMounted.current) setAuthenticating(false);
     }
   };
 

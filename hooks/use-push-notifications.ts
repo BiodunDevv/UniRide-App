@@ -41,7 +41,7 @@ if (Platform.OS === "android") {
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#042F40",
     sound: "default",
-  });
+  }).catch(() => {});
 }
 
 // ─── Get Expo push token ─────────────────────────────────────────────────────

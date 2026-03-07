@@ -16,21 +16,16 @@ import Animated, {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as LocalAuthentication from "expo-local-authentication";
 import Logo from "@/components/Logo";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
 import { T, useTranslation } from "@/hooks/use-translation";
 import useTranslatorStore from "@/store/useTranslatorStore";
 
-const LOGIN_COUNT_KEY = "@uniride_login_count";
-const BIOMETRIC_PROMPTED_KEY = "@uniride_biometric_prompted";
-
 export default function LoginScreen() {
   const router = useRouter();
   const { role } = useLocalSearchParams<{ role?: string }>();
-  const { login, enableBiometric, isLoading } = useAuthStore();
+  const { login, isLoading } = useAuthStore();
   const { language } = useTranslatorStore();
 
   const [email, setEmail] = useState("");
@@ -63,8 +58,6 @@ export default function LoginScreen() {
   const tWrongAccountType = useTranslation("Wrong Account Type");
   const tLoginFailed = useTranslation("Login Failed");
   const tSomethingWrong = useTranslation("Something went wrong");
-  const tNotNow = useTranslation("Not Now");
-  const tEnable = useTranslation("Enable");
   const tDeviceLimitTitle = useTranslation("Too Many Devices");
   const tDeviceLimitMsg = useTranslation(
     "Your account is signed in on the maximum number of devices. Reset your password to sign out all devices and regain access.",
@@ -98,64 +91,10 @@ export default function LoginScreen() {
         password,
         role || "user",
       );
-      // Navigate to role-based tab group
+
+      // Navigate to role-based home screen
       const userRole = res.data?.user?.role;
       const destination = userRole === "driver" ? "/(drivers)" : "/(users)";
-
-      // Track login count for biometric prompt timing
-      const countStr = await AsyncStorage.getItem(LOGIN_COUNT_KEY);
-      const count = (parseInt(countStr || "0", 10) || 0) + 1;
-      await AsyncStorage.setItem(LOGIN_COUNT_KEY, String(count));
-
-      // Only offer biometric after 5 logins and if not already prompted
-      try {
-        if (!res.data?.user?.biometric_enabled && count >= 5) {
-          const alreadyPrompted = await AsyncStorage.getItem(
-            BIOMETRIC_PROMPTED_KEY,
-          );
-          if (alreadyPrompted !== "true") {
-            const compatible = await LocalAuthentication.hasHardwareAsync();
-            const enrolled = await LocalAuthentication.isEnrolledAsync();
-            if (compatible && enrolled) {
-              const biometricLabel =
-                Platform.OS === "ios" ? "Face ID" : "Fingerprint";
-              await AsyncStorage.setItem(BIOMETRIC_PROMPTED_KEY, "true");
-              Alert.alert(
-                `Enable ${biometricLabel}?`,
-                `Sign in faster next time using ${biometricLabel}.`,
-                [
-                  {
-                    text: tNotNow,
-                    style: "cancel",
-                    onPress: () => router.replace(destination as any),
-                  },
-                  {
-                    text: tEnable,
-                    onPress: async () => {
-                      try {
-                        const authResult =
-                          await LocalAuthentication.authenticateAsync({
-                            promptMessage: `Authenticate to enable ${biometricLabel}`,
-                          });
-                        if (authResult.success) {
-                          await enableBiometric();
-                        }
-                      } catch {
-                        // Ignore biometric setup errors
-                      }
-                      router.replace(destination as any);
-                    },
-                  },
-                ],
-              );
-              return;
-            }
-          }
-        }
-      } catch (biometricErr) {
-        // Biometric check failed — skip and navigate normally
-        console.warn("Biometric check error:", biometricErr);
-      }
       router.replace(destination as any);
     } catch (err: any) {
       if (err.data?.email_verification_required) {
