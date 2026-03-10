@@ -132,6 +132,7 @@ export function useSocket() {
       store.fetchActiveRides();
       store.fetchDriverRides();
       store.fetchDriverBookings();
+      eventBus.emit("ride:accepted", data);
     });
 
     socket.on("ride:ended", (data) => {
@@ -145,26 +146,35 @@ export function useSocket() {
       if (store.activeRide?._id === data.ride_id) {
         useRideStore.setState({ activeRide: null });
       }
+      eventBus.emit("ride:ended", data);
+    });
+
+    socket.on("ride:started", (data) => {
+      const store = useRideStore.getState();
+      // Refresh all data so UI reflects in_progress status
+      store.fetchMyBookings();
+      store.fetchDriverBookings();
+      store.fetchDriverRides();
+      store.fetchActiveRides();
+      eventBus.emit("ride:started", data);
     });
 
     // ── Booking events (real-time) ─────────────────────────────────────
     socket.on("booking:updated", (data) => {
       const store = useRideStore.getState();
-      // Update booking status + check_in_code in local state
+      // Update booking fields in local state (status, payment_status, check_in_status, check_in_code)
+      const patch: Record<string, unknown> = {};
+      if (data.status) patch.status = data.status;
+      if (data.payment_status) patch.payment_status = data.payment_status;
+      if (data.check_in_status) patch.check_in_status = data.check_in_status;
+      if (data.check_in_code) patch.check_in_code = data.check_in_code;
+
       useRideStore.setState({
         myBookings: store.myBookings.map((b) =>
-          b._id === data.booking_id
-            ? {
-                ...b,
-                status: data.status,
-                ...(data.check_in_code
-                  ? { check_in_code: data.check_in_code }
-                  : {}),
-              }
-            : b,
+          b._id === data.booking_id ? { ...b, ...patch } : b,
         ),
         driverBookings: store.driverBookings.map((b) =>
-          b._id === data.booking_id ? { ...b, status: data.status } : b,
+          b._id === data.booking_id ? { ...b, ...patch } : b,
         ),
       });
       // Refresh full booking/ride data silently
@@ -172,6 +182,7 @@ export function useSocket() {
       store.fetchDriverBookings();
       store.fetchDriverRides();
       store.fetchActiveRides();
+      eventBus.emit("booking:updated", data);
     });
 
     socket.on("booking:cancelled", (data) => {
@@ -193,18 +204,18 @@ export function useSocket() {
       store.fetchDriverBookings();
       store.fetchDriverRides();
       store.fetchActiveRides();
+      eventBus.emit("booking:cancelled", data);
     });
 
     socket.on("booking:checkin", (data) => {
       const store = useRideStore.getState();
-      // Update the booking's check-in status locally
+      // Update the booking's check-in status locally — do NOT change booking.status
       useRideStore.setState({
         driverBookings: store.driverBookings.map((b) =>
           b._id === data.booking_id
             ? {
                 ...b,
                 check_in_status: "checked_in" as const,
-                status: "in_progress" as const,
               }
             : b,
         ),
@@ -213,14 +224,14 @@ export function useSocket() {
             ? {
                 ...b,
                 check_in_status: "checked_in" as const,
-                status: "in_progress" as const,
               }
             : b,
         ),
       });
-      // Refresh ride data since ride status may have changed too
+      // Refresh ride data since check-in count may have changed
       store.fetchDriverRides();
       store.fetchMyBookings();
+      eventBus.emit("booking:checkin", data);
     });
 
     // ── Passenger location events (for driver's active ride) ───────────

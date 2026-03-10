@@ -19,7 +19,7 @@ export const useTranslation = (
   const [translated, setTranslated] = useState(text);
 
   useEffect(() => {
-    if (!text || text.trim() === "") {
+    if (!text || typeof text !== "string" || text.trim() === "") {
       setTranslated("");
       return;
     }
@@ -92,7 +92,20 @@ export const translateSync = (text: string, targetLang: string): string => {
  * <Text><T>Welcome to UniRide</T></Text>
  * <Bullet><T>Full name and date of birth</T></Bullet>
  */
-export function T({ children }: { children: string }) {
-  const translated = useTranslation(children);
+export function T({ children }: { children: React.ReactNode }) {
+  // Flatten children to a plain string (handles arrays from JSX interpolation)
+  const text =
+    typeof children === "string"
+      ? children
+      : typeof children === "number"
+        ? String(children)
+        : Array.isArray(children)
+          ? children.map((c) => (c == null ? "" : String(c))).join("")
+          : React.Children.toArray(children)
+              .map((c) =>
+                typeof c === "string" || typeof c === "number" ? String(c) : "",
+              )
+              .join("");
+  const translated = useTranslation(text);
   return React.createElement(React.Fragment, null, translated);
 }

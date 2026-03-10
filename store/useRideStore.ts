@@ -66,7 +66,7 @@ export interface Booking {
   seats_requested: number;
   total_fare?: number;
   payment_method: "cash" | "transfer";
-  payment_status: "pending" | "paid" | "not_applicable";
+  payment_status: "pending" | "sent" | "paid" | "not_applicable";
   bank_details_visible: boolean;
   booking_time: string;
   check_in_status: "not_checked_in" | "checked_in";
@@ -131,6 +131,7 @@ interface RideState {
   }) => Promise<void>;
   fetchDriverRides: () => Promise<void>;
   fetchRideDetails: (rideId: string) => Promise<Ride>;
+  startRide: (rideId: string) => Promise<void>;
   endRide: (rideId: string) => Promise<void>;
   setActiveRide: (ride: Ride | null) => void;
   createRide: (body: {
@@ -250,6 +251,22 @@ export const useRideStore = create<RideState>((set, get) => ({
         activeRide: null,
         driverRides: state.driverRides.map((r) =>
           r._id === rideId ? { ...r, status: "completed" as const } : r,
+        ),
+      }));
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  startRide: async (rideId: string) => {
+    try {
+      await rideApi.startRide(rideId);
+      set((state) => ({
+        activeRide: state.activeRide
+          ? { ...state.activeRide, status: "in_progress" as const }
+          : null,
+        driverRides: state.driverRides.map((r) =>
+          r._id === rideId ? { ...r, status: "in_progress" as const } : r,
         ),
       }));
     } catch (error) {

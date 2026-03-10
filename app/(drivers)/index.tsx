@@ -429,7 +429,7 @@ export default function DriverHomeScreen() {
             />
           }
         >
-          <SafeAreaView edges={["bottom"]} className="pb-2">
+          <SafeAreaView edges={["bottom"]} className="-pb-2">
             {/* Online Toggle */}
             <Animated.View
               entering={FadeInUp.delay(300).duration(400)}
@@ -525,6 +525,16 @@ export default function DriverHomeScreen() {
                   <T>Completed</T>
                 </Text>
               </View>
+              <TouchableOpacity
+                onPress={() => router.push("/(drivers)/earnings" as any)}
+                className="flex-1 bg-green-50 rounded-2xl p-3 items-center border border-green-100"
+                activeOpacity={0.7}
+              >
+                <Ionicons name="wallet-outline" size={22} color="#16A34A" />
+                <Text className="text-[11px] text-green-600 mt-0.5 font-semibold">
+                  <T>Earnings</T>
+                </Text>
+              </TouchableOpacity>
             </Animated.View>
 
             {/* Ride Requests (user-created rides needing a driver) */}
@@ -710,37 +720,48 @@ export default function DriverHomeScreen() {
             {/* Quick Actions */}
             <Animated.View
               entering={FadeInUp.delay(600).duration(400)}
-              className="flex-row mx-5 gap-3 mb-2"
+              className="mx-5 gap-3 mb-2"
             >
+              <View className="flex-row gap-3">
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!isOnline) {
+                      Alert.alert(
+                        "Go Online First",
+                        "You need to be online before you can create a ride. Go online now?",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Go Online", onPress: doToggle },
+                        ],
+                      );
+                      return;
+                    }
+                    router.push("/(drivers)/create-ride" as any);
+                  }}
+                  className={`flex-1 rounded-2xl py-4 items-center flex-row justify-center ${isOnline ? "bg-primary" : "bg-gray-300"}`}
+                >
+                  <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                  <Text className="text-white font-bold text-sm ml-2">
+                    <T>Create Ride</T>
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => router.push("/(drivers)/rides")}
+                  className="flex-1 bg-gray-100 rounded-2xl py-4 items-center flex-row justify-center"
+                >
+                  <Ionicons name="list-outline" size={18} color="#042F40" />
+                  <Text className="text-gray-700 font-bold text-sm ml-2">
+                    <T>All Rides</T>
+                  </Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity
-                onPress={() => {
-                  if (!isOnline) {
-                    Alert.alert(
-                      "Go Online First",
-                      "You need to be online before you can create a ride. Go online now?",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Go Online", onPress: doToggle },
-                      ],
-                    );
-                    return;
-                  }
-                  router.push("/(drivers)/create-ride" as any);
-                }}
-                className={`flex-1 rounded-2xl py-4 items-center flex-row justify-center ${isOnline ? "bg-primary" : "bg-gray-300"}`}
+                onPress={() => router.push("/(drivers)/earnings" as any)}
+                className="bg-green-50 border border-green-100 rounded-2xl py-4 items-center flex-row justify-center"
               >
-                <Ionicons name="add-circle-outline" size={18} color="#fff" />
-                <Text className="text-white font-bold text-sm ml-2">
-                  <T>Create Ride</T>
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/(drivers)/rides")}
-                className="flex-1 bg-gray-100 rounded-2xl py-4 items-center flex-row justify-center"
-              >
-                <Ionicons name="list-outline" size={18} color="#042F40" />
-                <Text className="text-gray-700 font-bold text-sm ml-2">
-                  <T>All Rides</T>
+                <Ionicons name="wallet-outline" size={18} color="#16A34A" />
+                <Text className="text-green-700 font-bold text-sm ml-2">
+                  <T>Earnings</T>
                 </Text>
               </TouchableOpacity>
             </Animated.View>

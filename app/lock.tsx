@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
@@ -112,8 +113,15 @@ function CodeDots({ length, value }: { length: number; value: string }) {
 
 export default function CurrentUserScreen() {
   const router = useRouter();
-  const { user, biometricLogin, pinLogin, forgotPin, resetPin, logout } =
-    useAuthStore();
+  const {
+    user,
+    fetchMe,
+    biometricLogin,
+    pinLogin,
+    forgotPin,
+    resetPin,
+    logout,
+  } = useAuthStore();
   const { language } = useTranslatorStore();
   const [authenticating, setAuthenticating] = useState(false);
   const isMounted = useRef(true);
@@ -123,6 +131,11 @@ export default function CurrentUserScreen() {
     return () => {
       isMounted.current = false;
     };
+  }, []);
+
+  // Fetch fresh profile from /me on mount (silent — keeps cached data if it fails)
+  useEffect(() => {
+    fetchMe().catch(() => {});
   }, []);
 
   // PIN state
@@ -428,11 +441,19 @@ export default function CurrentUserScreen() {
                 <View className="items-center pt-6 pb-4 px-8">
                   <Animated.View
                     style={avatarStyle}
-                    className="w-20 h-20 rounded-full bg-primary items-center justify-center mb-4 shadow-lg"
+                    className="w-20 h-20 rounded-full bg-primary items-center justify-center mb-4 shadow-lg overflow-hidden"
                   >
-                    <Text className="text-white text-2xl font-bold">
-                      {initials}
-                    </Text>
+                    {user?.profile_picture ? (
+                      <Image
+                        source={{ uri: user.profile_picture }}
+                        className="w-20 h-20 rounded-full"
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Text className="text-white text-2xl font-bold">
+                        {initials}
+                      </Text>
+                    )}
                   </Animated.View>
                   <Animated.View style={nameStyle} className="items-center">
                     <Text className="text-gray-400 text-xs font-medium tracking-wide uppercase">

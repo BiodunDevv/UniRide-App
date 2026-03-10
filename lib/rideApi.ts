@@ -61,6 +61,11 @@ export const rideApi = {
     return request(`/api/rides/${rideId}/accept`, { method: "POST" });
   },
 
+  // Start a ride (driver — transitions to in_progress)
+  startRide(rideId: string) {
+    return request(`/api/rides/${rideId}/start`, { method: "POST" });
+  },
+
   // End a ride (driver)
   endRide(rideId: string) {
     return request(`/api/rides/${rideId}/end`, { method: "POST" });
@@ -156,6 +161,11 @@ export const bookingApi = {
   // Driver: Decline a booking
   declineBooking(bookingId: string) {
     return request(`/api/booking/decline/${bookingId}`, { method: "POST" });
+  },
+
+  // Driver: Get earnings summary
+  getDriverEarnings() {
+    return request("/api/booking/driver-earnings");
   },
 };
 

@@ -551,6 +551,9 @@ export default function UserHomeScreen() {
             {activeBookings.slice(0, 1).map((bk) => {
               const needsCheckIn =
                 bk.status === "accepted" && bk.check_in_status !== "checked_in";
+              const isCheckedInWaiting =
+                bk.check_in_status === "checked_in" &&
+                bk.status !== "in_progress";
               const inProg = bk.status === "in_progress";
               return (
                 <Animated.View
@@ -567,11 +570,11 @@ export default function UserHomeScreen() {
                             params: { bookingId: bk._id },
                           })
                     }
-                    className={`rounded-2xl p-4 ${needsCheckIn ? "bg-accent/10 border border-accent/20" : inProg ? "bg-blue-50 border border-blue-100" : "bg-green-50 border border-green-100"}`}
+                    className={`rounded-2xl p-4 ${needsCheckIn ? "bg-accent/10 border border-accent/20" : isCheckedInWaiting ? "bg-green-50 border border-green-100" : inProg ? "bg-blue-50 border border-blue-100" : "bg-green-50 border border-green-100"}`}
                   >
                     <View className="flex-row items-center">
                       <View
-                        className={`w-10 h-10 rounded-full items-center justify-center ${needsCheckIn ? "bg-accent/20" : inProg ? "bg-blue-100" : "bg-green-100"}`}
+                        className={`w-10 h-10 rounded-full items-center justify-center ${needsCheckIn ? "bg-accent/20" : isCheckedInWaiting ? "bg-green-100" : inProg ? "bg-blue-100" : "bg-green-100"}`}
                       >
                         <Ionicons
                           name={
@@ -579,15 +582,19 @@ export default function UserHomeScreen() {
                               ? "navigate"
                               : needsCheckIn
                                 ? "key"
-                                : "checkmark-circle"
+                                : isCheckedInWaiting
+                                  ? "hourglass"
+                                  : "checkmark-circle"
                           }
                           size={20}
                           color={
                             needsCheckIn
                               ? "#D4A017"
-                              : inProg
-                                ? "#2563EB"
-                                : "#16A34A"
+                              : isCheckedInWaiting
+                                ? "#16A34A"
+                                : inProg
+                                  ? "#2563EB"
+                                  : "#16A34A"
                           }
                         />
                       </View>
@@ -597,6 +604,8 @@ export default function UserHomeScreen() {
                             <T>Booking Pending</T>
                           ) : needsCheckIn ? (
                             <T>Check In Required</T>
+                          ) : isCheckedInWaiting ? (
+                            <T>Checked In</T>
                           ) : inProg ? (
                             <T>Ride In Progress</T>
                           ) : (
@@ -608,6 +617,8 @@ export default function UserHomeScreen() {
                             <T>Tap to check in with your code</T>
                           ) : needsCheckIn ? (
                             <T>Waiting for check-in code</T>
+                          ) : isCheckedInWaiting ? (
+                            <T>Waiting for the driver to start</T>
                           ) : (
                             <T>Tap to view details</T>
                           )}

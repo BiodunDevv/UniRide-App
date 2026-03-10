@@ -15,6 +15,7 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 
 import { useRideStore, Booking } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 
 const STATUS_INFO: Record<
@@ -79,10 +80,20 @@ export default function ActivityScreen() {
     }, []),
   );
 
-  // Auto-refresh bookings every 8s for real-time status updates
+  // Real-time updates via socket events
   useEffect(() => {
-    const iv = setInterval(() => fetchMyBookings(), 8000);
-    return () => clearInterval(iv);
+    const u1 = eventBus.on("booking:updated", () => fetchMyBookings());
+    const u2 = eventBus.on("booking:cancelled", () => fetchMyBookings());
+    const u3 = eventBus.on("booking:checkin", () => fetchMyBookings());
+    const u4 = eventBus.on("ride:ended", () => fetchMyBookings());
+    const u5 = eventBus.on("ride:accepted", () => fetchMyBookings());
+    return () => {
+      u1();
+      u2();
+      u3();
+      u4();
+      u5();
+    };
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -154,7 +165,7 @@ export default function ActivityScreen() {
             keyExtractor={(item) => item._id}
             contentContainerStyle={{
               paddingHorizontal: 20,
-              paddingBottom: 40,
+              paddingBottom: 100,
               paddingTop: 8,
             }}
             showsVerticalScrollIndicator={false}
@@ -290,6 +301,19 @@ function BookingCard({
           {ride?.fare !== undefined && (
             <FareLabel fare={ride.fare} seats={booking.seats_requested} />
           )}
+        </View>
+        {/* View details */}
+        <View className="mt-2.5 bg-primary/5 rounded-xl py-2.5 items-center flex-row justify-center">
+          <Ionicons name="eye-outline" size={14} color="#042F40" />
+          <Text className="text-xs font-semibold text-primary ml-1.5">
+            <T>View Details</T>
+          </Text>
+          <Ionicons
+            name="chevron-forward"
+            size={14}
+            color="#042F40"
+            className="ml-1"
+          />
         </View>
         {isTimedOut && (
           <View className="mt-2 bg-orange-50 rounded-xl px-3 py-2 flex-row items-center">

@@ -15,6 +15,7 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 
 import { useRideStore, Ride } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 
 const STATUS_INFO: Record<string, { icon: string; bg: string; color: string }> =
@@ -41,6 +42,20 @@ export default function DriverRidesScreen() {
       fetchDriverRides();
     }, []),
   );
+
+  // Real-time updates via socket events
+  useEffect(() => {
+    const u1 = eventBus.on("booking:updated", () => fetchDriverRides());
+    const u2 = eventBus.on("booking:cancelled", () => fetchDriverRides());
+    const u3 = eventBus.on("ride:ended", () => fetchDriverRides());
+    const u4 = eventBus.on("ride:accepted", () => fetchDriverRides());
+    return () => {
+      u1();
+      u2();
+      u3();
+      u4();
+    };
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -112,7 +127,7 @@ export default function DriverRidesScreen() {
             keyExtractor={(item) => item._id}
             contentContainerStyle={{
               paddingHorizontal: 20,
-              paddingBottom: 40,
+              paddingBottom: 100,
               paddingTop: 8,
             }}
             showsVerticalScrollIndicator={false}
@@ -228,6 +243,19 @@ export default function DriverRidesScreen() {
                         {item.booked_seats}/{item.available_seats} seats
                       </Text>
                       <FareLabel fare={item.fare} />
+                    </View>
+                    {/* View details */}
+                    <View className="mt-2.5 bg-primary/5 rounded-xl py-2.5 items-center flex-row justify-center">
+                      <Ionicons name="eye-outline" size={14} color="#042F40" />
+                      <Text className="text-xs font-semibold text-primary ml-1.5">
+                        <T>View Details</T>
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={14}
+                        color="#042F40"
+                        className="ml-1"
+                      />
                     </View>
                   </TouchableOpacity>
                 </Animated.View>

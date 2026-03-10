@@ -36,8 +36,14 @@ Mapbox.setAccessToken(MAPBOX_TOKEN);
 export default function DriverActiveRideScreen() {
   const router = useRouter();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
-  const { fetchRideDetails, endRide, driverBookings, fetchDriverBookings } =
-    useRideStore();
+  const {
+    fetchRideDetails,
+    startRide,
+    endRide,
+    driverBookings,
+    fetchDriverBookings,
+    updatePaymentStatus,
+  } = useRideStore();
   const { userLocation, updateLiveLocation } = useLocationStore();
   const { joinRide, leaveRide } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
@@ -66,6 +72,10 @@ export default function DriverActiveRideScreen() {
       try {
         if (rideId) {
           joinRide(rideId);
+          // Start the ride (transition to in_progress) — idempotent if already started
+          try {
+            await startRide(rideId);
+          } catch {}
           const r = await fetchRideDetails(rideId);
           setRide(r);
           await fetchDriverBookings();
@@ -139,10 +149,12 @@ export default function DriverActiveRideScreen() {
     const u1 = eventBus.on("booking:updated", refresh);
     const u2 = eventBus.on("booking:checkin", refresh);
     const u3 = eventBus.on("booking:cancelled", refresh);
+    const u4 = eventBus.on("ride:ended", refresh);
     return () => {
       u1();
       u2();
       u3();
+      u4();
     };
   }, [rideId]);
 
@@ -163,6 +175,38 @@ export default function DriverActiveRideScreen() {
     return () => unsub();
   }, []);
 
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [rideCompleted, setRideCompleted] = useState(false);
+
+  const handleConfirmPayment = (bookingId: string, passengerName: string) => {
+    Alert.alert(
+      "Confirm Payment",
+      `Did you receive the transfer payment from ${passengerName}?`,
+      [
+        { text: "Not Yet", style: "cancel" },
+        {
+          text: "Yes, Received",
+          onPress: async () => {
+            setActionId(bookingId);
+            try {
+              await updatePaymentStatus(bookingId, "paid");
+              setBookings((prev) =>
+                prev.map((b) =>
+                  b._id === bookingId
+                    ? { ...b, payment_status: "paid" as const }
+                    : b,
+                ),
+              );
+            } catch (e: any) {
+              Alert.alert("Error", e?.message || "Failed to update");
+            }
+            setActionId(null);
+          },
+        },
+      ],
+    );
+  };
+
   const handleEndRide = () => {
     Alert.alert(
       "End Ride?",
@@ -176,9 +220,7 @@ export default function DriverActiveRideScreen() {
             setEnding(true);
             try {
               await endRide(rideId!);
-              Alert.alert("Ride Ended", "Well done!", [
-                { text: "OK", onPress: () => router.back() },
-              ]);
+              setRideCompleted(true);
             } catch (e: any) {
               Alert.alert("Error", e?.message || "Failed");
             }
@@ -426,37 +468,105 @@ export default function DriverActiveRideScreen() {
                   bk.user_id && typeof bk.user_id === "object"
                     ? bk.user_id
                     : null;
+                const isTransfer = bk.payment_method === "transfer";
+                const paymentSent = isTransfer && bk.payment_status === "sent";
+                const paymentConfirmed =
+                  isTransfer && bk.payment_status === "paid";
+                const paymentPending =
+                  isTransfer && bk.payment_status === "pending";
                 return (
-                  <View
-                    key={bk._id}
-                    className="flex-row items-center py-2 border-b border-gray-50"
-                  >
-                    {usr?.profile_picture ? (
-                      <Image
-                        source={{ uri: usr.profile_picture }}
-                        className="w-7 h-7 rounded-full mr-2"
-                      />
-                    ) : (
-                      <View className="w-7 h-7 rounded-full bg-gray-100 items-center justify-center mr-2">
-                        <Ionicons name="person" size={12} color="#042F40" />
-                      </View>
-                    )}
-                    <Text className="flex-1 text-xs font-medium text-gray-700">
-                      {usr?.name || "Passenger"}
-                    </Text>
-                    <Text className="text-xs text-gray-400 mr-2">
-                      {bk.seats_requested}s
-                    </Text>
-                    {bk.check_in_status === "checked_in" ? (
-                      <View className="bg-green-100 rounded-full px-2 py-0.5">
-                        <Text className="text-[10px] text-green-700 font-semibold">
-                          ✓
+                  <View key={bk._id} className="bg-gray-50 rounded-xl p-3 mb-2">
+                    <View className="flex-row items-center">
+                      {usr?.profile_picture ? (
+                        <Image
+                          source={{ uri: usr.profile_picture }}
+                          className="w-8 h-8 rounded-full mr-2"
+                        />
+                      ) : (
+                        <View className="w-8 h-8 rounded-full bg-gray-200 items-center justify-center mr-2">
+                          <Ionicons name="person" size={14} color="#042F40" />
+                        </View>
+                      )}
+                      <View className="flex-1">
+                        <Text className="text-xs font-semibold text-gray-800">
+                          {usr?.name || "Passenger"}
+                        </Text>
+                        <Text className="text-[10px] text-gray-400">
+                          {bk.seats_requested} seat
+                          {bk.seats_requested > 1 ? "s" : ""} ·{" "}
+                          {bk.payment_method}
                         </Text>
                       </View>
-                    ) : (
-                      <View className="bg-gray-100 rounded-full px-2 py-0.5">
-                        <Text className="text-[10px] text-gray-400">—</Text>
+                      <View className="flex-row items-center gap-1.5">
+                        {/* Payment badge */}
+                        {isTransfer && (
+                          <View
+                            className={`rounded-full px-2 py-0.5 ${
+                              paymentConfirmed
+                                ? "bg-green-100"
+                                : paymentSent
+                                  ? "bg-blue-100"
+                                  : "bg-amber-100"
+                            }`}
+                          >
+                            <Text
+                              className={`text-[10px] font-semibold ${
+                                paymentConfirmed
+                                  ? "text-green-700"
+                                  : paymentSent
+                                    ? "text-blue-700"
+                                    : "text-amber-700"
+                              }`}
+                            >
+                              {paymentConfirmed
+                                ? "₦ Paid"
+                                : paymentSent
+                                  ? "₦ Sent"
+                                  : "₦ Pending"}
+                            </Text>
+                          </View>
+                        )}
+                        {bk.check_in_status === "checked_in" ? (
+                          <View className="bg-green-100 rounded-full px-2 py-0.5">
+                            <Text className="text-[10px] text-green-700 font-semibold">
+                              ✓
+                            </Text>
+                          </View>
+                        ) : (
+                          <View className="bg-gray-100 rounded-full px-2 py-0.5">
+                            <Text className="text-[10px] text-gray-400">—</Text>
+                          </View>
+                        )}
                       </View>
+                    </View>
+
+                    {/* Confirm Transfer button — shown when passenger has marked as sent */}
+                    {paymentSent && (
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleConfirmPayment(
+                            bk._id,
+                            usr?.name || "this passenger",
+                          )
+                        }
+                        disabled={actionId === bk._id}
+                        className="mt-2 bg-blue-50 rounded-xl py-2.5 flex-row items-center justify-center border border-blue-100"
+                      >
+                        {actionId === bk._id ? (
+                          <ActivityIndicator size="small" color="#2563EB" />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="checkmark-circle-outline"
+                              size={14}
+                              color="#2563EB"
+                            />
+                            <Text className="text-blue-600 font-semibold text-xs ml-1.5">
+                              <T>Confirm Transfer Received</T>
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     )}
                   </View>
                 );
@@ -483,6 +593,94 @@ export default function DriverActiveRideScreen() {
           </TouchableOpacity>
         </SafeAreaView>
       </Animated.View>
+
+      {/* ── Ride Completed Overlay ──────────────────────────────────── */}
+      {rideCompleted && (
+        <View className="absolute inset-0 z-50 bg-white">
+          <SafeAreaView
+            edges={["top", "bottom"]}
+            className="flex-1 justify-center items-center px-8"
+          >
+            <Animated.View
+              entering={FadeInUp.duration(500)}
+              className="items-center"
+            >
+              <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-4">
+                <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+              </View>
+              <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
+                <T>Ride Completed!</T>
+              </Text>
+              <Text className="text-sm text-gray-500 text-center mb-6">
+                <T>Great job! Your ride has been completed successfully.</T>
+              </Text>
+
+              {/* Summary Card */}
+              <View className="bg-gray-50 rounded-2xl p-5 w-full mb-6">
+                <View className="flex-row items-start mb-3">
+                  <View className="items-center mr-3 mt-0.5">
+                    <View className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                    <View className="w-0.5 h-6 bg-gray-200 my-0.5" />
+                    <View className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs font-semibold text-gray-800 mb-3">
+                      {pickup?.short_name || "Pickup"}
+                    </Text>
+                    <Text className="text-xs font-semibold text-gray-800">
+                      {dest?.short_name || "Destination"}
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row justify-between pt-3 border-t border-gray-200">
+                  <View className="items-center flex-1">
+                    <Text className="text-lg font-bold text-primary">
+                      {bookings.length}
+                    </Text>
+                    <Text className="text-[10px] text-gray-400">
+                      <T>Passengers</T>
+                    </Text>
+                  </View>
+                  <View className="items-center flex-1">
+                    <Text className="text-lg font-bold text-primary">
+                      {ride?.fare ? `₦${ride.fare}` : "—"}
+                    </Text>
+                    <Text className="text-[10px] text-gray-400">
+                      <T>Fare</T>
+                    </Text>
+                  </View>
+                  <View className="items-center flex-1">
+                    <Text className="text-lg font-bold text-green-600">
+                      {checkedIn}/{bookings.length}
+                    </Text>
+                    <Text className="text-[10px] text-gray-400">
+                      <T>Checked In</T>
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="bg-primary rounded-2xl py-4 w-full items-center mb-3"
+              >
+                <Text className="text-white font-bold text-base">
+                  <T>Back to Home</T>
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/(drivers)/earnings" as any)}
+                className="bg-green-50 border border-green-100 rounded-2xl py-3.5 w-full items-center flex-row justify-center"
+              >
+                <Ionicons name="wallet-outline" size={16} color="#16A34A" />
+                <Text className="text-green-700 font-semibold text-sm ml-2">
+                  <T>View Earnings</T>
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </SafeAreaView>
+        </View>
+      )}
     </View>
   );
 }

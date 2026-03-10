@@ -39,7 +39,9 @@ export default function RequestRideScreen() {
   const maxSeats = settings.max_seats_per_booking || 4;
   const farePolicy = settings.fare_policy;
   const farePerSeat = farePolicy?.minimum_fare ?? farePolicy?.base_fare ?? 0;
-  const totalFare = settings.fare_per_seat ? farePerSeat * seats : farePerSeat;
+  const totalFare = settings.fare_per_seat
+    ? farePerSeat * seats
+    : farePerSeat;
 
   const canSubmit = !!(
     selectedPickup &&

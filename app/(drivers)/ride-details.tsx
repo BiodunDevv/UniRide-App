@@ -61,6 +61,7 @@ export default function DriverRideDetailsScreen() {
     acceptBooking,
     declineBooking,
     acceptRideRequest,
+    updatePaymentStatus,
     isLoadingDriverBookings,
   } = useRideStore();
 
@@ -212,6 +213,24 @@ export default function DriverRideDetailsScreen() {
     : null;
   const isRequestRide = ride && !ride.driver_id;
 
+  // ── Check-in status ───────────────────────────────────────────
+  const acceptedBookings = bookings.filter(
+    (b) => b.status === "accepted" || b.status === "in_progress",
+  );
+  const checkedInCount = bookings.filter(
+    (b) => b.check_in_status === "checked_in",
+  ).length;
+  const totalPassengers = acceptedBookings.length;
+  const hasCheckedIn = checkedInCount > 0;
+  const allCheckedIn =
+    totalPassengers > 0 && checkedInCount === totalPassengers;
+  const canStartRide =
+    hasCheckedIn &&
+    (ride?.status === "accepted" ||
+      ride?.status === "available" ||
+      ride?.status === "scheduled" ||
+      ride?.status === "in_progress");
+
   // ── Actions ───────────────────────────────────────────────────────
   const requireOnline = (action: () => void) => {
     if (!isDriverOnline) {
@@ -303,15 +322,50 @@ export default function DriverRideDetailsScreen() {
     } catch {}
   };
 
+  const handleConfirmPayment = (bookingId: string, passengerName: string) => {
+    Alert.alert(
+      "Confirm Payment",
+      `Did you receive the transfer payment from ${passengerName}?`,
+      [
+        { text: "Not Yet", style: "cancel" },
+        {
+          text: "Yes, Received",
+          onPress: async () => {
+            setActionId(bookingId);
+            try {
+              await updatePaymentStatus(bookingId, "paid");
+              setBookings((prev) =>
+                prev.map((b) =>
+                  b._id === bookingId
+                    ? { ...b, payment_status: "paid" as const }
+                    : b,
+                ),
+              );
+            } catch (e: any) {
+              Alert.alert("Error", e?.message || "Failed to update");
+            }
+            setActionId(null);
+          },
+        },
+      ],
+    );
+  };
+
   const handleStartRide = () => {
-    if (ride) {
-      requireOnline(() => {
-        router.push({
-          pathname: "/(drivers)/active-ride" as any,
-          params: { rideId: ride._id },
-        });
-      });
+    if (!ride) return;
+    if (!hasCheckedIn) {
+      Alert.alert(
+        "Waiting for Check-in",
+        "At least one passenger must check in before you can start the ride. Share your check-in code with passengers.",
+      );
+      return;
     }
+    requireOnline(() => {
+      router.push({
+        pathname: "/(drivers)/active-ride" as any,
+        params: { rideId: ride._id },
+      });
+    });
   };
 
   if (loading)
@@ -501,6 +555,12 @@ export default function DriverRideDetailsScreen() {
                 const bBadge =
                   STATUS_BADGES[bk.status] || STATUS_BADGES.pending;
                 const isPending = bk.status === "pending";
+                const isTransfer = bk.payment_method === "transfer";
+                const paymentSent = isTransfer && bk.payment_status === "sent";
+                const paymentConfirmed =
+                  isTransfer && bk.payment_status === "paid";
+                const paymentPending =
+                  isTransfer && bk.payment_status === "pending";
                 return (
                   <Animated.View
                     key={bk._id}
@@ -529,14 +589,76 @@ export default function DriverRideDetailsScreen() {
                             <Text className={bBadge.color}>{bk.status}</Text>
                           </Text>
                         </View>
-                        {bk.check_in_status === "checked_in" && (
-                          <View className="bg-green-100 rounded-full px-2 py-0.5">
-                            <Text className="text-[10px] text-green-700 font-semibold">
-                              ✓ In
-                            </Text>
-                          </View>
-                        )}
+                        <View className="flex-row items-center gap-1.5">
+                          {/* Payment badge */}
+                          {isTransfer && (
+                            <View
+                              className={`rounded-full px-2 py-0.5 ${
+                                paymentConfirmed
+                                  ? "bg-green-100"
+                                  : paymentSent
+                                    ? "bg-blue-100"
+                                    : "bg-amber-100"
+                              }`}
+                            >
+                              <Text
+                                className={`text-[10px] font-semibold ${
+                                  paymentConfirmed
+                                    ? "text-green-700"
+                                    : paymentSent
+                                      ? "text-blue-700"
+                                      : "text-amber-700"
+                                }`}
+                              >
+                                {paymentConfirmed
+                                  ? "₦ Paid"
+                                  : paymentSent
+                                    ? "₦ Sent"
+                                    : "₦ Pending"}
+                              </Text>
+                            </View>
+                          )}
+                          {bk.check_in_status === "checked_in" && (
+                            <View className="bg-green-100 rounded-full px-2 py-0.5">
+                              <Text className="text-[10px] text-green-700 font-semibold">
+                                ✓ In
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
+
+                      {/* Transfer payment confirm button — only when passenger has sent */}
+                      {paymentSent &&
+                        (bk.status === "accepted" ||
+                          bk.status === "in_progress") && (
+                          <TouchableOpacity
+                            onPress={() =>
+                              handleConfirmPayment(
+                                bk._id,
+                                usr?.name || "this passenger",
+                              )
+                            }
+                            disabled={actionId === bk._id}
+                            className="mt-2 bg-blue-50 rounded-xl py-2.5 flex-row items-center justify-center border border-blue-100"
+                          >
+                            {actionId === bk._id ? (
+                              <ActivityIndicator size="small" color="#2563EB" />
+                            ) : (
+                              <>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={16}
+                                  color="#2563EB"
+                                />
+                                <Text className="text-blue-600 font-semibold text-xs ml-1.5">
+                                  <T>Confirm Transfer Received</T>
+                                </Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
+
                       {isPending && !settings.auto_accept_bookings && (
                         <View className="flex-row mt-3 gap-2">
                           <TouchableOpacity
@@ -571,7 +693,7 @@ export default function DriverRideDetailsScreen() {
           </Animated.View>
         </ScrollView>
 
-        {/* Bottom Action  */}
+        {/* Bottom Action */}
         <SafeAreaView
           edges={["bottom"]}
           className="px-5 pt-3 border-t border-gray-100 bg-white"
@@ -579,7 +701,7 @@ export default function DriverRideDetailsScreen() {
           {isRequestRide ? (
             <TouchableOpacity
               onPress={handleAcceptRequest}
-              className="bg-purple-600 rounded-2xl py-4 items-center mb-2"
+              className="bg-purple-600 rounded-2xl py-4 items-center"
             >
               <Text className="text-white font-bold text-base">
                 <T>Accept Ride Request</T>
@@ -587,15 +709,100 @@ export default function DriverRideDetailsScreen() {
             </TouchableOpacity>
           ) : ride.status === "accepted" ||
             ride.status === "available" ||
-            ride.status === "scheduled" ? (
-            <TouchableOpacity
-              onPress={handleStartRide}
-              className="bg-primary rounded-2xl py-4 items-center mb-2"
-            >
-              <Text className="text-white font-bold text-base">
-                <T>Start Ride</T>
-              </Text>
-            </TouchableOpacity>
+            ride.status === "scheduled" ||
+            ride.status === "in_progress" ? (
+            <View>
+              {/* Check-in progress indicator */}
+              {totalPassengers > 0 && (
+                <View className="mb-3">
+                  <View className="flex-row items-center justify-between mb-1.5">
+                    <View className="flex-row items-center">
+                      <Ionicons
+                        name={
+                          allCheckedIn ? "checkmark-circle" : "time-outline"
+                        }
+                        size={14}
+                        color={allCheckedIn ? "#16a34a" : "#d97706"}
+                      />
+                      <Text
+                        className={`text-xs font-semibold ml-1 ${
+                          allCheckedIn ? "text-green-600" : "text-amber-600"
+                        }`}
+                      >
+                        {allCheckedIn ? (
+                          <T>All passengers checked in</T>
+                        ) : hasCheckedIn ? (
+                          <>
+                            {checkedInCount}/{totalPassengers} <T>checked in</T>
+                          </>
+                        ) : (
+                          <T>Waiting for passenger check-in</T>
+                        )}
+                      </Text>
+                    </View>
+                    {!hasCheckedIn && ride.check_in_code && (
+                      <TouchableOpacity
+                        onPress={handleShare}
+                        className="flex-row items-center"
+                      >
+                        <Ionicons
+                          name="share-outline"
+                          size={12}
+                          color="#6B7280"
+                        />
+                        <Text className="text-xs text-gray-500 ml-1">
+                          <T>Share Code</T>
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {/* Progress bar */}
+                  <View className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <View
+                      className={`h-full rounded-full ${
+                        allCheckedIn
+                          ? "bg-green-500"
+                          : hasCheckedIn
+                            ? "bg-amber-500"
+                            : "bg-gray-200"
+                      }`}
+                      style={{
+                        width:
+                          totalPassengers > 0
+                            ? `${(checkedInCount / totalPassengers) * 100}%`
+                            : "0%",
+                      }}
+                    />
+                  </View>
+                </View>
+              )}
+              <TouchableOpacity
+                onPress={handleStartRide}
+                disabled={!canStartRide}
+                className={`rounded-2xl py-4 items-center flex-row justify-center ${
+                  canStartRide ? "bg-primary" : "bg-gray-200"
+                }`}
+              >
+                <Ionicons
+                  name={canStartRide ? "car" : "hourglass-outline"}
+                  size={18}
+                  color={canStartRide ? "#FFFFFF" : "#9CA3AF"}
+                />
+                <Text
+                  className={`font-bold text-base ml-2 ${
+                    canStartRide ? "text-white" : "text-gray-400"
+                  }`}
+                >
+                  {canStartRide ? (
+                    <T>Start Ride</T>
+                  ) : totalPassengers === 0 ? (
+                    <T>Waiting for Bookings</T>
+                  ) : (
+                    <T>Waiting for Check-in</T>
+                  )}
+                </Text>
+              </TouchableOpacity>
+            </View>
           ) : null}
         </SafeAreaView>
       </SafeAreaView>

@@ -60,6 +60,7 @@ export default function UserActiveRideScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [copied, setCopied] = useState(false);
   const rideIdRef = useRef<string | null>(null);
+  const [rideCompleted, setRideCompleted] = useState(false);
 
   // ── Find active booking & join ride room ──────────────────────────
   useEffect(() => {
@@ -121,8 +122,11 @@ export default function UserActiveRideScreen() {
         const updated = bks.find((b) => b._id === booking._id);
         if (updated) {
           setBooking(updated);
-          if (updated.status === "completed" || updated.status === "cancelled")
+          if (updated.status === "completed") {
+            setRideCompleted(true);
+          } else if (updated.status === "cancelled") {
             router.back();
+          }
         }
       }
     };
@@ -618,6 +622,96 @@ export default function UserActiveRideScreen() {
           </SafeAreaView>
         </ScrollView>
       </Animated.View>
+
+      {/* ── Ride Completed Overlay ──────────────────────────────────── */}
+      {rideCompleted && (
+        <View className="absolute inset-0 z-50 bg-white">
+          <SafeAreaView
+            edges={["top", "bottom"]}
+            className="flex-1 justify-center items-center px-8"
+          >
+            <Animated.View
+              entering={FadeInUp.duration(500)}
+              className="items-center"
+            >
+              <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-4">
+                <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+              </View>
+              <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
+                <T>Ride Completed!</T>
+              </Text>
+              <Text className="text-sm text-gray-500 text-center mb-6">
+                <T>
+                  You've arrived at your destination. Thanks for riding with
+                  UniRide!
+                </T>
+              </Text>
+
+              {/* Summary */}
+              <View className="bg-gray-50 rounded-2xl p-5 w-full mb-6">
+                <View className="flex-row items-start mb-3">
+                  <View className="items-center mr-3 mt-0.5">
+                    <View className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                    <View className="w-0.5 h-6 bg-gray-200 my-0.5" />
+                    <View className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-xs font-semibold text-gray-800 mb-3">
+                      {pickup?.short_name || pickup?.name || "Pickup"}
+                    </Text>
+                    <Text className="text-xs font-semibold text-gray-800">
+                      {dest?.short_name || dest?.name || "Destination"}
+                    </Text>
+                  </View>
+                </View>
+                {driverObj && (
+                  <View className="flex-row items-center pt-3 border-t border-gray-200">
+                    {driverPic ? (
+                      <Image
+                        source={{ uri: driverPic }}
+                        className="w-8 h-8 rounded-full"
+                      />
+                    ) : (
+                      <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center">
+                        <Ionicons name="person" size={14} color="#042F40" />
+                      </View>
+                    )}
+                    <Text className="text-xs font-semibold text-gray-800 ml-2 flex-1">
+                      {driverName}
+                    </Text>
+                    <View className="flex-row items-center">
+                      <Ionicons name="star" size={11} color="#D4A017" />
+                      <Text className="text-[10px] font-semibold text-accent ml-0.5">
+                        {typeof driverObj?.rating === "number"
+                          ? driverObj.rating.toFixed(1)
+                          : "5.0"}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => router.back()}
+                className="bg-primary rounded-2xl py-4 w-full items-center mb-3"
+              >
+                <Text className="text-white font-bold text-base">
+                  <T>Back to Home</T>
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => router.push("/(users)/activity" as any)}
+                className="bg-gray-50 border border-gray-100 rounded-2xl py-3.5 w-full items-center flex-row justify-center"
+              >
+                <Ionicons name="receipt-outline" size={16} color="#042F40" />
+                <Text className="text-gray-700 font-semibold text-sm ml-2">
+                  <T>View Activity</T>
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </SafeAreaView>
+        </View>
+      )}
     </View>
   );
 }

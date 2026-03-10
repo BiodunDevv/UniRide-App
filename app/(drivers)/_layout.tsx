@@ -36,6 +36,10 @@ export default function DriverLayout() {
         }}
       />
       <Stack.Screen
+        name="earnings"
+        options={{ animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="active-ride"
         options={{ presentation: "modal", animation: "fade" }}
       />
