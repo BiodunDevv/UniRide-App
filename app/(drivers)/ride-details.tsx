@@ -388,7 +388,7 @@ export default function DriverRideDetailsScreen() {
   // ═════════════════════════════════════════════════════════════════════
   return (
     <View className="flex-1 bg-white">
-      <SafeAreaView edges={["top"]} className="flex-1">
+      <SafeAreaView edges={["top", "bottom"]} className="flex-1">
         {/* Header */}
         <Animated.View
           entering={FadeInUp.duration(300)}

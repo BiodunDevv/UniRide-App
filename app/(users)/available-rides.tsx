@@ -322,7 +322,7 @@ function RideCard({
         {/* Bottom row */}
         <View className="flex-row items-center justify-between pt-3 border-t border-gray-50">
           <View className="flex-row items-center gap-3">
-            {driver?.name && (
+            {(driver?.user_id?.name || driver?.name) && (
               <View className="flex-row items-center">
                 <Ionicons
                   name="person-circle-outline"
@@ -330,7 +330,10 @@ function RideCard({
                   color="#6B7280"
                 />
                 <Text className="text-xs text-gray-500 ml-1">
-                  {driver.name.split(" ")[0]}
+                  {(typeof driver.user_id === "object"
+                    ? driver.user_id.name
+                    : driver.name
+                  )?.split(" ")[0] || "Driver"}
                 </Text>
               </View>
             )}

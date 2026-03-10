@@ -11,10 +11,13 @@
  *  6. Cleans up token on logout
  *
  * Call once in the root layout.
+ *
+ * NOTE: expo-notifications crashes at import time in Expo Go (SDK 53+).
+ *       We use a dynamic require() wrapped in try-catch so the app still
+ *       loads — push features simply become no-ops inside Expo Go.
  */
 import { useEffect, useRef, useCallback } from "react";
 import { Platform, AppState } from "react-native";
-import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
@@ -23,29 +26,52 @@ import { registerPreLogoutHook } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { authApi } from "@/lib/api";
 
+// ─── Safe dynamic import of expo-notifications ──────────────────────────────
+// In Expo Go (SDK 53+) the module throws at require-time, so we catch it
+// and let the rest of the app continue without push support.
+let Notifications: typeof import("expo-notifications") | null = null;
+try {
+  Notifications = require("expo-notifications");
+} catch {
+  console.warn(
+    "[Push] expo-notifications unavailable (Expo Go?). Push notifications disabled.",
+  );
+}
+
 // ─── Show OS notification even when app is in foreground ─────────────────────
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Notifications) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    console.warn("[Push] Failed to set notification handler");
+  }
+}
 
 // ─── Android notification channel ───────────────────────────────────────────
-if (Platform.OS === "android") {
-  Notifications.setNotificationChannelAsync("default", {
-    name: "UniRide",
-    importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: "#042F40",
-    sound: "default",
-  }).catch(() => {});
+if (Notifications && Platform.OS === "android") {
+  try {
+    Notifications.setNotificationChannelAsync("default", {
+      name: "UniRide",
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#042F40",
+      sound: "default",
+    }).catch(() => {});
+  } catch {
+    console.warn("[Push] Failed to create Android notification channel");
+  }
 }
 
 // ─── Get Expo push token ─────────────────────────────────────────────────────
 async function getExpoPushToken(): Promise<string | null> {
+  if (!Notifications) return null;
   try {
     if (!Device.isDevice) {
       console.log("[Push] Not a physical device — skipping push token");
@@ -96,7 +122,7 @@ export function usePushNotifications() {
 
   // Register push token with backend
   const registerToken = useCallback(async () => {
-    // Guard: only register for authenticated users
+    if (!Notifications) return; // Push not available
     const currentToken = useAuthStore.getState().token;
     if (!currentToken || registeredRef.current) return;
 
@@ -131,8 +157,6 @@ export function usePushNotifications() {
   // ── Register on mount / auth change ────────────────────────────────────────
   useEffect(() => {
     if (!token) {
-      // Auth token was cleared — reset refs (unregister should have been
-      // called beforehand by the logout flow, but clean up just in case)
       pushTokenRef.current = null;
       registeredRef.current = false;
       return;
@@ -167,8 +191,8 @@ export function usePushNotifications() {
 
   // ── Foreground push received — refresh notification list from server ───────
   useEffect(() => {
+    if (!Notifications) return; // No cleanup needed
     const sub = Notifications.addNotificationReceivedListener(() => {
-      // Only sync if user is authenticated
       if (useAuthStore.getState().token) {
         useNotificationStore.getState().fetchNotifications();
       }
@@ -178,8 +202,8 @@ export function usePushNotifications() {
 
   // ── Notification tap — navigate to notifications screen ───────────────────
   useEffect(() => {
+    if (!Notifications) return; // No cleanup needed
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
-      // Only navigate if user is authenticated
       if (useAuthStore.getState().token) {
         router.push(`/${routeBase}/notifications` as any);
       }

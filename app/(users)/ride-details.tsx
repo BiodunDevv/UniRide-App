@@ -10,6 +10,7 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -157,10 +158,16 @@ export default function RideDetailsScreen() {
     ride && typeof ride.destination_id === "object"
       ? ride.destination_id
       : null;
-  const driver =
+  const driverDoc =
     ride?.driver_id && typeof ride.driver_id === "object"
       ? ride.driver_id
       : null;
+  const driverUser =
+    driverDoc?.user_id && typeof driverDoc.user_id === "object"
+      ? driverDoc.user_id
+      : null;
+  const driverName = driverUser?.name || driverDoc?.name || "Driver";
+  const driverPhoto = driverUser?.profile_picture || null;
   const seatsLeft = ride
     ? (ride.seats_remaining ?? ride.available_seats - ride.booked_seats)
     : 0;
@@ -443,37 +450,45 @@ export default function RideDetailsScreen() {
             </Animated.View>
 
             {/* ── Driver Info ─────────────────────────────────────── */}
-            {driver && (
+            {driverDoc && (
               <Animated.View
                 entering={FadeInUp.delay(200).duration(300)}
                 className="mx-5 mt-3 bg-gray-50 rounded-2xl p-4 flex-row items-center"
               >
-                <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mr-3">
-                  <Ionicons name="person" size={24} color="#042F40" />
-                </View>
+                {driverPhoto ? (
+                  <Image
+                    source={{ uri: driverPhoto }}
+                    className="w-12 h-12 rounded-full mr-3"
+                  />
+                ) : (
+                  <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mr-3">
+                    <Ionicons name="person" size={24} color="#042F40" />
+                  </View>
+                )}
                 <View className="flex-1">
                   <Text className="text-sm font-semibold text-gray-800">
-                    {driver.name || "Driver"}
+                    {driverName}
                   </Text>
-                  {driver.vehicle_make && (
-                    <Text className="text-xs text-gray-400">
-                      {driver.vehicle_make} {driver.vehicle_model} ·{" "}
-                      {driver.vehicle_color}
+                  {(driverDoc.vehicle_model || driverDoc.vehicle_color) && (
+                    <Text className="text-xs text-gray-400 mt-0.5">
+                      {[driverDoc.vehicle_model, driverDoc.vehicle_color]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </Text>
                   )}
-                  {driver.vehicle_plate_number && (
+                  {driverDoc.plate_number && (
                     <Text className="text-xs text-gray-400">
-                      {driver.vehicle_plate_number}
+                      {driverDoc.plate_number}
                     </Text>
                   )}
                 </View>
-                {driver.rating && (
+                {driverDoc.rating != null && driverDoc.rating > 0 && (
                   <View className="flex-row items-center bg-accent/10 rounded-full px-2.5 py-1">
                     <Ionicons name="star" size={12} color="#D4A017" />
                     <Text className="text-xs font-bold text-accent ml-1">
-                      {typeof driver.rating === "number"
-                        ? driver.rating.toFixed(1)
-                        : driver.rating}
+                      {typeof driverDoc.rating === "number"
+                        ? driverDoc.rating.toFixed(1)
+                        : driverDoc.rating}
                     </Text>
                   </View>
                 )}
