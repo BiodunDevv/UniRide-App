@@ -239,4 +239,8 @@ export const locationApi = {
       body: JSON.stringify(body),
     });
   },
+
+  getDriverProfile() {
+    return request("/api/driver/profile");
+  },
 };

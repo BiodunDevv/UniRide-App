@@ -11,8 +11,7 @@ import {
   MapProviderProvider,
   useMapProvider,
   isExpoMapsAvailable,
-  isMapboxConfigured,
-} from "@/components/map/MapboxWrapper";
+} from "@/components/map/ExpoMap";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import Constants from "expo-constants";
@@ -32,7 +31,7 @@ const screenTransition = Platform.select({
 });
 
 function PlatformSettingsLoader() {
-  const { setProvider } = useMapProvider();
+  const { setMapsEnabled } = useMapProvider();
   const router = useRouter();
   const segments = useSegments();
   const fetchSettings = usePlatformSettingsStore((s) => s.fetchSettings);
@@ -59,36 +58,10 @@ function PlatformSettingsLoader() {
     };
   }, []);
 
-  // Update map provider when settings change
+  // Keep Expo Maps availability in sync with backend settings
   useEffect(() => {
-    const requestedProvider = settings.map_provider;
-    const nextProvider =
-      requestedProvider === "mapbox"
-        ? isMapboxConfigured
-          ? "mapbox"
-          : isExpoMapsAvailable
-            ? "expo"
-            : "none"
-        : requestedProvider === "expo"
-          ? isExpoMapsAvailable
-            ? "expo"
-            : isMapboxConfigured
-              ? "mapbox"
-              : "none"
-          : isMapboxConfigured
-            ? "mapbox"
-            : isExpoMapsAvailable
-              ? "expo"
-              : "none";
-
-    if (requestedProvider === "mapbox" && nextProvider !== "mapbox") {
-      console.warn(
-        "[Map] Mapbox requested but not configured in this build. Falling back safely.",
-      );
-    }
-
-    setProvider(nextProvider);
-  }, [settings.map_provider, setProvider]);
+    setMapsEnabled(Boolean(settings.expo_maps_enabled) && isExpoMapsAvailable);
+  }, [settings.expo_maps_enabled, setMapsEnabled]);
 
   // Gate: redirect to maintenance screen when maintenance_mode is on or app version is too old
   useEffect(() => {

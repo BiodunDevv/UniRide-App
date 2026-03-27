@@ -9,8 +9,6 @@ export interface FarePolicyInfo {
 }
 
 export interface PlatformSettings {
-  map_provider: "mapbox" | "expo";
-  mapbox_enabled: boolean;
   expo_maps_enabled: boolean;
   fare_per_seat: boolean;
   maintenance_mode: boolean;
@@ -29,8 +27,6 @@ interface PlatformSettingsState {
 }
 
 const DEFAULT_SETTINGS: PlatformSettings = {
-  map_provider: "mapbox",
-  mapbox_enabled: true,
   expo_maps_enabled: true,
   fare_per_seat: true,
   maintenance_mode: false,

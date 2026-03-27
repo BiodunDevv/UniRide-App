@@ -19,11 +19,9 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   MapView,
   Camera,
-  ShapeSource,
-  SymbolLayer,
-  Images,
   LocationPuck,
-} from "@/components/map/MapboxWrapper";
+  Marker,
+} from "@/components/map/ExpoMap";
 import Animated, { FadeInUp, SlideInUp } from "react-native-reanimated";
 
 import { useAuthStore } from "@/store/useAuthStore";
@@ -36,6 +34,7 @@ import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 import { useReviewPrompt } from "@/hooks/use-review-prompt";
 import LanguageOnboarding from "@/components/LanguageOnboarding";
+import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 
 const CATEGORIES: Record<string, { label: string; icon: string }> = {
   academic: { label: "Academic", icon: "school" },
@@ -67,6 +66,9 @@ export default function UserHomeScreen() {
     rateDriver,
   } = useRideStore();
   const { unreadCount, fetchNotifications } = useNotificationStore();
+  const mapsEnabled = usePlatformSettingsStore(
+    (state) => state.settings.expo_maps_enabled,
+  );
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
   const {
@@ -80,6 +82,7 @@ export default function UserHomeScreen() {
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
   const hasCentered = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
   const [showRating, setShowRating] = useState(false);
   const [ratingVal, setRatingVal] = useState(0);
   const [ratingText, setRatingText] = useState("");
@@ -185,21 +188,6 @@ export default function UserHomeScreen() {
   }, [myBookings, user, userLocation]);
 
   // ── Derived ───────────────────────────────────────────────────────────
-  const driversGeo = {
-    type: "FeatureCollection" as const,
-    features: onlineDrivers
-      .filter((d) => d.location)
-      .map((d) => ({
-        type: "Feature" as const,
-        id: d.driver_id,
-        geometry: {
-          type: "Point" as const,
-          coordinates: [d.location!.longitude, d.location!.latitude],
-        },
-        properties: { heading: d.heading || 0, icon: "car-marker" },
-      })),
-  };
-
   const popularLocs = campusLocations.filter((l) => l.is_popular);
   const activeBookings = myBookings.filter(
     (b) =>
@@ -291,54 +279,85 @@ export default function UserHomeScreen() {
   return (
     <View className="flex-1 bg-white">
       {/* ── Full-Screen Map ────────────────────────────────────────── */}
-      <MapView
-        style={{ flex: 1 }}
-        logoEnabled={false}
-        attributionEnabled={false}
-        scaleBarEnabled={false}
-        compassEnabled
-        compassPosition={{ top: 120, right: 16 }}
-      >
-        <Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: userLocation
-              ? [userLocation.longitude, userLocation.latitude]
-              : [4.52, 7.52],
-            zoomLevel: 14,
-            pitch: 45,
-          }}
-          animationMode="flyTo"
-          animationDuration={1500}
-        />
-        <LocationPuck
-          puckBearingEnabled
-          puckBearing="heading"
-          pulsing={{ isEnabled: true, color: "#042F40", radius: 60 }}
-        />
-        {onlineDrivers.length > 0 && (
-          <>
-            <Images
-              images={{
-                "car-marker": require("@/assets/images/car-marker.png"),
-              }}
-            />
-            <ShapeSource id="drivers" shape={driversGeo}>
-              <SymbolLayer
-                id="driver-icons"
-                style={{
-                  iconImage: "car-marker",
-                  iconSize: 0.35,
-                  iconAllowOverlap: true,
-                  iconRotate: ["get", "heading"],
-                  iconRotationAlignment: "map",
-                  iconAnchor: "center",
+      {mapsEnabled ? (
+        <MapView
+          style={{ flex: 1 }}
+          mapType={mapType}
+          showsCompass
+          showsBuildings
+        >
+          <Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: userLocation
+                ? [userLocation.longitude, userLocation.latitude]
+                : [4.52, 7.52],
+              zoomLevel: 14,
+            }}
+            animationDuration={1500}
+          />
+          <LocationPuck />
+          {onlineDrivers
+            .filter((driver) => driver.location)
+            .map((driver) => (
+              <Marker
+                key={driver.driver_id}
+                coordinate={{
+                  latitude: driver.location!.latitude,
+                  longitude: driver.location!.longitude,
                 }}
-              />
-            </ShapeSource>
-          </>
-        )}
-      </MapView>
+                anchor={{ x: 0.5, y: 0.5 }}
+                tracksViewChanges={false}
+              >
+                <View className="items-center">
+                  <Image
+                    source={require("@/assets/images/car-marker.png")}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      transform: [{ rotate: `${driver.heading || 0}deg` }],
+                    }}
+                    resizeMode="contain"
+                  />
+                  <View className="mt-1 rounded-full bg-white/95 px-2 py-0.5">
+                    <Text className="text-[10px] font-semibold text-gray-700">
+                      {driver.name?.split(" ")[0] || "Driver"}
+                    </Text>
+                  </View>
+                </View>
+              </Marker>
+            ))}
+        </MapView>
+      ) : (
+        <View className="flex-1 bg-slate-50 px-5 pt-28">
+          <View className="rounded-[28px] border border-slate-200 bg-white px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Live Operations
+            </Text>
+            <Text className="mt-2 text-2xl font-bold text-slate-900">
+              Nearby rides still work without the map
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-600">
+              Browse active rides, request pickups, and keep booking updates
+              flowing while interactive maps are turned off by admin settings.
+            </Text>
+            <View className="mt-5 flex-row gap-3">
+              <View className="flex-1 rounded-2xl bg-slate-100 px-4 py-3">
+                <Text className="text-xs text-slate-500">Drivers online</Text>
+                <Text className="mt-1 text-2xl font-bold text-slate-900">
+                  {onlineDrivers.length}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-slate-100 px-4 py-3">
+                <Text className="text-xs text-slate-500">Open rides</Text>
+                <Text className="mt-1 text-2xl font-bold text-slate-900">
+                  {availableRides.length}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <SafeAreaView
@@ -380,6 +399,26 @@ export default function UserHomeScreen() {
             </View>
           </TouchableOpacity>
           <View className="flex-row items-center gap-2">
+            <TouchableOpacity
+              onPress={() =>
+                setMapType((current) =>
+                  current === "hybrid" ? "standard" : "hybrid",
+                )
+              }
+              className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+              }}
+            >
+              <Ionicons
+                name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                size={20}
+                color="#042F40"
+              />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push("/(users)/notifications")}
               className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"

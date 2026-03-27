@@ -17,7 +17,7 @@ import {
   MapView,
   Camera,
   LocationPuck,
-} from "@/components/map/MapboxWrapper";
+} from "@/components/map/ExpoMap";
 import Animated, { FadeInUp, SlideInUp } from "react-native-reanimated";
 
 import { useAuthStore } from "@/store/useAuthStore";
@@ -30,6 +30,7 @@ import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 import { useReviewPrompt } from "@/hooks/use-review-prompt";
 import LanguageOnboarding from "@/components/LanguageOnboarding";
+import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 
 export default function DriverHomeScreen() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function DriverHomeScreen() {
   useReviewPrompt(!!user);
   const {
     userLocation,
+    lastDriverPresenceLocation,
     isDriverOnline: isOnline,
     goOnline,
     goOffline,
@@ -53,6 +55,9 @@ export default function DriverHomeScreen() {
     isLoadingDriverRides,
   } = useRideStore();
   const { unreadCount, fetchNotifications } = useNotificationStore();
+  const mapsEnabled = usePlatformSettingsStore(
+    (state) => state.settings.expo_maps_enabled,
+  );
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
   const { connect, joinRoom, joinDriverFeed, joinLiveMap } = useSocket();
@@ -61,6 +66,7 @@ export default function DriverHomeScreen() {
   const hasCentered = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
   const locationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const firstName = user?.name?.split(" ")[0] || "Driver";
@@ -291,34 +297,60 @@ export default function DriverHomeScreen() {
   return (
     <View className="flex-1 bg-white">
       {/* ── Full-Screen Map ────────────────────────────────────────── */}
-      <MapView
-        style={{ flex: 1 }}
-        logoEnabled={false}
-        attributionEnabled={false}
-        scaleBarEnabled={false}
-      >
-        <Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: userLocation
-              ? [userLocation.longitude, userLocation.latitude]
-              : [4.52, 7.52],
-            zoomLevel: 14,
-            pitch: 45,
-          }}
-          animationMode="flyTo"
-          animationDuration={1500}
-        />
-        <LocationPuck
-          puckBearingEnabled
-          puckBearing="heading"
-          pulsing={{
-            isEnabled: true,
-            color: isOnline ? "#16A34A" : "#042F40",
-            radius: 60,
-          }}
-        />
-      </MapView>
+      {mapsEnabled ? (
+        <MapView
+          style={{ flex: 1 }}
+          mapType={mapType}
+          showsCompass
+          showsBuildings
+        >
+          <Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: userLocation
+                ? [userLocation.longitude, userLocation.latitude]
+                : lastDriverPresenceLocation
+                  ? [
+                      lastDriverPresenceLocation.longitude,
+                      lastDriverPresenceLocation.latitude,
+                    ]
+                : [4.52, 7.52],
+              zoomLevel: 14,
+            }}
+            animationDuration={1500}
+          />
+          <LocationPuck />
+        </MapView>
+      ) : (
+        <View className="flex-1 bg-slate-50 px-5 pt-28">
+          <View className="rounded-[28px] border border-slate-200 bg-white px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Driver Console
+            </Text>
+            <Text className="mt-2 text-2xl font-bold text-slate-900">
+              Ride operations stay online without the map
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-600">
+              You can still accept trips, manage check-ins, and broadcast your
+              live ride status while the interactive map is disabled.
+            </Text>
+            <View className="mt-5 flex-row gap-3">
+              <View className="flex-1 rounded-2xl bg-slate-100 px-4 py-3">
+                <Text className="text-xs text-slate-500">Driver status</Text>
+                <Text className="mt-1 text-2xl font-bold text-slate-900">
+                  {isOnline ? "Online" : "Offline"}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-slate-100 px-4 py-3">
+                <Text className="text-xs text-slate-500">Open requests</Text>
+                <Text className="mt-1 text-2xl font-bold text-slate-900">
+                  {availableRequests.length}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <SafeAreaView
@@ -360,6 +392,26 @@ export default function DriverHomeScreen() {
             </View>
           </TouchableOpacity>
           <View className="flex-row items-center gap-2">
+            <TouchableOpacity
+              onPress={() =>
+                setMapType((current) =>
+                  current === "hybrid" ? "standard" : "hybrid",
+                )
+              }
+              className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+              }}
+            >
+              <Ionicons
+                name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                size={20}
+                color="#042F40"
+              />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push("/(drivers)/notifications")}
               className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"

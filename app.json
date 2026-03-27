@@ -41,12 +41,6 @@
         }
       ],
       "expo-secure-store",
-      [
-        "@rnmapbox/maps",
-        {
-          "RNMapboxMapsImpl": "mapbox"
-        }
-      ],
       "@react-native-community/datetimepicker",
       [
         "expo-location",

@@ -18,11 +18,9 @@ import {
   MapView,
   Camera,
   LocationPuck,
-  ShapeSource,
-  SymbolLayer,
-  Images,
-  LineLayer,
-} from "@/components/map/MapboxWrapper";
+  Marker,
+  Polyline,
+} from "@/components/map/ExpoMap";
 import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 
 import { useRideStore, Booking, Ride } from "@/store/useRideStore";
@@ -31,6 +29,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useSocket } from "@/hooks/use-socket";
 import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
+import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 
 export default function UserActiveRideScreen() {
   const router = useRouter();
@@ -43,6 +42,9 @@ export default function UserActiveRideScreen() {
     updatePaymentStatus,
   } = useRideStore();
   const { userLocation } = useLocationStore();
+  const mapsEnabled = usePlatformSettingsStore(
+    (state) => state.settings.expo_maps_enabled,
+  );
   const { joinRide, leaveRide } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
 
@@ -56,6 +58,7 @@ export default function UserActiveRideScreen() {
   const [copied, setCopied] = useState(false);
   const rideIdRef = useRef<string | null>(null);
   const [rideCompleted, setRideCompleted] = useState(false);
+  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
 
   // ── Find active booking & join ride room ──────────────────────────
   useEffect(() => {
@@ -95,9 +98,12 @@ export default function UserActiveRideScreen() {
 
   // ── Socket: driver location ───────────────────────────────────────
   useEffect(() => {
-    const unsub = eventBus.on("driver-location", (data: any) => {
-      if (data?.longitude && data?.latitude)
-        setDriverCoords([data.longitude, data.latitude]);
+    const unsub = eventBus.on("driver-location-updated", (data: any) => {
+      const latitude = data?.location?.latitude ?? data?.latitude;
+      const longitude = data?.location?.longitude ?? data?.longitude;
+      if (typeof latitude === "number" && typeof longitude === "number") {
+        setDriverCoords([longitude, latitude]);
+      }
     });
     return unsub;
   }, []);
@@ -185,20 +191,54 @@ export default function UserActiveRideScreen() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleOpenInGoogleMaps = useCallback(async () => {
+    const activeCoords =
+      driverCoords ||
+      ride?.current_location?.coordinates ||
+      ride?.destination?.coordinates ||
+      null;
+
+    if (!activeCoords) {
+      Alert.alert("Unavailable", "No ride location is available yet.");
+      return;
+    }
+
+    const [longitude, latitude] = activeCoords;
+    const pickupLabel =
+      (ride &&
+        typeof ride.pickup_location_id === "object" &&
+        (ride.pickup_location_id.short_name || ride.pickup_location_id.name)) ||
+      "Pickup";
+    const destinationLabel =
+      (ride &&
+        typeof ride.destination_id === "object" &&
+        (ride.destination_id.short_name || ride.destination_id.name)) ||
+      "Destination";
+    const label = encodeURIComponent(
+      `${pickupLabel} to ${destinationLabel}`,
+    );
+
+    try {
+      await Linking.openURL(
+        `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}%20(${label})`,
+      );
+    } catch {
+      Alert.alert("Error", "Unable to open Google Maps.");
+    }
+  }, [driverCoords, ride]);
+
   // ── Map data ──────────────────────────────────────────────────────
   const routeGeo = ride?.route_geometry || null;
-  const driverGeo = driverCoords
-    ? {
-        type: "FeatureCollection" as const,
-        features: [
-          {
-            type: "Feature" as const,
-            geometry: { type: "Point" as const, coordinates: driverCoords },
-            properties: { icon: "car-marker" },
-          },
-        ],
-      }
-    : null;
+  const routeCoordinates =
+    routeGeo?.coordinates?.map?.((coordinate: [number, number]) => ({
+      latitude: coordinate[1],
+      longitude: coordinate[0],
+    })) ||
+    routeGeo?.geometry?.coordinates?.map?.((coordinate: [number, number]) => ({
+      latitude: coordinate[1],
+      longitude: coordinate[0],
+    })) ||
+    [];
 
   const pickup =
     ride && typeof ride.pickup_location_id === "object"
@@ -271,63 +311,63 @@ export default function UserActiveRideScreen() {
   return (
     <View className="flex-1 bg-white">
       {/* ── Map ────────────────────────────────────────────────────── */}
-      <MapView
-        style={{ flex: 1 }}
-        styleURL="mapbox://styles/mapbox/light-v11"
-        logoEnabled={false}
-        attributionEnabled={false}
-        scaleBarEnabled={false}
-      >
-        <Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: center,
-            zoomLevel: 14,
-            pitch: 40,
-          }}
-          animationMode="flyTo"
-          animationDuration={1200}
-        />
-        <LocationPuck
-          puckBearingEnabled
-          puckBearing="heading"
-          pulsing={{ isEnabled: true, color: "#042F40", radius: 50 }}
-        />
-        {routeGeo && (
-          <ShapeSource id="route" shape={routeGeo}>
-            <LineLayer
-              id="route-line"
-              style={{
-                lineColor: "#042F40",
-                lineWidth: 4,
-                lineOpacity: 0.7,
-                lineCap: "round",
-                lineJoin: "round",
-              }}
+      {mapsEnabled ? (
+        <MapView
+          style={{ flex: 1 }}
+          mapType={mapType}
+          showsCompass
+          showsBuildings
+        >
+          <Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: center,
+              zoomLevel: 14,
+            }}
+            animationDuration={1200}
+          />
+          <LocationPuck />
+          {routeCoordinates.length > 1 && (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor="#042F40"
+              strokeWidth={4}
             />
-          </ShapeSource>
-        )}
-        {driverGeo && (
-          <>
-            <Images
-              images={{
-                "car-marker": require("@/assets/images/car-marker.png"),
+          )}
+          {driverCoords && (
+            <Marker
+              coordinate={{
+                latitude: driverCoords[1],
+                longitude: driverCoords[0],
               }}
-            />
-            <ShapeSource id="driver-loc" shape={driverGeo}>
-              <SymbolLayer
-                id="driver-icon"
-                style={{
-                  iconImage: "car-marker",
-                  iconSize: 0.4,
-                  iconAllowOverlap: true,
-                  iconAnchor: "center",
-                }}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <Image
+                source={require("@/assets/images/car-marker.png")}
+                style={{ width: 38, height: 38 }}
+                resizeMode="contain"
               />
-            </ShapeSource>
-          </>
-        )}
-      </MapView>
+            </Marker>
+          )}
+        </MapView>
+      ) : (
+        <View className="flex-1 bg-slate-50 px-5 pt-28">
+          <View className="rounded-[28px] border border-slate-200 bg-white px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Ride Tracking
+            </Text>
+            <Text className="mt-2 text-2xl font-bold text-slate-900">
+              Live trip details are still available
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-600">
+              Your booking, driver updates, fare, and check-in flow are still
+              active. The map view has been temporarily disabled by admin
+              settings.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <SafeAreaView
@@ -367,6 +407,26 @@ export default function UserActiveRideScreen() {
               )}
             </Text>
           </View>
+          <TouchableOpacity
+            onPress={() =>
+              setMapType((current) =>
+                current === "hybrid" ? "standard" : "hybrid",
+              )
+            }
+            className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 6,
+            }}
+          >
+            <Ionicons
+              name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+              size={20}
+              color="#042F40"
+            />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => {
               if (userLocation && cameraRef.current)
@@ -424,6 +484,22 @@ export default function UserActiveRideScreen() {
                 {dest?.short_name || dest?.name || "Destination"}
               </Text>
             </View>
+
+            <TouchableOpacity
+              onPress={handleOpenInGoogleMaps}
+              className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 flex-row items-center"
+            >
+              <Ionicons name="navigate-outline" size={18} color="#042F40" />
+              <View className="ml-3 flex-1">
+                <Text className="text-xs font-semibold text-slate-900">
+                  <T>Open in Google Maps</T>
+                </Text>
+                <Text className="text-[10px] text-slate-500 mt-0.5">
+                  <T>Open the latest saved ride location</T>
+                </Text>
+              </View>
+              <Ionicons name="open-outline" size={16} color="#042F40" />
+            </TouchableOpacity>
 
             {/* Driver Card with Profile Pic */}
             {driverObj && (

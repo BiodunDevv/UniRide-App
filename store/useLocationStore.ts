@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { locationApi } from "@/lib/rideApi";
 
 export interface OnlineDriver {
@@ -30,6 +32,7 @@ interface LocationState {
   // Driver online status (for driver role)
   isDriverOnline: boolean;
   isTogglingOnline: boolean;
+  lastDriverPresenceLocation: { latitude: number; longitude: number } | null;
 
   // Actions
   setUserLocation: (location: { latitude: number; longitude: number }) => void;
@@ -56,109 +59,159 @@ interface LocationState {
     heading?: number,
   ) => Promise<void>;
   setDriverOnlineStatus: (isOnline: boolean) => void;
+  setLastDriverPresenceLocation: (
+    location: { latitude: number; longitude: number } | null,
+  ) => void;
   restoreOnlineState: () => Promise<void>;
 }
 
-export const useLocationStore = create<LocationState>((set, get) => ({
-  userLocation: null,
-  locationPermissionGranted: false,
-  onlineDrivers: [],
-  isLoadingDrivers: false,
-  isDriverOnline: false,
-  isTogglingOnline: false,
+export const useLocationStore = create<LocationState>()(
+  persist(
+    (set, get) => ({
+      userLocation: null,
+      locationPermissionGranted: false,
+      onlineDrivers: [],
+      isLoadingDrivers: false,
+      isDriverOnline: false,
+      isTogglingOnline: false,
+      lastDriverPresenceLocation: null,
 
-  setUserLocation: (location) => set({ userLocation: location }),
+      setUserLocation: (location) => set({ userLocation: location }),
 
-  setLocationPermission: (granted) =>
-    set({ locationPermissionGranted: granted }),
+      setLocationPermission: (granted) =>
+        set({ locationPermissionGranted: granted }),
 
-  fetchOnlineDrivers: async () => {
-    try {
-      set({ isLoadingDrivers: true });
-      const { userLocation } = get();
-      const res = await locationApi.getOnlineDrivers(
-        userLocation
-          ? {
-              latitude: userLocation.latitude,
-              longitude: userLocation.longitude,
-              radius: 50000,
-            }
-          : undefined,
-      );
-      set({ onlineDrivers: res.data || [], isLoadingDrivers: false });
-    } catch {
-      set({ isLoadingDrivers: false });
-    }
-  },
+      fetchOnlineDrivers: async () => {
+        try {
+          set({ isLoadingDrivers: true });
+          const { userLocation } = get();
+          const res = await locationApi.getOnlineDrivers(
+            userLocation
+              ? {
+                  latitude: userLocation.latitude,
+                  longitude: userLocation.longitude,
+                  radius: 50000,
+                }
+              : undefined,
+          );
+          set({ onlineDrivers: res.data || [], isLoadingDrivers: false });
+        } catch {
+          set({ isLoadingDrivers: false });
+        }
+      },
 
-  updateDriverInList: (driverId, location, heading) => {
-    set((state) => ({
-      onlineDrivers: state.onlineDrivers.map((d) =>
-        d.driver_id === driverId
-          ? { ...d, location, heading: heading ?? d.heading }
-          : d,
-      ),
-    }));
-  },
-
-  removeDriverFromList: (driverId) => {
-    set((state) => ({
-      onlineDrivers: state.onlineDrivers.filter(
-        (d) => d.driver_id !== driverId,
-      ),
-    }));
-  },
-
-  addDriverToList: (driver) => {
-    set((state) => {
-      const exists = state.onlineDrivers.find(
-        (d) => d.driver_id === driver.driver_id,
-      );
-      if (exists) {
-        return {
+      updateDriverInList: (driverId, location, heading) => {
+        set((state) => ({
           onlineDrivers: state.onlineDrivers.map((d) =>
-            d.driver_id === driver.driver_id ? { ...d, ...driver } : d,
+            d.driver_id === driverId
+              ? { ...d, location, heading: heading ?? d.heading }
+              : d,
           ),
-        };
-      }
-      return { onlineDrivers: [...state.onlineDrivers, driver] };
-    });
-  },
+        }));
+      },
 
-  goOnline: async (latitude, longitude, heading) => {
-    try {
-      set({ isTogglingOnline: true });
-      await locationApi.goOnline({ latitude, longitude, heading });
-      set({ isDriverOnline: true, isTogglingOnline: false });
-    } catch (error) {
-      set({ isTogglingOnline: false });
-      throw error;
-    }
-  },
+      removeDriverFromList: (driverId) => {
+        set((state) => ({
+          onlineDrivers: state.onlineDrivers.filter(
+            (d) => d.driver_id !== driverId,
+          ),
+        }));
+      },
 
-  goOffline: async () => {
-    try {
-      set({ isTogglingOnline: true });
-      await locationApi.goOffline();
-      set({ isDriverOnline: false, isTogglingOnline: false });
-    } catch (error) {
-      set({ isTogglingOnline: false });
-      throw error;
-    }
-  },
+      addDriverToList: (driver) => {
+        set((state) => {
+          const exists = state.onlineDrivers.find(
+            (d) => d.driver_id === driver.driver_id,
+          );
+          if (exists) {
+            return {
+              onlineDrivers: state.onlineDrivers.map((d) =>
+                d.driver_id === driver.driver_id ? { ...d, ...driver } : d,
+              ),
+            };
+          }
+          return { onlineDrivers: [...state.onlineDrivers, driver] };
+        });
+      },
 
-  updateLiveLocation: async (latitude, longitude, heading) => {
-    try {
-      await locationApi.updateDriverLocation({ latitude, longitude, heading });
-    } catch {
-      // Non-critical, will retry on next interval
-    }
-  },
+      goOnline: async (latitude, longitude, heading) => {
+        try {
+          set({ isTogglingOnline: true });
+          await locationApi.goOnline({ latitude, longitude, heading });
+          set({
+            isDriverOnline: true,
+            isTogglingOnline: false,
+            lastDriverPresenceLocation: { latitude, longitude },
+            userLocation: { latitude, longitude },
+          });
+        } catch (error) {
+          set({ isTogglingOnline: false });
+          throw error;
+        }
+      },
 
-  setDriverOnlineStatus: (isOnline) => set({ isDriverOnline: isOnline }),
+      goOffline: async () => {
+        try {
+          set({ isTogglingOnline: true });
+          await locationApi.goOffline();
+          set({ isDriverOnline: false, isTogglingOnline: false });
+        } catch (error) {
+          set({ isTogglingOnline: false });
+          throw error;
+        }
+      },
 
-  restoreOnlineState: async () => {
-    // With foreground-only location, driver online status resets when app closes.
-    // This is now a no-op — driver must tap "Go Online" each session.
-  },
-}));
+      updateLiveLocation: async (latitude, longitude, heading) => {
+        try {
+          await locationApi.updateDriverLocation({ latitude, longitude, heading });
+          set({
+            lastDriverPresenceLocation: { latitude, longitude },
+            userLocation: { latitude, longitude },
+          });
+        } catch {
+          // Non-critical, will retry on next interval
+        }
+      },
+
+      setDriverOnlineStatus: (isOnline) => set({ isDriverOnline: isOnline }),
+
+      setLastDriverPresenceLocation: (location) =>
+        set({ lastDriverPresenceLocation: location }),
+
+      restoreOnlineState: async () => {
+        try {
+          const res = await locationApi.getDriverProfile();
+          const driver = res.data;
+          const coordinates =
+            driver?.current_location?.coordinates ||
+            driver?.last_known_location?.coordinates;
+
+          const nextLocation =
+            coordinates?.length === 2
+              ? {
+                  latitude: coordinates[1],
+                  longitude: coordinates[0],
+                }
+              : null;
+
+          set({
+            isDriverOnline: Boolean(driver?.is_online),
+            lastDriverPresenceLocation: nextLocation,
+            userLocation: nextLocation || get().userLocation,
+          });
+        } catch {
+          // Keep persisted state if backend sync fails transiently.
+        }
+      },
+    }),
+    {
+      name: "location-storage",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        userLocation: state.userLocation,
+        isDriverOnline: state.isDriverOnline,
+        lastDriverPresenceLocation: state.lastDriverPresenceLocation,
+      }),
+    },
+  ),
+);
