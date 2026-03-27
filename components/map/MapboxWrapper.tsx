@@ -21,6 +21,11 @@ import { Ionicons } from "@expo/vector-icons";
 
 // ─── Build-time provider detection ──────────────────────────────────────────
 
+const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
+const hasUsableMapboxToken =
+  typeof MAPBOX_ACCESS_TOKEN === "string" &&
+  MAPBOX_ACCESS_TOKEN.startsWith("pk.");
+
 let MapboxModule: any = null;
 let isMapboxAvailable = false;
 try {
@@ -39,6 +44,16 @@ try {
   isExpoMapsAvailable = false;
 }
 
+const isMapboxConfigured = isMapboxAvailable && hasUsableMapboxToken;
+
+if (isMapboxConfigured) {
+  try {
+    MapboxModule.default?.setAccessToken(MAPBOX_ACCESS_TOKEN);
+  } catch (error) {
+    console.warn("[Map] Failed to configure Mapbox token:", error);
+  }
+}
+
 // ─── Runtime map provider context ───────────────────────────────────────────
 
 type MapProvider = "mapbox" | "expo" | "none";
@@ -47,7 +62,7 @@ const MapProviderContext = createContext<{
   provider: MapProvider;
   setProvider: (p: MapProvider) => void;
 }>({
-  provider: isMapboxAvailable
+  provider: isMapboxConfigured
     ? "mapbox"
     : isExpoMapsAvailable
       ? "expo"
@@ -64,7 +79,7 @@ export function MapProviderProvider({
 }) {
   const [provider, setProvider] = useState<MapProvider>(
     initialProvider ??
-      (isMapboxAvailable ? "mapbox" : isExpoMapsAvailable ? "expo" : "none"),
+      (isMapboxConfigured ? "mapbox" : isExpoMapsAvailable ? "expo" : "none"),
   );
 
   return (
@@ -78,10 +93,10 @@ export function useMapProvider() {
   return useContext(MapProviderContext);
 }
 
-export { isMapboxAvailable, isExpoMapsAvailable };
+export { isMapboxAvailable, isExpoMapsAvailable, isMapboxConfigured };
 
 // Default export (Mapbox namespace — setAccessToken is safe to call always)
-const Mapbox = isMapboxAvailable
+const Mapbox = isMapboxConfigured
   ? MapboxModule.default
   : { setAccessToken: (_token: string) => {} };
 
@@ -133,7 +148,7 @@ export const MapView = forwardRef(
     const { provider } = useMapProvider();
     const expoMapRef = useRef<any>(null);
 
-    if (provider === "mapbox" && isMapboxAvailable) {
+    if (provider === "mapbox" && isMapboxConfigured) {
       return (
         <MapboxModule.MapView ref={ref} style={[{ flex: 1 }, style]} {...props}>
           {children}
@@ -246,7 +261,7 @@ ExpoCamera.displayName = "ExpoCamera";
 
 export const Camera = forwardRef((props: any, ref: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBCamera = MapboxModule.Camera;
     return <MBCamera ref={ref} {...props} />;
   }
@@ -260,7 +275,7 @@ export const Camera = forwardRef((props: any, ref: any) => {
 
 export const LocationPuck = (props: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBPuck = MapboxModule.LocationPuck;
     return <MBPuck {...props} />;
   }
@@ -272,7 +287,7 @@ export const LocationPuck = (props: any) => {
 
 export const ShapeSource = (props: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBSource = MapboxModule.ShapeSource;
     return <MBSource {...props} />;
   }
@@ -283,7 +298,7 @@ export const ShapeSource = (props: any) => {
 
 export const LineLayer = (props: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBLine = MapboxModule.LineLayer;
     return <MBLine {...props} />;
   }
@@ -294,7 +309,7 @@ export const LineLayer = (props: any) => {
 
 export const SymbolLayer = (props: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBSymbol = MapboxModule.SymbolLayer;
     return <MBSymbol {...props} />;
   }
@@ -305,7 +320,7 @@ export const SymbolLayer = (props: any) => {
 
 export const PointAnnotation = forwardRef((props: any, ref: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBAnnotation = MapboxModule.PointAnnotation;
     return <MBAnnotation ref={ref} {...props} />;
   }
@@ -317,7 +332,7 @@ export const PointAnnotation = forwardRef((props: any, ref: any) => {
 
 export const Images = (props: any) => {
   const { provider } = useMapProvider();
-  if (provider === "mapbox" && isMapboxAvailable) {
+  if (provider === "mapbox" && isMapboxConfigured) {
     const MBImages = MapboxModule.Images;
     return <MBImages {...props} />;
   }

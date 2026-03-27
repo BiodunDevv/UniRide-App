@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   InteractionManager,
   Keyboard,
@@ -255,6 +256,17 @@ export default function CurrentUserScreen() {
     if (!isMounted.current) return;
     setAuthenticating(true);
     try {
+      if (Platform.OS === "android" && AppState.currentState !== "active") {
+        return;
+      }
+
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (!hasHardware || !isEnrolled) {
+        throw new Error("Biometric authentication is not available on this device.");
+      }
+
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: isIOS
           ? "Sign in with Face ID"

@@ -26,51 +26,31 @@ import { registerPreLogoutHook } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { authApi } from "@/lib/api";
 
-// ─── Safe dynamic import of expo-notifications ──────────────────────────────
-// In Expo Go (SDK 53+) the module throws at require-time, so we catch it
-// and let the rest of the app continue without push support.
-let Notifications: typeof import("expo-notifications") | null = null;
-try {
-  Notifications = require("expo-notifications");
-} catch {
-  console.warn(
-    "[Push] expo-notifications unavailable (Expo Go?). Push notifications disabled.",
-  );
+let notificationsModule: typeof import("expo-notifications") | null = null;
+
+function canUseNativePush() {
+  return Constants.appOwnership !== "expo";
 }
 
-// ─── Show OS notification even when app is in foreground ─────────────────────
-if (Notifications) {
-  try {
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-  } catch {
-    console.warn("[Push] Failed to set notification handler");
-  }
-}
+function loadNotificationsModule() {
+  if (!canUseNativePush()) return null;
+  if (notificationsModule) return notificationsModule;
 
-// ─── Android notification channel ───────────────────────────────────────────
-if (Notifications && Platform.OS === "android") {
   try {
-    Notifications.setNotificationChannelAsync("default", {
-      name: "UniRide",
-      importance: Notifications.AndroidImportance.HIGH,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: "#042F40",
-      sound: "default",
-    }).catch(() => {});
-  } catch {
-    console.warn("[Push] Failed to create Android notification channel");
+    notificationsModule = require("expo-notifications");
+    return notificationsModule;
+  } catch (error) {
+    console.warn(
+      "[Push] expo-notifications unavailable in this runtime. Push disabled.",
+      error,
+    );
+    return null;
   }
 }
 
 // ─── Get Expo push token ─────────────────────────────────────────────────────
 async function getExpoPushToken(): Promise<string | null> {
+  const Notifications = loadNotificationsModule();
   if (!Notifications) return null;
   try {
     if (!Device.isDevice) {
@@ -116,13 +96,47 @@ export function usePushNotifications() {
   const router = useRouter();
   const pushTokenRef = useRef<string | null>(null);
   const registeredRef = useRef(false);
+  const notificationsRef =
+    useRef<typeof import("expo-notifications") | null>(null);
 
   const routeBase: "(users)" | "(drivers)" =
     user?.role === "driver" ? "(drivers)" : "(users)";
 
+  useEffect(() => {
+    const Notifications = loadNotificationsModule();
+    notificationsRef.current = Notifications;
+
+    if (!Notifications) return;
+
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    } catch {
+      console.warn("[Push] Failed to set notification handler");
+    }
+
+    if (Platform.OS === "android") {
+      Notifications.setNotificationChannelAsync("default", {
+        name: "UniRide",
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#042F40",
+        sound: "default",
+      }).catch(() => {
+        console.warn("[Push] Failed to create Android notification channel");
+      });
+    }
+  }, []);
+
   // Register push token with backend
   const registerToken = useCallback(async () => {
-    if (!Notifications) return; // Push not available
+    if (!notificationsRef.current && !loadNotificationsModule()) return;
     const currentToken = useAuthStore.getState().token;
     if (!currentToken || registeredRef.current) return;
 
@@ -191,7 +205,8 @@ export function usePushNotifications() {
 
   // ── Foreground push received — refresh notification list from server ───────
   useEffect(() => {
-    if (!Notifications) return; // No cleanup needed
+    const Notifications = notificationsRef.current || loadNotificationsModule();
+    if (!Notifications) return;
     const sub = Notifications.addNotificationReceivedListener(() => {
       if (useAuthStore.getState().token) {
         useNotificationStore.getState().fetchNotifications();
@@ -202,7 +217,8 @@ export function usePushNotifications() {
 
   // ── Notification tap — navigate to notifications screen ───────────────────
   useEffect(() => {
-    if (!Notifications) return; // No cleanup needed
+    const Notifications = notificationsRef.current || loadNotificationsModule();
+    if (!Notifications) return;
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
       if (useAuthStore.getState().token) {
         router.push(`/${routeBase}/notifications` as any);

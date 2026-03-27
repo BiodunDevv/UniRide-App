@@ -16,7 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import Mapbox, {
+import {
   MapView,
   Camera,
   ShapeSource,
@@ -36,11 +36,6 @@ import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 import { useReviewPrompt } from "@/hooks/use-review-prompt";
 import LanguageOnboarding from "@/components/LanguageOnboarding";
-
-const MAPBOX_TOKEN =
-  process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-  "find_your_own_token_at_mapbox.com_and_put_it_here";
-Mapbox.setAccessToken(MAPBOX_TOKEN);
 
 const CATEGORIES: Record<string, { label: string; icon: string }> = {
   academic: { label: "Academic", icon: "school" },

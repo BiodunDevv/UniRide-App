@@ -10,6 +10,8 @@ import { usePushNotifications } from "@/hooks/use-push-notifications";
 import {
   MapProviderProvider,
   useMapProvider,
+  isExpoMapsAvailable,
+  isMapboxConfigured,
 } from "@/components/map/MapboxWrapper";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -59,9 +61,33 @@ function PlatformSettingsLoader() {
 
   // Update map provider when settings change
   useEffect(() => {
-    if (settings.map_provider) {
-      setProvider(settings.map_provider);
+    const requestedProvider = settings.map_provider;
+    const nextProvider =
+      requestedProvider === "mapbox"
+        ? isMapboxConfigured
+          ? "mapbox"
+          : isExpoMapsAvailable
+            ? "expo"
+            : "none"
+        : requestedProvider === "expo"
+          ? isExpoMapsAvailable
+            ? "expo"
+            : isMapboxConfigured
+              ? "mapbox"
+              : "none"
+          : isMapboxConfigured
+            ? "mapbox"
+            : isExpoMapsAvailable
+              ? "expo"
+              : "none";
+
+    if (requestedProvider === "mapbox" && nextProvider !== "mapbox") {
+      console.warn(
+        "[Map] Mapbox requested but not configured in this build. Falling back safely.",
+      );
     }
+
+    setProvider(nextProvider);
   }, [settings.map_provider, setProvider]);
 
   // Gate: redirect to maintenance screen when maintenance_mode is on or app version is too old

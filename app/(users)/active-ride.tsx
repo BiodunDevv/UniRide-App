@@ -14,7 +14,7 @@ import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Mapbox, {
+import {
   MapView,
   Camera,
   LocationPuck,
@@ -31,11 +31,6 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useSocket } from "@/hooks/use-socket";
 import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
-
-const MAPBOX_TOKEN =
-  process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN ||
-  "find_your_own_token_at_mapbox.com_and_put_it_here";
-Mapbox.setAccessToken(MAPBOX_TOKEN);
 
 export default function UserActiveRideScreen() {
   const router = useRouter();
