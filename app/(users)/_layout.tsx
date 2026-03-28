@@ -47,6 +47,14 @@ export default function UserLayout() {
         }}
       />
       <Stack.Screen
+        name="driver-profile"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
         name="request-ride"
         options={{
           presentation: "modal",

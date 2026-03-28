@@ -23,6 +23,7 @@ interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
   isLoading: boolean;
+  error: string | null;
 
   fetchNotifications: (limit?: number) => Promise<void>;
   fetchDetail: (id: string) => Promise<Notification | null>;
@@ -32,23 +33,31 @@ interface NotificationState {
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
-export const useNotificationStore = create<NotificationState>((set, get) => ({
+export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
   unreadCount: 0,
   isLoading: false,
+  error: null,
 
   fetchNotifications: async (limit = 50) => {
     try {
-      set({ isLoading: true });
+      set((state) => ({
+        isLoading: state.notifications.length === 0,
+        error: null,
+      }));
       const res = await authApi.getNotifications({ limit });
       const incoming: Notification[] = res.data || [];
       set({
         notifications: incoming,
         unreadCount: res.unread_count || 0,
         isLoading: false,
+        error: null,
       });
-    } catch {
-      set({ isLoading: false });
+    } catch (error: any) {
+      set({
+        isLoading: false,
+        error: error?.message || "Failed to load notifications",
+      });
     }
   },
 
@@ -57,12 +66,15 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       const res = await authApi.getNotificationDetail(id);
       const notification = res.data as Notification;
       set((state) => ({
-        notifications: state.notifications.map((n) =>
-          n._id === id ? { ...n, is_read: true } : n,
-        ),
+        notifications: state.notifications.some((n) => n._id === id)
+          ? state.notifications.map((n) =>
+              n._id === id ? { ...notification, is_read: true } : n,
+            )
+          : [{ ...notification, is_read: true }, ...state.notifications],
         unreadCount: state.notifications.find((n) => n._id === id && !n.is_read)
           ? Math.max(0, state.unreadCount - 1)
           : state.unreadCount,
+        error: null,
       }));
       return notification;
     } catch {
@@ -73,12 +85,20 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   markRead: async (id: string) => {
     try {
       await authApi.markNotificationRead(id);
-      set((state) => ({
-        notifications: state.notifications.map((n) =>
-          n._id === id ? { ...n, is_read: true } : n,
-        ),
-        unreadCount: Math.max(0, state.unreadCount - 1),
-      }));
+      set((state) => {
+        const wasUnread = state.notifications.some(
+          (n) => n._id === id && !n.is_read,
+        );
+
+        return {
+          notifications: state.notifications.map((n) =>
+            n._id === id ? { ...n, is_read: true } : n,
+          ),
+          unreadCount: wasUnread
+            ? Math.max(0, state.unreadCount - 1)
+            : state.unreadCount,
+        };
+      });
     } catch {}
   },
 

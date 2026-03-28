@@ -21,6 +21,7 @@ import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
 import { T, useTranslation } from "@/hooks/use-translation";
 import useTranslatorStore from "@/store/useTranslatorStore";
+import { recordBootstrapTrace } from "@/lib/post-auth";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -92,10 +93,11 @@ export default function LoginScreen() {
         role || "user",
       );
 
-      // Navigate to role-based home screen
-      const userRole = res.data?.user?.role;
-      const destination = userRole === "driver" ? "/(drivers)" : "/(users)";
-      router.replace(destination as any);
+      await recordBootstrapTrace(
+        "login:success",
+        `role=${res.data?.user?.role || "unknown"}`,
+      );
+      router.replace("/bootstrap");
     } catch (err: any) {
       if (err.data?.email_verification_required) {
         router.push({

@@ -17,11 +17,13 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { useRideStore } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { T } from "@/hooks/use-translation";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RequestRideScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const { selectedPickup, selectedDestination, createRide, isCreatingRide } =
     useRideStore();
   const { settings } = usePlatformSettingsStore();
@@ -39,13 +41,12 @@ export default function RequestRideScreen() {
   const maxSeats = settings.max_seats_per_booking || 4;
   const farePolicy = settings.fare_policy;
   const farePerSeat = farePolicy?.minimum_fare ?? farePolicy?.base_fare ?? 0;
-  const totalFare = settings.fare_per_seat
-    ? farePerSeat * seats
-    : farePerSeat;
-
+  const totalFare = settings.fare_per_seat ? farePerSeat * seats : farePerSeat;
+  const hasBookingPhone = Boolean(user?.phone?.trim());
   const canSubmit = !!(
     selectedPickup &&
     selectedDestination &&
+    hasBookingPhone &&
     !isCreatingRide
   );
 
@@ -53,6 +54,20 @@ export default function RequestRideScreen() {
   const handleSubmit = async () => {
     if (!selectedPickup || !selectedDestination) {
       Alert.alert("Missing Info", "Please select pickup and destination.");
+      return;
+    }
+    if (!hasBookingPhone) {
+      Alert.alert(
+        "Phone number required",
+        "Add your phone number before requesting a ride so a driver can contact you after accepting.",
+        [
+          { text: "Not now", style: "cancel" },
+          {
+            text: "Update Profile",
+            onPress: () => router.push("/settings/edit-profile" as any),
+          },
+        ],
+      );
       return;
     }
     try {
@@ -115,6 +130,52 @@ export default function RequestRideScreen() {
             <T>Go Back</T>
           </Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!hasBookingPhone) {
+    return (
+      <View className="flex-1 bg-white">
+        <SafeAreaView edges={["top", "bottom"]} className="flex-1">
+          <Animated.View
+            entering={FadeInUp.duration(300)}
+            className="px-5 pt-3 pb-2 flex-row items-center"
+          >
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
+            >
+              <Ionicons name="arrow-back" size={20} color="#042F40" />
+            </TouchableOpacity>
+            <Text className="text-xl font-bold text-gray-900 flex-1">
+              <T>Request a Ride</T>
+            </Text>
+          </Animated.View>
+
+          <View className="flex-1 items-center justify-center px-6">
+            <View className="w-full rounded-[28px] border border-amber-100 bg-amber-50 px-5 py-6">
+              <View className="h-14 w-14 rounded-2xl bg-amber-100 items-center justify-center">
+                <Ionicons name="call-outline" size={26} color="#D97706" />
+              </View>
+              <Text className="mt-4 text-2xl font-bold text-slate-900">
+                Add your phone number first
+              </Text>
+              <Text className="mt-2 text-sm leading-6 text-slate-600">
+                Drivers need a working phone number to coordinate pickup after
+                accepting your request.
+              </Text>
+              <TouchableOpacity
+                onPress={() => router.push("/settings/edit-profile" as any)}
+                className="mt-5 rounded-2xl bg-primary px-4 py-4 items-center"
+              >
+                <Text className="text-sm font-semibold text-white">
+                  <T>Complete Profile</T>
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
       </View>
     );
   }
@@ -363,6 +424,22 @@ export default function RequestRideScreen() {
                   Your ride request will be visible to all drivers. Once a
                   driver accepts, you'll be notified and your ride will begin.
                 </T>
+              </Text>
+            </Animated.View>
+
+            <Animated.View
+              entering={FadeInUp.delay(340).duration(300)}
+              className="mx-5 mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+            >
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Contact Ready
+              </Text>
+              <Text className="mt-1 text-sm font-semibold text-slate-900">
+                {user?.phone}
+              </Text>
+              <Text className="mt-1 text-xs leading-5 text-slate-500">
+                Drivers will use this number to reach you after accepting your
+                request.
               </Text>
             </Animated.View>
           </ScrollView>

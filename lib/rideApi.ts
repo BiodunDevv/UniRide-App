@@ -243,4 +243,8 @@ export const locationApi = {
   getDriverProfile() {
     return request("/api/driver/profile");
   },
+
+  getPublicDriverProfile(driverId: string) {
+    return request(`/api/driver/public/${driverId}`);
+  },
 };

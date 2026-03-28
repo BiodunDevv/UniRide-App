@@ -10,6 +10,7 @@ import {
   Share,
   Image,
   RefreshControl,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -300,9 +301,11 @@ export default function DriverRideDetailsScreen() {
             onPress: async () => {
               try {
                 await acceptRideRequest(ride._id);
-                Alert.alert("Accepted!", "You are now the driver.", [
-                  { text: "OK", onPress: () => router.back() },
-                ]);
+                await refreshData();
+                Alert.alert(
+                  "Accepted!",
+                  "You are now the driver for this ride. It will also appear on your home screen and rides list.",
+                );
               } catch (e: any) {
                 Alert.alert("Error", e?.message || "Failed");
               }
@@ -351,6 +354,26 @@ export default function DriverRideDetailsScreen() {
     );
   };
 
+  const handleCallPassenger = async (phone?: string | null) => {
+    if (!phone) {
+      Alert.alert(
+        "Phone unavailable",
+        "This passenger has not added a phone number yet.",
+      );
+      return;
+    }
+    const telUrl = `tel:${phone}`;
+    const supported = await Linking.canOpenURL(telUrl);
+    if (!supported) {
+      Alert.alert(
+        "Call unavailable",
+        "This device cannot open the phone dialer.",
+      );
+      return;
+    }
+    Linking.openURL(telUrl);
+  };
+
   const handleStartRide = () => {
     if (!ride) return;
     if (!hasCheckedIn) {
@@ -387,26 +410,33 @@ export default function DriverRideDetailsScreen() {
 
   // ═════════════════════════════════════════════════════════════════════
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-slate-50">
       <SafeAreaView edges={["top", "bottom"]} className="flex-1">
         {/* Header */}
         <Animated.View
           entering={FadeInUp.duration(300)}
-          className="px-5 pt-3 pb-2 flex-row items-center"
+          className="px-5 pt-3 pb-2"
         >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
-          >
-            <Ionicons name="arrow-back" size={20} color="#042F40" />
-          </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-900 flex-1">
-            <T>Ride Details</T>
-          </Text>
-          <View className={`px-3 py-1 rounded-full ${badge.bg}`}>
-            <Text className={`text-xs font-semibold ${badge.color}`}>
-              <T>{badge.text}</T>
-            </Text>
+          <View className="flex-row items-center">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="mr-3 h-11 w-11 rounded-2xl bg-white items-center justify-center"
+            >
+              <Ionicons name="arrow-back" size={20} color="#042F40" />
+            </TouchableOpacity>
+            <View className="flex-1">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Driver Operations
+              </Text>
+              <Text className="mt-1 text-xl font-bold text-gray-900">
+                <T>Ride Details</T>
+              </Text>
+            </View>
+            <View className={`px-3 py-1 rounded-full ${badge.bg}`}>
+              <Text className={`text-xs font-semibold ${badge.color}`}>
+                <T>{badge.text}</T>
+              </Text>
+            </View>
           </View>
         </Animated.View>
 
@@ -484,10 +514,49 @@ export default function DriverRideDetailsScreen() {
             </View>
           </Animated.View>
 
+          <Animated.View
+            entering={FadeInUp.delay(130).duration(300)}
+            className="mx-5 mt-3 rounded-[26px] bg-[#042F40] px-4 py-4"
+          >
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+              Ride Summary
+            </Text>
+            <Text className="mt-2 text-lg font-bold text-white">
+              {pickup?.short_name || pickup?.name || "Pickup"} {"→"}{" "}
+              {dest?.short_name || dest?.name || "Destination"}
+            </Text>
+            <View className="mt-4 flex-row gap-3">
+              <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                <Text className="text-[11px] text-slate-300">
+                  <T>Bookings</T>
+                </Text>
+                <Text className="mt-1 text-xl font-bold text-white">
+                  {bookings.length}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                <Text className="text-[11px] text-slate-300">
+                  <T>Checked in</T>
+                </Text>
+                <Text className="mt-1 text-xl font-bold text-white">
+                  {checkedInCount}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                <Text className="text-[11px] text-slate-300">
+                  <T>Seats left</T>
+                </Text>
+                <Text className="mt-1 text-xl font-bold text-white">
+                  {seatsLeft}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+
           {/* Fare */}
           <Animated.View
             entering={FadeInUp.delay(150).duration(300)}
-            className="mx-5 mt-3 bg-primary/5 rounded-2xl p-4 flex-row items-center justify-between"
+            className="mx-5 mt-3 bg-white rounded-2xl p-4 flex-row items-center justify-between border border-slate-200"
           >
             <Text className="text-sm text-gray-600">
               <T>Fare</T>
@@ -559,14 +628,13 @@ export default function DriverRideDetailsScreen() {
                 const paymentSent = isTransfer && bk.payment_status === "sent";
                 const paymentConfirmed =
                   isTransfer && bk.payment_status === "paid";
-                const paymentPending =
-                  isTransfer && bk.payment_status === "pending";
+                const passengerPhone = usr?.phone || null;
                 return (
                   <Animated.View
                     key={bk._id}
                     entering={FadeInDown.delay(idx * 50).duration(250)}
                   >
-                    <View className="bg-white rounded-xl p-3 mb-2 border border-gray-100">
+                    <View className="bg-white rounded-2xl p-4 mb-2.5 border border-slate-200">
                       <View className="flex-row items-center">
                         {usr?.profile_picture ? (
                           <Image
@@ -587,6 +655,9 @@ export default function DriverRideDetailsScreen() {
                             {bk.seats_requested > 1 ? "s" : ""} ·{" "}
                             {bk.payment_method} ·{" "}
                             <Text className={bBadge.color}>{bk.status}</Text>
+                          </Text>
+                          <Text className="mt-1 text-[11px] text-slate-500">
+                            {passengerPhone || "Phone not added yet"}
                           </Text>
                         </View>
                         <View className="flex-row items-center gap-1.5">
@@ -626,6 +697,25 @@ export default function DriverRideDetailsScreen() {
                             </View>
                           )}
                         </View>
+                      </View>
+
+                      <View className="mt-3 flex-row items-center gap-2">
+                        <TouchableOpacity
+                          onPress={() => handleCallPassenger(passengerPhone)}
+                          disabled={!passengerPhone}
+                          className={`flex-1 rounded-xl py-2.5 flex-row items-center justify-center border ${passengerPhone ? "border-primary/10 bg-primary/5" : "border-slate-200 bg-slate-100"}`}
+                        >
+                          <Ionicons
+                            name="call-outline"
+                            size={15}
+                            color={passengerPhone ? "#042F40" : "#94A3B8"}
+                          />
+                          <Text
+                            className={`ml-2 text-xs font-semibold ${passengerPhone ? "text-primary" : "text-slate-400"}`}
+                          >
+                            <T>Call Passenger</T>
+                          </Text>
+                        </TouchableOpacity>
                       </View>
 
                       {/* Transfer payment confirm button — only when passenger has sent */}
@@ -696,7 +786,7 @@ export default function DriverRideDetailsScreen() {
         {/* Bottom Action */}
         <SafeAreaView
           edges={["bottom"]}
-          className="px-5 pt-3 border-t border-gray-100 bg-white"
+          className="px-5 pt-3 pb-4 border-t border-gray-100 bg-white"
         >
           {isRequestRide ? (
             <TouchableOpacity

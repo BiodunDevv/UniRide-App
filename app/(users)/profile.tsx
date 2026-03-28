@@ -120,7 +120,7 @@ export default function UserProfileScreen() {
 
   // ═════════════════════════════════════════════════════════════════════
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-slate-50">
       <SafeAreaView edges={["top"]} className="flex-1">
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -138,51 +138,75 @@ export default function UserProfileScreen() {
             entering={FadeInUp.duration(300)}
             className="px-5 pt-3 pb-2"
           >
-            <View className="flex-row items-center mb-6">
+            <View className="mb-5 flex-row items-center">
               <TouchableOpacity
                 onPress={() => router.back()}
-                className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
+                className="mr-3 h-10 w-10 rounded-full bg-white items-center justify-center"
               >
                 <Ionicons name="arrow-back" size={20} color="#042F40" />
               </TouchableOpacity>
-              <Text className="text-xl font-bold text-gray-900">
-                <T>Profile</T>
-              </Text>
+              <View>
+                <Text className="text-xl font-bold text-gray-900">
+                  <T>Profile</T>
+                </Text>
+                <Text className="text-xs text-slate-500">
+                  <T>Your account and personal settings</T>
+                </Text>
+              </View>
             </View>
           </Animated.View>
 
           {/* Avatar + Info */}
           <Animated.View
             entering={FadeInUp.delay(100).duration(300)}
-            className="items-center mb-6"
+            className="mx-5 mb-5 rounded-[30px] bg-[#042F40] px-5 py-6"
           >
-            {user?.profile_picture ? (
-              <Image
-                source={{ uri: user.profile_picture }}
-                className="w-24 h-24 rounded-full mb-3"
-              />
-            ) : (
-              <View className="w-24 h-24 rounded-full bg-primary items-center justify-center mb-3">
-                <Text className="text-white font-bold text-2xl">
-                  {initials}
+            <View className="flex-row items-center">
+              {user?.profile_picture ? (
+                <Image
+                  source={{ uri: user.profile_picture }}
+                  className="h-24 w-24 rounded-full"
+                />
+              ) : (
+                <View className="h-24 w-24 rounded-full bg-white/15 items-center justify-center">
+                  <Text className="text-white font-bold text-2xl">
+                    {initials}
+                  </Text>
+                </View>
+              )}
+              <View className="ml-4 flex-1">
+                <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+                  <T>Passenger Account</T>
                 </Text>
+                <Text className="mt-1 text-2xl font-bold text-white">
+                  {user?.name || "User"}
+                </Text>
+                <Text className="mt-1 text-sm text-slate-300">
+                  {user?.email || ""}
+                </Text>
+                {user?.phone ? (
+                  <View className="mt-2 self-start flex-row items-center rounded-full bg-white/10 px-3 py-1.5">
+                    <Ionicons
+                      name="call-outline"
+                      size={13}
+                      color="#E2E8F0"
+                    />
+                    <Text className="ml-2 text-xs font-semibold text-white">
+                      {user.phone}
+                    </Text>
+                  </View>
+                ) : null}
+                <View className="mt-3 self-start rounded-full bg-white/10 px-3 py-1.5">
+                  <Text className="text-xs font-semibold text-white capitalize">
+                    {user?.role || "user"}
+                  </Text>
+                </View>
               </View>
-            )}
-            <Text className="text-xl font-bold text-gray-900">
-              {user?.name || "User"}
-            </Text>
-            <Text className="text-sm text-gray-400 mt-0.5">
-              {user?.email || ""}
-            </Text>
-            <View className="bg-primary/10 rounded-full px-3 py-1 mt-2">
-              <Text className="text-xs font-semibold text-primary capitalize">
-                {user?.role || "user"}
-              </Text>
             </View>
           </Animated.View>
 
           {/* Menu */}
-          <View className="mx-5">
+          <View className="mx-5 rounded-[28px] bg-white px-4 py-2">
             {menuItems.map((item, idx) => (
               <Animated.View
                 key={item.label}
@@ -212,10 +236,10 @@ export default function UserProfileScreen() {
                       router.push(item.route as any);
                     }
                   }}
-                  className="flex-row items-center py-3.5 border-b border-gray-50"
+                  className="flex-row items-center py-3.5 border-b border-slate-100"
                   activeOpacity={0.7}
                 >
-                  <View className="w-9 h-9 rounded-full bg-gray-50 items-center justify-center mr-3">
+                  <View className="w-10 h-10 rounded-2xl bg-slate-50 items-center justify-center mr-3">
                     <Ionicons
                       name={item.icon as any}
                       size={18}
@@ -239,7 +263,7 @@ export default function UserProfileScreen() {
             <TouchableOpacity
               onPress={handleLogout}
               disabled={loggingOut}
-              className="bg-red-50 rounded-2xl py-4 items-center border border-red-100"
+              className="bg-white rounded-2xl py-4 items-center border border-red-100"
             >
               {loggingOut ? (
                 <ActivityIndicator color="#EF4444" />

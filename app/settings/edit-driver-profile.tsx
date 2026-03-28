@@ -253,13 +253,13 @@ export default function EditDriverProfileScreen() {
           {/* ── Header ───────────────────────────────────────────────── */}
           <Animated.View
             entering={FadeInUp.duration(300)}
-            className="px-5 pt-3 pb-4 bg-white border-b border-gray-100"
+            className="px-5 pt-3 pb-4"
           >
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center">
+            <View className="flex-row items-center justify-between rounded-[28px] bg-white px-4 py-3">
+              <View className="flex-row items-center flex-1 pr-3">
                 <TouchableOpacity
                   onPress={() => router.back()}
-                  className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
+                  className="w-10 h-10 rounded-2xl bg-slate-100 items-center justify-center mr-3"
                 >
                   <Ionicons name="arrow-back" size={20} color="#042F40" />
                 </TouchableOpacity>
@@ -275,7 +275,7 @@ export default function EditDriverProfileScreen() {
               <TouchableOpacity
                 onPress={handleSave}
                 disabled={saving}
-                className="bg-primary rounded-full px-4 py-2"
+                className="bg-primary rounded-full px-4 py-2.5"
               >
                 {saving ? (
                   <ActivityIndicator size="small" color="#fff" />

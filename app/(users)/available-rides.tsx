@@ -15,6 +15,7 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 
 import { useRideStore, Ride } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { T } from "@/hooks/use-translation";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -26,6 +27,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function AvailableRidesScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
   const {
     availableRides,
     isLoadingRides,
@@ -34,6 +36,7 @@ export default function AvailableRidesScreen() {
     selectedDestination,
   } = useRideStore();
   const { settings } = usePlatformSettingsStore();
+  const hasBookingPhone = Boolean(user?.phone?.trim());
 
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "scheduled" | "available">(
@@ -176,7 +179,9 @@ export default function AvailableRidesScreen() {
                   selectedDestination && (
                     <TouchableOpacity
                       onPress={() =>
-                        router.push("/(users)/request-ride" as any)
+                        hasBookingPhone
+                          ? router.push("/(users)/request-ride" as any)
+                          : router.push("/settings/edit-profile" as any)
                       }
                       className="mt-6 bg-accent rounded-2xl px-6 py-3.5 flex-row items-center mb-3"
                       activeOpacity={0.8}
@@ -187,7 +192,11 @@ export default function AvailableRidesScreen() {
                         color="#fff"
                       />
                       <Text className="text-white font-bold text-sm ml-2">
-                        <T>Request a Ride</T>
+                        {hasBookingPhone ? (
+                          <T>Request a Ride</T>
+                        ) : (
+                          <T>Add Phone to Request</T>
+                        )}
                       </Text>
                     </TouchableOpacity>
                   )}

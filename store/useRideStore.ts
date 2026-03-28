@@ -400,7 +400,8 @@ export const useRideStore = create<RideState>((set, get) => ({
         ),
       }));
       // Refresh driver rides to show the newly accepted ride
-      get().fetchDriverRides();
+      await get().fetchDriverRides();
+      await get().fetchAvailableRequests();
     } catch (error) {
       throw error;
     }

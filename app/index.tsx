@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Logo from "@/components/Logo";
 import { useAuthStore } from "@/store/useAuthStore";
+import { recordBootstrapTrace } from "@/lib/post-auth";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -69,6 +70,9 @@ export default function SplashScreen() {
           const { user, token, isAuthenticated } = useAuthStore.getState();
 
           if (token && user && isAuthenticated) {
+            recordBootstrapTrace("splash:session-found", user.role).catch(
+              () => {},
+            );
             setNavTarget("/lock");
             return;
           }
@@ -83,7 +87,6 @@ export default function SplashScreen() {
             setNavTarget("/welcome");
           }
         } catch {
-          // Hydration or any error → go to auth
           setNavTarget("/auth/role-select");
         }
       });

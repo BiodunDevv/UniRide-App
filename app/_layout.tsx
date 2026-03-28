@@ -14,6 +14,7 @@ import {
 } from "@/components/map/ExpoMap";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useBootstrapStore } from "@/store/useBootstrapStore";
 import Constants from "expo-constants";
 
 // Prevent the native splash screen from auto-hiding
@@ -94,9 +95,13 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-export default function RootLayout() {
-  usePushNotifications();
+function PushNotificationsGate() {
+  const token = useAuthStore((state) => state.token);
+  usePushNotifications(Boolean(token));
+  return null;
+}
 
+export default function RootLayout() {
   useEffect(() => {
     // Hide native splash once our custom one renders
     SplashScreen.hideAsync();
@@ -105,6 +110,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <MapProviderProvider>
+        <PushNotificationsGate />
         <PlatformSettingsLoader />
         <View style={{ flex: 1 }}>
           <StatusBar style="dark" />
@@ -124,6 +130,7 @@ export default function RootLayout() {
             <Stack.Screen name="welcome" options={{ animation: "fade" }} />
             <Stack.Screen name="auth" />
             <Stack.Screen name="lock" options={{ animation: "fade" }} />
+            <Stack.Screen name="bootstrap" options={{ animation: "fade" }} />
             <Stack.Screen name="(users)" options={{ animation: "fade" }} />
             <Stack.Screen name="(drivers)" options={{ animation: "fade" }} />
             <Stack.Screen

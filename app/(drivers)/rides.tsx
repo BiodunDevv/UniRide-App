@@ -74,40 +74,92 @@ export default function DriverRidesScreen() {
     return true;
   });
 
+  const liveCount = driverRides.filter((ride) =>
+    ["accepted", "in_progress"].includes(ride.status),
+  ).length;
+  const scheduledCount = driverRides.filter((ride) =>
+    ["scheduled", "available"].includes(ride.status),
+  ).length;
+  const completedCount = driverRides.filter(
+    (ride) => ride.status === "completed",
+  ).length;
+
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-slate-50">
       <SafeAreaView edges={["top"]} className="flex-1">
         <Animated.View
           entering={FadeInUp.duration(300)}
-          className="px-5 pt-3 pb-2"
+          className="px-5 pt-3 pb-3"
         >
-          <View className="flex-row items-center mb-3">
+          <View className="flex-row items-center mb-4">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
+              className="w-11 h-11 rounded-2xl bg-white items-center justify-center mr-3"
             >
               <Ionicons name="arrow-back" size={20} color="#042F40" />
             </TouchableOpacity>
-            <Text className="text-xl font-bold text-gray-900 flex-1">
-              <T>My Rides</T>
-            </Text>
+            <View className="flex-1">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Driver Operations
+              </Text>
+              <Text className="mt-1 text-xl font-bold text-gray-900">
+                <T>My Rides</T>
+              </Text>
+            </View>
             <TouchableOpacity
               onPress={() => router.push("/(drivers)/create-ride" as any)}
-              className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+              className="w-11 h-11 rounded-2xl bg-primary items-center justify-center"
             >
               <Ionicons name="add" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
-          <View className="flex-row gap-2 mb-1">
+          <View className="rounded-[28px] bg-[#042F40] px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+              Ride Portfolio
+            </Text>
+            <Text className="mt-2 text-2xl font-bold text-white">
+              {driverRides.length} <T>Total Rides</T>
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-300">
+              <T>Track live trips, upcoming departures, and completed work from one place.</T>
+            </Text>
+            <View className="mt-5 flex-row gap-3">
+              <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                <Text className="text-[11px] text-slate-300">
+                  <T>Live</T>
+                </Text>
+                <Text className="mt-1 text-xl font-bold text-white">
+                  {liveCount}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                <Text className="text-[11px] text-slate-300">
+                  <T>Scheduled</T>
+                </Text>
+                <Text className="mt-1 text-xl font-bold text-white">
+                  {scheduledCount}
+                </Text>
+              </View>
+              <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                <Text className="text-[11px] text-slate-300">
+                  <T>Completed</T>
+                </Text>
+                <Text className="mt-1 text-xl font-bold text-white">
+                  {completedCount}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View className="flex-row gap-2 mt-4">
             {(["all", "active", "completed", "cancelled"] as FilterKey[]).map(
               (f) => (
                 <TouchableOpacity
                   key={f}
                   onPress={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-full ${filter === f ? "bg-primary" : "bg-gray-100"}`}
+                  className={`px-3.5 py-2 rounded-full ${filter === f ? "bg-primary" : "bg-white border border-slate-200"}`}
                 >
                   <Text
-                    className={`text-xs font-semibold capitalize ${filter === f ? "text-white" : "text-gray-600"}`}
+                    className={`text-xs font-semibold capitalize ${filter === f ? "text-white" : "text-slate-600"}`}
                   >
                     {f}
                   </Text>
@@ -128,7 +180,7 @@ export default function DriverRidesScreen() {
             contentContainerStyle={{
               paddingHorizontal: 20,
               paddingBottom: 100,
-              paddingTop: 8,
+              paddingTop: 10,
             }}
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -139,10 +191,13 @@ export default function DriverRidesScreen() {
               />
             }
             ListEmptyComponent={
-              <View className="items-center mt-16">
+              <View className="items-center mt-16 rounded-[28px] bg-white p-8 border border-slate-200">
                 <Ionicons name="car-outline" size={48} color="#D1D5DB" />
-                <Text className="text-base text-gray-400 mt-4">
+                <Text className="text-base font-semibold text-slate-700 mt-4">
                   <T>No rides yet</T>
+                </Text>
+                <Text className="text-sm text-slate-400 mt-2 text-center">
+                  <T>Create your first ride or go online to start receiving requests.</T>
                 </Text>
               </View>
             }
@@ -176,7 +231,7 @@ export default function DriverRidesScreen() {
                             params: { rideId: item._id },
                           })
                     }
-                    className="bg-white rounded-2xl p-4 mb-3 border border-gray-100"
+                    className="bg-white rounded-[26px] p-4 mb-3 border border-slate-200"
                     style={{
                       shadowColor: "#000",
                       shadowOffset: { width: 0, height: 1 },
@@ -185,10 +240,10 @@ export default function DriverRidesScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <View className="flex-row items-center justify-between mb-2">
+                    <View className="flex-row items-center justify-between mb-3">
                       <View className="flex-row items-center">
                         <View
-                          className={`w-7 h-7 rounded-full items-center justify-center mr-2 ${info.bg}`}
+                          className={`w-8 h-8 rounded-full items-center justify-center mr-2 ${info.bg}`}
                         >
                           <Ionicons
                             name={info.icon as any}
@@ -238,14 +293,26 @@ export default function DriverRidesScreen() {
                         {dest?.short_name || dest?.name || "—"}
                       </Text>
                     </View>
-                    <View className="flex-row items-center justify-between mt-2 pt-2 border-t border-gray-50">
+                    <View className="mt-3 flex-row items-center gap-2">
+                      <View className="rounded-full bg-slate-100 px-2.5 py-1">
+                        <Text className="text-[10px] font-semibold text-slate-500">
+                          {item.booked_seats}/{item.available_seats} seats
+                        </Text>
+                      </View>
+                      <View className="rounded-full bg-primary/5 px-2.5 py-1">
+                        <Text className="text-[10px] font-semibold text-primary">
+                          {isLive ? "Live trip" : "Trip details"}
+                        </Text>
+                      </View>
+                    </View>
+                    <View className="flex-row items-center justify-between mt-3 pt-3 border-t border-gray-50">
                       <Text className="text-xs text-gray-400">
                         {item.booked_seats}/{item.available_seats} seats
                       </Text>
                       <FareLabel fare={item.fare} />
                     </View>
                     {/* View details */}
-                    <View className="mt-2.5 bg-primary/5 rounded-xl py-2.5 items-center flex-row justify-center">
+                    <View className="mt-3 bg-primary/5 rounded-2xl py-3 items-center flex-row justify-center">
                       <Ionicons name="eye-outline" size={14} color="#042F40" />
                       <Text className="text-xs font-semibold text-primary ml-1.5">
                         <T>View Details</T>

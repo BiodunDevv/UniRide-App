@@ -1,5 +1,6 @@
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
+import { Platform } from "react-native";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -86,6 +87,7 @@ export const authApi = {
     name: string;
     email: string;
     password: string;
+    phone?: string;
     role?: string;
   }) {
     return request("/api/auth/register", {
@@ -101,11 +103,19 @@ export const authApi = {
     device_name?: string;
     device_type?: string;
     platform?: string;
+    push_token?: string | null;
     role?: string;
   }) {
+    const normalizedPlatform =
+      body.platform ||
+      (Platform.OS === "ios"
+        ? "ios"
+        : Platform.OS === "android"
+          ? "android"
+          : "web");
     return request("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ ...body, platform: body.platform || "mobile" }),
+      body: JSON.stringify({ ...body, platform: normalizedPlatform }),
     });
   },
 
@@ -137,14 +147,19 @@ export const authApi = {
     });
   },
 
-  biometricAuth(body: { user_id: string; device_id: string }) {
+  biometricAuth(body: {
+    user_id: string;
+    device_id: string;
+    platform?: string;
+    push_token?: string | null;
+  }) {
     return request("/api/auth/biometric", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
 
-  logout(body: { device_id: string }) {
+  logout(body: { device_id: string; push_token?: string | null }) {
     return request("/api/auth/logout", {
       method: "POST",
       body: JSON.stringify(body),
@@ -174,7 +189,11 @@ export const authApi = {
     return request("/api/auth/me");
   },
 
-  updateProfile(body: { name?: string; profile_picture?: string }) {
+  updateProfile(body: {
+    name?: string;
+    phone?: string | null;
+    profile_picture?: string;
+  }) {
     return request("/api/auth/profile", {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -251,7 +270,13 @@ export const authApi = {
     });
   },
 
-  pinLogin(body: { user_id: string; device_id: string; pin: string }) {
+  pinLogin(body: {
+    user_id: string;
+    device_id: string;
+    pin: string;
+    platform?: string;
+    push_token?: string | null;
+  }) {
     return request("/api/auth/pin/login", {
       method: "POST",
       body: JSON.stringify(body),
@@ -284,6 +309,27 @@ export const authApi = {
   removePushToken(body: { push_token: string }) {
     return request("/api/settings/push-token", {
       method: "DELETE",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getPushHealth(params?: { push_token?: string | null; device_id?: string | null }) {
+    const qs = new URLSearchParams();
+    if (params?.push_token) qs.set("push_token", params.push_token);
+    if (params?.device_id) qs.set("device_id", params.device_id);
+    const query = qs.toString();
+    return request(`/api/settings/push-health${query ? `?${query}` : ""}`);
+  },
+
+  syncPushToken(body: {
+    push_token: string;
+    device_id?: string;
+    platform?: string;
+    send_login_test?: boolean;
+    send_test_push?: boolean;
+  }) {
+    return request("/api/settings/push-sync", {
+      method: "POST",
       body: JSON.stringify(body),
     });
   },

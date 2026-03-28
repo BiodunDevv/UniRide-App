@@ -11,6 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  RefreshControl,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -72,50 +74,66 @@ export default function RideDetailsScreen() {
   const [checkingIn, setCheckingIn] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const codeRefs = useRef<(TextInput | null)[]>([null, null, null, null]);
+
+  const loadDetails = useCallback(async () => {
+    // If we have a bookingId, find it from myBookings first
+    if (params.bookingId) {
+      await fetchMyBookings();
+      const bk = useRideStore
+        .getState()
+        .myBookings.find((b) => b._id === params.bookingId);
+      if (bk) {
+        setBooking(bk);
+        const rideId =
+          typeof bk.ride_id === "object" ? bk.ride_id._id : bk.ride_id;
+        if (rideId) {
+          const r = await fetchRideDetails(rideId);
+          setRide(r);
+        }
+      }
+      return;
+    }
+
+    if (params.rideId) {
+      const r = await fetchRideDetails(params.rideId);
+      setRide(r);
+      await fetchMyBookings();
+      const bk = useRideStore
+        .getState()
+        .myBookings.find(
+          (b) =>
+            (typeof b.ride_id === "object" ? b.ride_id._id : b.ride_id) ===
+              params.rideId &&
+            b.status !== "cancelled" &&
+            b.status !== "declined",
+        );
+      if (bk) setBooking(bk);
+    }
+  }, [params.bookingId, params.rideId, fetchMyBookings, fetchRideDetails]);
 
   // ── Load data ─────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        // If we have a bookingId, find it from myBookings first
-        if (params.bookingId) {
-          await fetchMyBookings();
-          const bk = useRideStore
-            .getState()
-            .myBookings.find((b) => b._id === params.bookingId);
-          if (bk) {
-            setBooking(bk);
-            const rideId =
-              typeof bk.ride_id === "object" ? bk.ride_id._id : bk.ride_id;
-            if (rideId) {
-              const r = await fetchRideDetails(rideId);
-              setRide(r);
-            }
-          }
-        } else if (params.rideId) {
-          const r = await fetchRideDetails(params.rideId);
-          setRide(r);
-          // Check if user has a booking for this ride
-          await fetchMyBookings();
-          const bk = useRideStore
-            .getState()
-            .myBookings.find(
-              (b) =>
-                (typeof b.ride_id === "object" ? b.ride_id._id : b.ride_id) ===
-                  params.rideId &&
-                b.status !== "cancelled" &&
-                b.status !== "declined",
-            );
-          if (bk) setBooking(bk);
-        }
+        await loadDetails();
       } catch (e: any) {
         Alert.alert("Error", e?.message || "Failed to load");
       }
       setLoading(false);
     })();
-  }, [params.rideId, params.bookingId]);
+  }, [loadDetails]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadDetails();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadDetails]);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -168,6 +186,8 @@ export default function RideDetailsScreen() {
       : null;
   const driverName = driverUser?.name || driverDoc?.name || "Driver";
   const driverPhoto = driverUser?.profile_picture || null;
+  const driverPhone = driverUser?.phone || driverDoc?.phone || null;
+  const driverId = driverDoc?._id || null;
   const seatsLeft = ride
     ? (ride.seats_remaining ?? ride.available_seats - ride.booked_seats)
     : 0;
@@ -189,6 +209,7 @@ export default function RideDetailsScreen() {
     !booking &&
     (ride.status === "available" || ride.status === "scheduled") &&
     seatsLeft > 0;
+  const hasBookingPhone = Boolean(user?.phone?.trim());
   const needsCheckIn =
     booking?.status === "accepted" && booking?.check_in_status !== "checked_in";
   const isCheckedIn = booking?.check_in_status === "checked_in";
@@ -202,6 +223,20 @@ export default function RideDetailsScreen() {
   // ── Book ──────────────────────────────────────────────────────────
   const handleBook = async () => {
     if (!ride) return;
+    if (!hasBookingPhone) {
+      Alert.alert(
+        "Phone number required",
+        "Add your phone number before booking so your driver can call you about pickup.",
+        [
+          { text: "Not now", style: "cancel" },
+          {
+            text: "Update Profile",
+            onPress: () => router.push("/settings/edit-profile" as any),
+          },
+        ],
+      );
+      return;
+    }
     try {
       const res = await bookRide(ride._id, payMethod, seats);
       setBooking(res.data || res);
@@ -299,6 +334,28 @@ export default function RideDetailsScreen() {
     );
   };
 
+  const handleCallDriver = async () => {
+    if (!driverPhone) {
+      Alert.alert("Phone unavailable", "This driver has not added a phone number yet.");
+      return;
+    }
+    const telUrl = `tel:${driverPhone}`;
+    const supported = await Linking.canOpenURL(telUrl);
+    if (!supported) {
+      Alert.alert("Call unavailable", "This device cannot open the phone dialer.");
+      return;
+    }
+    Linking.openURL(telUrl);
+  };
+
+  const handleOpenDriverProfile = () => {
+    if (!driverId) return;
+    router.push({
+      pathname: "/(users)/driver-profile" as any,
+      params: { driverId },
+    });
+  };
+
   // ── Code input ────────────────────────────────────────────────────
   const handleCodeChange = (text: string, idx: number) => {
     const digit = text.replace(/[^0-9]/g, "").slice(-1);
@@ -328,26 +385,33 @@ export default function RideDetailsScreen() {
 
   // ═════════════════════════════════════════════════════════════════════
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-slate-50">
       <SafeAreaView edges={["top"]} className="flex-1">
         {/* ── Header ─────────────────────────────────────────────── */}
         <Animated.View
           entering={FadeInUp.duration(300)}
-          className="px-5 pt-3 pb-2 flex-row items-center"
+          className="px-5 pt-3 pb-2"
         >
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3"
-          >
-            <Ionicons name="arrow-back" size={20} color="#042F40" />
-          </TouchableOpacity>
-          <Text className="text-xl font-bold text-gray-900 flex-1">
-            <T>Ride Details</T>
-          </Text>
-          <View className={`px-3 py-1 rounded-full ${badge.bg}`}>
-            <Text className={`text-xs font-semibold ${badge.color}`}>
-              <T>{badge.text}</T>
-            </Text>
+          <View className="flex-row items-center">
+            <TouchableOpacity
+              onPress={() => router.back()}
+              className="mr-3 h-10 w-10 rounded-full bg-white items-center justify-center"
+            >
+              <Ionicons name="arrow-back" size={20} color="#042F40" />
+            </TouchableOpacity>
+            <View className="flex-1">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Passenger Journey
+              </Text>
+              <Text className="mt-1 text-xl font-bold text-gray-900">
+                <T>Ride Details</T>
+              </Text>
+            </View>
+            <View className={`px-3 py-1 rounded-full ${badge.bg}`}>
+              <Text className={`text-xs font-semibold ${badge.color}`}>
+                <T>{badge.text}</T>
+              </Text>
+            </View>
           </View>
         </Animated.View>
 
@@ -359,6 +423,13 @@ export default function RideDetailsScreen() {
             showsVerticalScrollIndicator={false}
             className="flex-1"
             contentContainerStyle={{ paddingBottom: 120 }}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#042F40"
+              />
+            }
           >
             {/* ── Route ───────────────────────────────────────────── */}
             <Animated.View
@@ -449,56 +520,169 @@ export default function RideDetailsScreen() {
               </View>
             </Animated.View>
 
+            <Animated.View
+              entering={FadeInUp.delay(180).duration(300)}
+              className="mx-5 mt-3 rounded-[26px] bg-[#042F40] px-4 py-4"
+            >
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+                Trip Summary
+              </Text>
+              <Text className="mt-2 text-lg font-bold text-white">
+                {pickup?.short_name ||
+                  pickup?.name ||
+                  ride.pickup_location?.address ||
+                  "Pickup"}{" "}
+                {"→"}{" "}
+                {dest?.short_name ||
+                  dest?.name ||
+                  ride.destination?.address ||
+                  "Destination"}
+              </Text>
+              <View className="mt-4 flex-row gap-3">
+                <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                  <Text className="text-[11px] text-slate-300">
+                    <T>Seats</T>
+                  </Text>
+                  <Text className="mt-1 text-xl font-bold text-white">
+                    {booking?.seats_requested || seats}
+                  </Text>
+                </View>
+                <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                  <Text className="text-[11px] text-slate-300">
+                    <T>Fare</T>
+                  </Text>
+                  <Text className="mt-1 text-xl font-bold text-white">
+                    ₦{totalFare}
+                  </Text>
+                </View>
+                <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                  <Text className="text-[11px] text-slate-300">
+                    <T>Status</T>
+                  </Text>
+                  <Text className="mt-1 text-sm font-bold text-white">
+                    <T>{badge.text}</T>
+                  </Text>
+                </View>
+              </View>
+            </Animated.View>
+
             {/* ── Driver Info ─────────────────────────────────────── */}
             {driverDoc && (
               <Animated.View
                 entering={FadeInUp.delay(200).duration(300)}
-                className="mx-5 mt-3 bg-gray-50 rounded-2xl p-4 flex-row items-center"
+                className="mx-5 mt-3 bg-gray-50 rounded-2xl p-4"
               >
-                {driverPhoto ? (
-                  <Image
-                    source={{ uri: driverPhoto }}
-                    className="w-12 h-12 rounded-full mr-3"
-                  />
-                ) : (
-                  <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mr-3">
-                    <Ionicons name="person" size={24} color="#042F40" />
-                  </View>
-                )}
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-gray-800">
-                    {driverName}
-                  </Text>
-                  {(driverDoc.vehicle_model || driverDoc.vehicle_color) && (
-                    <Text className="text-xs text-gray-400 mt-0.5">
-                      {[driverDoc.vehicle_model, driverDoc.vehicle_color]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
+                <View className="flex-row items-center">
+                  {driverPhoto ? (
+                    <Image
+                      source={{ uri: driverPhoto }}
+                      className="w-12 h-12 rounded-full mr-3"
+                    />
+                  ) : (
+                    <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mr-3">
+                      <Ionicons name="person" size={24} color="#042F40" />
+                    </View>
                   )}
-                  {driverDoc.plate_number && (
-                    <Text className="text-xs text-gray-400">
-                      {driverDoc.plate_number}
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-gray-800">
+                      {driverName}
                     </Text>
+                    {(driverDoc.vehicle_model || driverDoc.vehicle_color) && (
+                      <Text className="text-xs text-gray-400 mt-0.5">
+                        {[driverDoc.vehicle_model, driverDoc.vehicle_color]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </Text>
+                    )}
+                    {driverDoc.plate_number && (
+                      <Text className="text-xs text-gray-400">
+                        {driverDoc.plate_number}
+                      </Text>
+                    )}
+                  </View>
+                  {driverDoc.rating != null && driverDoc.rating > 0 && (
+                    <View className="flex-row items-center bg-accent/10 rounded-full px-2.5 py-1">
+                      <Ionicons name="star" size={12} color="#D4A017" />
+                      <Text className="text-xs font-bold text-accent ml-1">
+                        {typeof driverDoc.rating === "number"
+                          ? driverDoc.rating.toFixed(1)
+                          : driverDoc.rating}
+                      </Text>
+                    </View>
                   )}
                 </View>
-                {driverDoc.rating != null && driverDoc.rating > 0 && (
-                  <View className="flex-row items-center bg-accent/10 rounded-full px-2.5 py-1">
-                    <Ionicons name="star" size={12} color="#D4A017" />
-                    <Text className="text-xs font-bold text-accent ml-1">
-                      {typeof driverDoc.rating === "number"
-                        ? driverDoc.rating.toFixed(1)
-                        : driverDoc.rating}
-                    </Text>
+                {(driverPhone || booking?.status === "accepted" || inProgress) && (
+                  <View className="mt-4 flex-row items-center gap-3">
+                    <TouchableOpacity
+                      onPress={handleOpenDriverProfile}
+                      activeOpacity={0.85}
+                      className="flex-1 rounded-2xl bg-white px-4 py-3 border border-slate-200"
+                    >
+                      <Text className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                        Driver Contact
+                      </Text>
+                      <Text className="mt-1 text-sm font-semibold text-slate-800">
+                        {driverPhone || "Phone not added yet"}
+                      </Text>
+                      <Text className="mt-1 text-xs text-slate-500">
+                        View the full driver profile or call directly for pickup coordination.
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleOpenDriverProfile}
+                      className="h-14 w-14 rounded-2xl items-center justify-center bg-slate-900"
+                    >
+                      <Ionicons name="person-outline" size={20} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleCallDriver}
+                      disabled={!driverPhone}
+                      className={`h-14 w-14 rounded-2xl items-center justify-center ${driverPhone ? "bg-primary" : "bg-slate-200"}`}
+                    >
+                      <Ionicons
+                        name="call"
+                        size={20}
+                        color={driverPhone ? "#FFFFFF" : "#94A3B8"}
+                      />
+                    </TouchableOpacity>
                   </View>
                 )}
+              </Animated.View>
+            )}
+
+            {!hasBookingPhone && canBook && (
+              <Animated.View
+                entering={FadeInUp.delay(230).duration(300)}
+                className="mx-5 mt-3 rounded-2xl border border-amber-100 bg-amber-50 p-4"
+              >
+                <View className="flex-row items-start">
+                  <View className="mr-3 mt-0.5 h-10 w-10 items-center justify-center rounded-2xl bg-amber-100">
+                    <Ionicons name="call-outline" size={20} color="#D97706" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-amber-800">
+                      Phone number required
+                    </Text>
+                    <Text className="mt-1 text-xs leading-5 text-amber-700">
+                      Add your phone number before booking so the driver can contact you for pickup and ride coordination.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => router.push("/settings/edit-profile" as any)}
+                      className="mt-3 self-start rounded-xl bg-amber-500 px-4 py-2.5"
+                    >
+                      <Text className="text-xs font-bold text-white">
+                        <T>Complete Profile</T>
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </Animated.View>
             )}
 
             {/* ── Fare ────────────────────────────────────────────── */}
             <Animated.View
               entering={FadeInUp.delay(250).duration(300)}
-              className="mx-5 mt-3 bg-primary/5 rounded-2xl p-4"
+              className="mx-5 mt-3 bg-white rounded-2xl border border-slate-200 p-4"
             >
               <View className="flex-row items-center justify-between">
                 <Text className="text-sm text-gray-600">
@@ -533,6 +717,14 @@ export default function RideDetailsScreen() {
                     </Text>
                     <Text className="text-sm text-gray-500 text-center mt-1">
                       <T>Enter the 4-digit code from your driver</T>
+                    </Text>
+                  </View>
+                  <View className="mb-4 rounded-2xl bg-white px-4 py-3 border border-amber-100">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-600">
+                      Boarding Step
+                    </Text>
+                    <Text className="mt-1 text-sm text-slate-700">
+                      Use the code the driver shares with you before the ride starts.
                     </Text>
                   </View>
                   <View className="flex-row justify-center gap-3 mb-5">
@@ -770,7 +962,7 @@ export default function RideDetailsScreen() {
               booking.status === "accepted"))) && (
           <SafeAreaView
             edges={["bottom"]}
-            className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 pt-3"
+            className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 pt-3 pb-4"
           >
             {canBook ? (
               <Animated.View entering={FadeInDown.duration(300)}>
@@ -822,14 +1014,16 @@ export default function RideDetailsScreen() {
                 </View>
                 <TouchableOpacity
                   onPress={handleBook}
-                  disabled={isBooking}
-                  className="bg-primary rounded-2xl py-4 items-center mb-2"
+                  disabled={isBooking || !hasBookingPhone}
+                  className={`${hasBookingPhone ? "bg-primary" : "bg-amber-200"} rounded-2xl py-4 items-center mb-2`}
                 >
                   {isBooking ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text className="text-white font-bold text-base">
-                      <T>Book Ride</T> · ₦{totalFare}
+                    <Text
+                      className={`font-bold text-base ${hasBookingPhone ? "text-white" : "text-amber-700"}`}
+                    >
+                      {hasBookingPhone ? <T>Book Ride</T> : <T>Add Phone to Book</T>} · ₦{totalFare}
                     </Text>
                   )}
                 </TouchableOpacity>

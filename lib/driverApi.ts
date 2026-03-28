@@ -17,17 +17,28 @@ async function request<T = any>(
     ...(options.headers as Record<string, string>),
   };
 
-  const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+  } catch (networkError: any) {
+    throw networkError;
+  }
+
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    data = null;
+  }
 
   if (!res.ok) {
-    const error: any = new Error(data.message || "Request failed");
+    const error: any = new Error(data?.message || "Request failed");
     error.status = res.status;
     error.data = data;
     throw error;
   }
 
-  return data;
+  return data || ({} as T);
 }
 
 // ─── Driver API ───────────────────────────────────────────────────────────────
@@ -99,6 +110,27 @@ export const settingsApi = {
   }) {
     return request("/api/settings/notifications", {
       method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+
+  getPushHealth(params?: { push_token?: string | null; device_id?: string | null }) {
+    const qs = new URLSearchParams();
+    if (params?.push_token) qs.set("push_token", params.push_token);
+    if (params?.device_id) qs.set("device_id", params.device_id);
+    const query = qs.toString();
+    return request(`/api/settings/push-health${query ? `?${query}` : ""}`);
+  },
+
+  syncPushToken(body: {
+    push_token: string;
+    device_id?: string;
+    platform?: string;
+    send_login_test?: boolean;
+    send_test_push?: boolean;
+  }) {
+    return request("/api/settings/push-sync", {
+      method: "POST",
       body: JSON.stringify(body),
     });
   },

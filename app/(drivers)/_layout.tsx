@@ -12,6 +12,10 @@ export default function DriverLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="rides" options={{ animation: "slide_from_right" }} />
       <Stack.Screen
+        name="ride-requests"
+        options={{ animation: "slide_from_right" }}
+      />
+      <Stack.Screen
         name="notifications"
         options={{ presentation: "modal", animation: "slide_from_bottom" }}
       />

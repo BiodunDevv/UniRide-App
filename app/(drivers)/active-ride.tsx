@@ -9,6 +9,8 @@ import {
   Share,
   Image,
   Linking,
+  InteractionManager,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -28,6 +30,9 @@ import { useSocket } from "@/hooks/use-socket";
 import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { useBootstrapStore } from "@/store/useBootstrapStore";
+import { recordBootstrapTrace } from "@/lib/post-auth";
+import { useLocation } from "@/hooks/use-location";
 
 export default function DriverActiveRideScreen() {
   const router = useRouter();
@@ -44,8 +49,10 @@ export default function DriverActiveRideScreen() {
   const mapsEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
   );
+  const safeMode = useBootstrapStore((state) => state.safeMode);
   const { joinRide, leaveRide } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
+  const { requestPermission, startWatching } = useLocation();
 
   const [ride, setRide] = useState<Ride | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -60,9 +67,24 @@ export default function DriverActiveRideScreen() {
         longitude: number;
         name: string;
         profile_picture: string | null;
+        timestamp?: string;
       }
     >
   >({});
+  const [lastPassengerUpdate, setLastPassengerUpdate] = useState<string | null>(
+    null,
+  );
+
+  const formatLiveStatus = useCallback((value?: string | null) => {
+    if (!value) return "Waiting for live updates";
+    const diffMs = Date.now() - new Date(value).getTime();
+    const diffMinutes = Math.max(0, Math.round(diffMs / 60000));
+    if (diffMinutes < 1) return "Live now";
+    if (diffMinutes === 1) return "Updated 1 min ago";
+    if (diffMinutes < 60) return `Updated ${diffMinutes} mins ago`;
+    const diffHours = Math.round(diffMinutes / 60);
+    return `Updated ${diffHours}h ago`;
+  }, []);
 
   // ── Load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -71,12 +93,70 @@ export default function DriverActiveRideScreen() {
       try {
         if (rideId) {
           joinRide(rideId);
-          // Start the ride (transition to in_progress) — idempotent if already started
-          try {
-            await startRide(rideId);
-          } catch {}
           const r = await fetchRideDetails(rideId);
           setRide(r);
+          if (r?.status === "completed") {
+            setRideCompleted(true);
+          } else {
+            // Start the ride (transition to in_progress) only if it is not already completed
+            try {
+              await startRide(rideId);
+            } catch {}
+          }
+          const seededPassengerLocations = ((r as any)?.bookings || []).reduce(
+            (
+              acc: Record<
+                string,
+                {
+                  latitude: number;
+                  longitude: number;
+                  name: string;
+                  profile_picture: string | null;
+                  timestamp?: string;
+                }
+              >,
+              bk: any,
+            ) => {
+              const user = bk?.user_id;
+              const coordinates = user?.current_location?.coordinates;
+              if (!user?._id || !coordinates || coordinates.length !== 2) {
+                return acc;
+              }
+
+              acc[user._id] = {
+                latitude: coordinates[1],
+                longitude: coordinates[0],
+                name: user?.name || "Passenger",
+                profile_picture: user?.profile_picture || null,
+                timestamp: bk?.updatedAt
+                  ? new Date(bk.updatedAt).toISOString()
+                  : new Date().toISOString(),
+              };
+              return acc;
+            },
+            {},
+          );
+
+          if (Object.keys(seededPassengerLocations).length > 0) {
+            setPassengerLocations(seededPassengerLocations);
+            const seededPassengerValues = Object.values(
+              seededPassengerLocations,
+            ) as Array<{
+              latitude: number;
+              longitude: number;
+              name: string;
+              profile_picture: string | null;
+              timestamp?: string;
+            }>;
+            const latestSeededTimestamp = seededPassengerValues
+              .map((item) => item.timestamp)
+              .filter((value): value is string => Boolean(value))
+              .sort()
+              .at(-1);
+            if (latestSeededTimestamp) {
+              setLastPassengerUpdate(latestSeededTimestamp);
+            }
+          }
           await fetchDriverBookings();
           const allBk = useRideStore.getState().driverBookings;
           setBookings(
@@ -94,6 +174,16 @@ export default function DriverActiveRideScreen() {
       setLoading(false);
     })();
   }, [rideId]);
+
+  useEffect(() => {
+    requestPermission()
+      .then((granted) => {
+        if (granted) {
+          startWatching();
+        }
+      })
+      .catch(() => {});
+  }, [requestPermission, startWatching]);
 
   // ── GPS broadcast ─────────────────────────────────────────────────
   useEffect(() => {
@@ -129,6 +219,48 @@ export default function DriverActiveRideScreen() {
         try {
           const r = await fetchRideDetails(rideId);
           setRide(r);
+          if (r?.status === "completed") {
+            setRideCompleted(true);
+          }
+          const seededPassengerLocations = ((r as any)?.bookings || []).reduce(
+            (
+              acc: Record<
+                string,
+                {
+                  latitude: number;
+                  longitude: number;
+                  name: string;
+                  profile_picture: string | null;
+                  timestamp?: string;
+                }
+              >,
+              bk: any,
+            ) => {
+              const user = bk?.user_id;
+              const coordinates = user?.current_location?.coordinates;
+              if (!user?._id || !coordinates || coordinates.length !== 2) {
+                return acc;
+              }
+
+              acc[user._id] = {
+                latitude: coordinates[1],
+                longitude: coordinates[0],
+                name: user?.name || "Passenger",
+                profile_picture: user?.profile_picture || null,
+                timestamp: bk?.updatedAt
+                  ? new Date(bk.updatedAt).toISOString()
+                  : new Date().toISOString(),
+              };
+              return acc;
+            },
+            {},
+          );
+          if (Object.keys(seededPassengerLocations).length > 0) {
+            setPassengerLocations((prev) => ({
+              ...prev,
+              ...seededPassengerLocations,
+            }));
+          }
         } catch {}
       }
       await fetchDriverBookings();
@@ -168,8 +300,16 @@ export default function DriverActiveRideScreen() {
           longitude: data.location.longitude,
           name: data.name || "Passenger",
           profile_picture: data.profile_picture || null,
+          timestamp: data.timestamp
+            ? new Date(data.timestamp).toISOString()
+            : new Date().toISOString(),
         },
       }));
+      setLastPassengerUpdate(
+        data.timestamp
+          ? new Date(data.timestamp).toISOString()
+          : new Date().toISOString(),
+      );
     });
     return () => unsub();
   }, []);
@@ -177,6 +317,26 @@ export default function DriverActiveRideScreen() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [rideCompleted, setRideCompleted] = useState(false);
   const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
+  const [allowMapCanvas, setAllowMapCanvas] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const interactionHandle = InteractionManager.runAfterInteractions(() => {
+      if (!cancelled) {
+        setAllowMapCanvas(Boolean(mapsEnabled) && !safeMode);
+      }
+    });
+
+    recordBootstrapTrace(
+      "driver-active-ride:mount",
+      safeMode ? "safe-mode" : "full-mode",
+    ).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      interactionHandle.cancel();
+    };
+  }, [mapsEnabled, safeMode]);
 
   const handleConfirmPayment = (bookingId: string, passengerName: string) => {
     Alert.alert(
@@ -281,13 +441,6 @@ export default function DriverActiveRideScreen() {
     }
   }, [ride]);
 
-  if (loading)
-    return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#042F40" />
-      </View>
-    );
-
   const pickup =
     ride && typeof ride.pickup_location_id === "object"
       ? ride.pickup_location_id
@@ -313,95 +466,42 @@ export default function DriverActiveRideScreen() {
   const checkedIn = bookings.filter(
     (b) => b.check_in_status === "checked_in",
   ).length;
+  const showMapCanvas = mapsEnabled && allowMapCanvas && !safeMode;
+
+  if (loading)
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" color="#042F40" />
+      </View>
+    );
+
+  if (!rideId || !ride)
+    return (
+      <View className="flex-1 items-center justify-center bg-white px-8">
+        <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
+          <Ionicons name="car-sport-outline" size={40} color="#D1D5DB" />
+        </View>
+        <Text className="text-lg font-bold text-gray-800 text-center mb-2">
+          <T>Ride details unavailable</T>
+        </Text>
+        <Text className="text-sm text-gray-400 text-center mb-6">
+          <T>We couldn't load this live ride right now.</T>
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="bg-primary rounded-2xl px-8 py-3"
+        >
+          <Text className="text-white font-bold">
+            <T>Go Back</T>
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
 
   // ═════════════════════════════════════════════════════════════════════
   return (
-    <View className="flex-1 bg-white">
-      {/* Map */}
-      {mapsEnabled ? (
-        <MapView
-          style={{ flex: 1 }}
-          mapType={mapType}
-          showsCompass
-          showsBuildings
-        >
-          <Camera
-            ref={cameraRef}
-            defaultSettings={{
-              centerCoordinate: center,
-              zoomLevel: 14,
-            }}
-            animationDuration={1200}
-          />
-          <LocationPuck />
-          {routeCoordinates.length > 1 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#042F40"
-              strokeWidth={4}
-            />
-          )}
-          {Object.entries(passengerLocations).map(([userId, loc]) => (
-            <Marker
-              key={`passenger-${userId}`}
-              coordinate={{
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-              }}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <View className="items-center">
-                <View
-                  className="bg-accent rounded-full w-8 h-8 items-center justify-center border-2 border-white"
-                  style={{
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 4,
-                  }}
-                >
-                  <Ionicons name="person" size={14} color="#fff" />
-                </View>
-                <View
-                  className="bg-white rounded-md px-1.5 py-0.5 mt-0.5"
-                  style={{
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 2,
-                  }}
-                >
-                  <Text className="text-[8px] font-bold text-gray-700">
-                    {loc.name.split(" ")[0]}
-                  </Text>
-                </View>
-              </View>
-            </Marker>
-          ))}
-        </MapView>
-      ) : (
-        <View className="flex-1 bg-slate-50 px-5 pt-28">
-          <View className="rounded-[28px] border border-slate-200 bg-white px-5 py-5">
-            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Active Ride
-            </Text>
-            <Text className="mt-2 text-2xl font-bold text-slate-900">
-              Passenger tracking continues in the background
-            </Text>
-            <Text className="mt-2 text-sm leading-6 text-slate-600">
-              Check-ins, passenger payments, and ride completion actions remain
-              fully available while the interactive map is disabled.
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Header */}
-      <SafeAreaView
-        edges={["top"]}
-        className="absolute top-0 left-0 right-0 z-10"
-        pointerEvents="box-none"
-      >
+    <View className="flex-1 bg-slate-50">
+      <SafeAreaView edges={["top", "bottom"]} className="flex-1">
         <View className="mx-5 mt-2 flex-row items-center">
           <TouchableOpacity
             onPress={() => {
@@ -421,7 +521,7 @@ export default function DriverActiveRideScreen() {
             <Ionicons name="arrow-back" size={20} color="#042F40" />
           </TouchableOpacity>
           <View
-            className="flex-1 mx-3 bg-white/95 rounded-2xl px-4 py-2.5 flex-row items-center"
+            className="flex-1 mx-3 bg-white rounded-2xl px-4 py-2.5 flex-row items-center"
             style={{
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 2 },
@@ -437,66 +537,155 @@ export default function DriverActiveRideScreen() {
               {checkedIn}/{bookings.length} <T>checked in</T>
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() =>
-              setMapType((current) =>
-                current === "hybrid" ? "standard" : "hybrid",
-              )
-            }
-            className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 6,
-            }}
-          >
-            <Ionicons
-              name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
-              size={20}
-              color="#042F40"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              if (userLocation && cameraRef.current)
-                cameraRef.current.setCamera({
-                  centerCoordinate: [
-                    userLocation.longitude,
-                    userLocation.latitude,
-                  ],
-                  zoomLevel: 15,
-                  animationDuration: 800,
-                });
-            }}
-            className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 6,
-            }}
-          >
-            <Ionicons name="locate" size={20} color="#042F40" />
-          </TouchableOpacity>
         </View>
-      </SafeAreaView>
 
-      {/* Bottom Panel */}
-      <Animated.View
-        entering={FadeInUp.delay(200).duration(400)}
-        className="absolute bottom-0 left-0 right-0 z-10 bg-white rounded-t-[28px]"
-        style={{
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 16,
-        }}
-      >
-        <View className="items-center pt-3 pb-1">
-          <View className="w-10 h-1 bg-gray-200 rounded-full" />
-        </View>
-        <SafeAreaView edges={["bottom"]} className="px-5 pb-2">
+        {showMapCanvas ? (
+          <View className="mx-5 mt-3 h-[280px] overflow-hidden rounded-[28px] bg-white">
+            <MapView style={{ flex: 1 }} mapType={mapType} showsCompass showsBuildings>
+              <Camera
+                ref={cameraRef}
+                defaultSettings={{
+                  centerCoordinate: center,
+                  zoomLevel: 14,
+                }}
+                animationDuration={1200}
+              />
+              <LocationPuck />
+              {routeCoordinates.length > 1 && (
+                <Polyline
+                  coordinates={routeCoordinates}
+                  strokeColor="#042F40"
+                  strokeWidth={4}
+                />
+              )}
+              {Object.entries(passengerLocations).map(([userId, loc]) => (
+                <Marker
+                  key={`passenger-${userId}`}
+                  coordinate={{
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                  }}
+                  anchor={{ x: 0.5, y: 1 }}
+                >
+                  <View className="items-center">
+                    <View className="bg-accent rounded-full w-8 h-8 items-center justify-center border-2 border-white">
+                      <Ionicons name="person" size={14} color="#fff" />
+                    </View>
+                    <View className="bg-white rounded-md px-1.5 py-0.5 mt-0.5">
+                      <Text className="text-[8px] font-bold text-gray-700">
+                        {loc.name.split(" ")[0]}
+                      </Text>
+                    </View>
+                  </View>
+                </Marker>
+              ))}
+            </MapView>
+            <View className="absolute right-3 top-3 gap-2">
+              <TouchableOpacity
+                onPress={() =>
+                  setMapType((current) =>
+                    current === "hybrid" ? "standard" : "hybrid",
+                  )
+                }
+                className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
+              >
+                <Ionicons
+                  name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                  size={20}
+                  color="#042F40"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  if (userLocation && cameraRef.current)
+                    cameraRef.current.setCamera({
+                      centerCoordinate: [
+                        userLocation.longitude,
+                        userLocation.latitude,
+                      ],
+                      zoomLevel: 15,
+                      animationDuration: 800,
+                    });
+                }}
+                className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
+              >
+                <Ionicons name="locate" size={20} color="#042F40" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View className="mx-5 mt-3 rounded-[28px] border border-slate-200 bg-white px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Active Ride
+            </Text>
+            <Text className="mt-2 text-2xl font-bold text-slate-900">
+              Passenger tracking continues in the background
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-600">
+              Check-ins, passenger payments, and ride completion actions remain fully available while the interactive map is disabled.
+            </Text>
+            {safeMode ? (
+              <TouchableOpacity
+                onPress={() => router.push("/bootstrap")}
+                className="mt-5 rounded-2xl bg-primary px-4 py-3 items-center"
+              >
+                <Text className="text-sm font-semibold text-white">
+                  <T>Try Map Again</T>
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        )}
+
+        <ScrollView
+          className="flex-1 mt-3"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 28 }}
+        >
+        <View className="px-5 pb-2">
+          <View className="mb-4 rounded-[24px] bg-[#042F40] px-4 py-4">
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+              Driver Operations
+            </Text>
+            <Text className="mt-1 text-lg font-bold text-white">
+              <T>Ride In Progress</T>
+            </Text>
+            <Text className="mt-1 text-xs leading-5 text-slate-300">
+              <T>Monitor passenger progress, confirm transfers, and wrap up the trip from one sheet.</T>
+            </Text>
+          </View>
+
+          <View className="mb-3 flex-row gap-3">
+            <View className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Driver Live
+              </Text>
+              <Text className="mt-1 text-sm font-bold text-slate-900">
+                {userLocation ? "Broadcasting location" : "GPS waking up"}
+              </Text>
+              <Text className="mt-1 text-xs text-slate-500">
+                {userLocation ? "Visible to checked-in passengers" : "Waiting for current coordinates"}
+              </Text>
+              {userLocation ? (
+                <Text className="mt-1 text-[11px] text-slate-400">
+                  {userLocation.latitude.toFixed(5)},{" "}
+                  {userLocation.longitude.toFixed(5)}
+                </Text>
+              ) : null}
+            </View>
+            <View className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Passenger live
+              </Text>
+              <Text className="mt-1 text-sm font-bold text-slate-900">
+                {Object.keys(passengerLocations).length} tracked passenger
+                {Object.keys(passengerLocations).length === 1 ? "" : "s"}
+              </Text>
+              <Text className="mt-1 text-xs text-slate-500">
+                {formatLiveStatus(lastPassengerUpdate)}
+              </Text>
+            </View>
+          </View>
           {/* Route */}
           <View className="flex-row items-center mb-3">
             <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
@@ -582,6 +771,20 @@ export default function DriverActiveRideScreen() {
                           {bk.seats_requested > 1 ? "s" : ""} ·{" "}
                           {bk.payment_method}
                         </Text>
+                        {usr?._id && passengerLocations[usr._id] ? (
+                          <Text className="mt-1 text-[10px] text-slate-500">
+                            {formatLiveStatus(
+                              passengerLocations[usr._id]?.timestamp,
+                            )}{" "}
+                            ·{" "}
+                            {passengerLocations[usr._id]?.latitude.toFixed(5)},{" "}
+                            {passengerLocations[usr._id]?.longitude.toFixed(5)}
+                          </Text>
+                        ) : (
+                          <Text className="mt-1 text-[10px] text-slate-400">
+                            Live location will appear once the rider shares it
+                          </Text>
+                        )}
                       </View>
                       <View className="flex-row items-center gap-1.5">
                         {/* Payment badge */}
@@ -677,32 +880,53 @@ export default function DriverActiveRideScreen() {
               </View>
             )}
           </TouchableOpacity>
-        </SafeAreaView>
-      </Animated.View>
+        </View>
+        </ScrollView>
+      </SafeAreaView>
 
       {/* ── Ride Completed Overlay ──────────────────────────────────── */}
       {rideCompleted && (
         <View className="absolute inset-0 z-50 bg-white">
           <SafeAreaView
             edges={["top", "bottom"]}
-            className="flex-1 justify-center items-center px-8"
+            className="flex-1 justify-center px-6"
           >
             <Animated.View
               entering={FadeInUp.duration(500)}
-              className="items-center"
+              className="rounded-[32px] border border-slate-200 bg-white px-6 py-7"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.08,
+                shadowRadius: 20,
+              }}
             >
-              <View className="w-20 h-20 rounded-full bg-green-100 items-center justify-center mb-4">
-                <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+              <View className="items-center">
+                <View className="mb-4 h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+                  <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+                </View>
+                <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+                  <T>Trip Complete</T>
+                </Text>
+                <Text className="mt-2 text-center text-2xl font-bold text-slate-900">
+                  <T>Ride Completed!</T>
+                </Text>
+                <Text className="mt-2 text-center text-sm leading-6 text-slate-500">
+                  <T>Great job! Your ride has been completed successfully.</T>
+                </Text>
               </View>
-              <Text className="text-2xl font-bold text-gray-900 text-center mb-2">
-                <T>Ride Completed!</T>
-              </Text>
-              <Text className="text-sm text-gray-500 text-center mb-6">
-                <T>Great job! Your ride has been completed successfully.</T>
-              </Text>
 
-              {/* Summary Card */}
-              <View className="bg-gray-50 rounded-2xl p-5 w-full mb-6">
+              <View className="mt-6 w-full rounded-[28px] bg-slate-50 p-5">
+                <View className="mb-4 flex-row items-center justify-between">
+                  <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <T>Ride Summary</T>
+                  </Text>
+                  <View className="rounded-full bg-emerald-50 px-3 py-1.5">
+                    <Text className="text-[11px] font-semibold text-emerald-700">
+                      <T>Completed</T>
+                    </Text>
+                  </View>
+                </View>
                 <View className="flex-row items-start mb-3">
                   <View className="items-center mr-3 mt-0.5">
                     <View className="w-2.5 h-2.5 rounded-full bg-green-500" />
@@ -718,7 +942,7 @@ export default function DriverActiveRideScreen() {
                     </Text>
                   </View>
                 </View>
-                <View className="flex-row justify-between pt-3 border-t border-gray-200">
+                <View className="flex-row justify-between border-t border-slate-200 pt-4">
                   <View className="items-center flex-1">
                     <Text className="text-lg font-bold text-primary">
                       {bookings.length}
@@ -748,7 +972,7 @@ export default function DriverActiveRideScreen() {
 
               <TouchableOpacity
                 onPress={() => router.back()}
-                className="bg-primary rounded-2xl py-4 w-full items-center mb-3"
+                className="mt-6 w-full items-center rounded-2xl bg-primary py-4"
               >
                 <Text className="text-white font-bold text-base">
                   <T>Back to Home</T>
@@ -756,7 +980,7 @@ export default function DriverActiveRideScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => router.push("/(drivers)/earnings" as any)}
-                className="bg-green-50 border border-green-100 rounded-2xl py-3.5 w-full items-center flex-row justify-center"
+                className="mt-3 w-full flex-row items-center justify-center rounded-2xl border border-green-100 bg-green-50 py-3.5"
               >
                 <Ionicons name="wallet-outline" size={16} color="#16A34A" />
                 <Text className="text-green-700 font-semibold text-sm ml-2">

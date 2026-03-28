@@ -4,11 +4,11 @@ import { StatusBar } from "expo-status-bar";
 export default function SettingsLayout() {
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "#FFFFFF" },
+          contentStyle: { backgroundColor: "#F8FAFC" },
           presentation: "modal",
           animation: "slide_from_bottom",
         }}

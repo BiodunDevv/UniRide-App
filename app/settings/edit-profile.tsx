@@ -34,10 +34,13 @@ export default function EditProfileScreen() {
     "Profile updated successfully",
   );
   const tFailedUpdateProfile = useTranslation("Failed to update profile");
+  const tInvalidPhone = useTranslation("Please enter a valid phone number");
 
   // String value for TextInput placeholder
   const tEnterYourFullName = useTranslation("Enter your full name");
+  const tEnterPhoneNumber = useTranslation("Enter your phone number");
   const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewUri, setPreviewUri] = useState(user?.profile_picture || "");
@@ -61,9 +64,20 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) return;
+    const normalizedPhone = phone.trim();
+    if (
+      normalizedPhone &&
+      !/^\+?[0-9()\-\s]{7,20}$/.test(normalizedPhone)
+    ) {
+      Alert.alert(tError, tInvalidPhone);
+      return;
+    }
     setSaving(true);
     try {
-      await authApi.updateProfile({ name: name.trim() });
+      await authApi.updateProfile({
+        name: name.trim(),
+        phone: normalizedPhone || null,
+      });
       await fetchMe();
       Alert.alert(tSuccess, tProfileUpdatedSuccessfully);
       router.back();
@@ -84,23 +98,30 @@ export default function EditProfileScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <SafeAreaView className="flex-1 bg-white">
+      <SafeAreaView className="flex-1 bg-slate-50">
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           className="flex-1"
         >
           {/* Header */}
-          <View className="flex-row items-center justify-between px-6 pt-4 pb-6">
-            <Pressable
-              onPress={() => router.back()}
-              className="w-10 h-10 rounded-full bg-gray-50 items-center justify-center"
-            >
-              <Ionicons name="close" size={20} color="#042F40" />
-            </Pressable>
-            <Text className="text-primary text-lg font-bold">
-              <T>Edit Profile</T>
-            </Text>
-            <View className="w-10" />
+          <View className="px-6 pb-5 pt-4">
+            <View className="flex-row items-center justify-between">
+              <Pressable
+                onPress={() => router.back()}
+                className="h-11 w-11 rounded-2xl bg-white items-center justify-center"
+              >
+                <Ionicons name="close" size={20} color="#042F40" />
+              </Pressable>
+              <View className="items-center">
+                <Text className="text-primary text-lg font-bold">
+                  <T>Edit Profile</T>
+                </Text>
+                <Text className="mt-1 text-xs text-slate-500">
+                  <T>Keep your account details up to date</T>
+                </Text>
+              </View>
+              <View className="w-11" />
+            </View>
           </View>
 
           <View className="flex-1 px-6">
@@ -141,7 +162,7 @@ export default function EditProfileScreen() {
               <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
                 <T>Personal Information</T>
               </Text>
-              <View className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-4">
+              <View className="bg-white rounded-[26px] border border-slate-200 p-4 mb-4">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5">
                   <T>Full Name</T>
                 </Text>
@@ -154,7 +175,24 @@ export default function EditProfileScreen() {
                 />
               </View>
 
-              <View className="bg-gray-50 rounded-2xl border border-gray-100 p-4 mb-6">
+              <View className="bg-white rounded-[26px] border border-slate-200 p-4 mb-6">
+                <Text className="text-xs font-medium text-gray-400 mb-1.5">
+                  <T>Phone Number</T>
+                </Text>
+                <TextInput
+                  value={phone}
+                  onChangeText={setPhone}
+                  className="bg-white rounded-xl border border-gray-200 px-4 py-3 text-sm text-black"
+                  placeholder={tEnterPhoneNumber}
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="phone-pad"
+                />
+                <Text className="text-[10px] text-gray-300 mt-1.5 px-1">
+                  <T>Drivers can call you about pickup after you book a ride</T>
+                </Text>
+              </View>
+
+              <View className="bg-white rounded-[26px] border border-slate-200 p-4 mb-6">
                 <Text className="text-xs font-medium text-gray-400 mb-1.5">
                   <T>Email Address</T>
                 </Text>

@@ -34,6 +34,7 @@ import Logo from "@/components/Logo";
 import { useAuthStore } from "@/store/useAuthStore";
 import useTranslatorStore from "@/store/useTranslatorStore";
 import { T, useTranslation } from "@/hooks/use-translation";
+import { recordBootstrapTrace } from "@/lib/post-auth";
 
 const LANG_LABEL: Record<string, string> = {
   en: "EN",
@@ -248,8 +249,8 @@ export default function CurrentUserScreen() {
   // ── Handlers ──────────────────────────────────────────────────────────
 
   const navigateHome = () => {
-    const u = useAuthStore.getState().user;
-    router.replace(u?.role === "driver" ? "/(drivers)" : "/(users)");
+    recordBootstrapTrace("lock:navigate-dashboard").catch(() => {});
+    router.replace("/bootstrap");
   };
 
   const handleBiometric = async () => {

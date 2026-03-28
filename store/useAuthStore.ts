@@ -4,6 +4,9 @@ import * as Device from "expo-device";
 import { Platform } from "react-native";
 import { authApi } from "@/lib/api";
 import useTranslatorStore from "@/store/useTranslatorStore";
+import { useBootstrapStore } from "@/store/useBootstrapStore";
+import { usePushDebugStore } from "@/store/usePushDebugStore";
+import { getExpoPushRegistration } from "@/lib/pushNotifications";
 
 // ─── Pre-logout hooks ─────────────────────────────────────────────────────────
 // Other modules (e.g. push notifications) can register a callback that runs
@@ -48,6 +51,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string | null;
   profile_picture?: string;
   role: "user" | "driver" | "admin" | "super_admin";
   biometric_enabled: boolean;
@@ -128,6 +132,35 @@ function getDeviceType(): string {
   }
 }
 
+async function syncPushAfterAuth(
+  pushRegistration: Awaited<ReturnType<typeof getExpoPushRegistration>>,
+) {
+  if (!pushRegistration.currentPushToken) {
+    console.log(
+      `[Push] No Expo token available after auth: ${pushRegistration.reason || "unknown reason"}`,
+    );
+    usePushDebugStore.getState().setBackendHealth(null);
+    return;
+  }
+
+  try {
+    const res = await authApi.syncPushToken({
+      push_token: pushRegistration.currentPushToken,
+      device_id: pushRegistration.currentDeviceId,
+      platform: pushRegistration.platform,
+      send_login_test: true,
+    });
+    usePushDebugStore.getState().setBackendHealth(res.data || null);
+    console.log("[Push] Post-auth push sync completed");
+  } catch (error: any) {
+    console.warn(
+      "[Push] Post-auth push sync failed:",
+      error?.message || "unknown error",
+    );
+    usePushDebugStore.getState().setBackendHealth(null);
+  }
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -150,19 +183,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password, role) => {
     set({ isLoading: true });
     try {
+      useBootstrapStore.getState().resetTransient();
+      useBootstrapStore.getState().disableSafeMode();
       const deviceId = await getDeviceId();
+      const pushRegistration = await getExpoPushRegistration();
+      usePushDebugStore
+        .getState()
+        .setNativePushAvailable(pushRegistration.nativePushAvailable);
+      usePushDebugStore
+        .getState()
+        .setPermissionStatus(pushRegistration.permissionStatus);
+      usePushDebugStore
+        .getState()
+        .setCurrentDeviceId(pushRegistration.currentDeviceId || deviceId);
+      usePushDebugStore
+        .getState()
+        .setCurrentPushToken(pushRegistration.currentPushToken);
       const res = await authApi.login({
         email,
         password,
         device_id: deviceId,
         device_name: getDeviceName(),
         device_type: getDeviceType(),
+        push_token: pushRegistration.currentPushToken,
         role,
       });
       const { user, token } = res.data;
       await SecureStore.setItemAsync("token", token);
       await SecureStore.setItemAsync("user_id", user.id);
       set({ user, token, isAuthenticated: true });
+      await syncPushAfterAuth(pushRegistration);
 
       // Sync language preference from backend
       if (user.preferred_language && user.preferred_language !== "en") {
@@ -213,16 +263,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   biometricLogin: async () => {
     set({ isLoading: true });
     try {
+      useBootstrapStore.getState().resetTransient();
       const userId = await SecureStore.getItemAsync("user_id");
       const deviceId = await getDeviceId();
+      const pushRegistration = await getExpoPushRegistration();
+      usePushDebugStore
+        .getState()
+        .setNativePushAvailable(pushRegistration.nativePushAvailable);
+      usePushDebugStore
+        .getState()
+        .setPermissionStatus(pushRegistration.permissionStatus);
+      usePushDebugStore
+        .getState()
+        .setCurrentDeviceId(pushRegistration.currentDeviceId || deviceId);
+      usePushDebugStore
+        .getState()
+        .setCurrentPushToken(pushRegistration.currentPushToken);
       if (!userId) throw new Error("No saved user for biometric login");
       const res = await authApi.biometricAuth({
         user_id: userId,
         device_id: deviceId,
+        platform: pushRegistration.platform,
+        push_token: pushRegistration.currentPushToken,
       });
       const { user, token } = res.data;
       await SecureStore.setItemAsync("token", token);
       set({ user, token, isAuthenticated: true });
+      await syncPushAfterAuth(pushRegistration);
       return res;
     } finally {
       set({ isLoading: false });
@@ -280,17 +347,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   pinLogin: async (pin) => {
     set({ isLoading: true });
     try {
+      useBootstrapStore.getState().resetTransient();
       const userId = await SecureStore.getItemAsync("user_id");
       const deviceId = await getDeviceId();
+      const pushRegistration = await getExpoPushRegistration();
+      usePushDebugStore
+        .getState()
+        .setNativePushAvailable(pushRegistration.nativePushAvailable);
+      usePushDebugStore
+        .getState()
+        .setPermissionStatus(pushRegistration.permissionStatus);
+      usePushDebugStore
+        .getState()
+        .setCurrentDeviceId(pushRegistration.currentDeviceId || deviceId);
+      usePushDebugStore
+        .getState()
+        .setCurrentPushToken(pushRegistration.currentPushToken);
       if (!userId) throw new Error("No saved user for PIN login");
       const res = await authApi.pinLogin({
         user_id: userId,
         device_id: deviceId,
         pin,
+        platform: pushRegistration.platform,
+        push_token: pushRegistration.currentPushToken,
       });
       const { user, token } = res.data;
       await SecureStore.setItemAsync("token", token);
       set({ user, token, isAuthenticated: true });
+      await syncPushAfterAuth(pushRegistration);
       return res;
     } finally {
       set({ isLoading: false });
@@ -347,13 +431,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Token invalid or backend down → force full logout
       await SecureStore.deleteItemAsync("token");
+      useBootstrapStore.getState().disableSafeMode();
+      useBootstrapStore.getState().resetTransient();
       set({ user: null, token: null, isAuthenticated: false });
     }
   },
 
   logout: async () => {
-    // Run pre-logout hooks (e.g. unregister push token) while auth token is
-    // still valid so they can make authenticated API calls
+    const currentPushToken = usePushDebugStore.getState().currentPushToken;
+    // Run pre-logout hooks while auth is still intact so modules can clear
+    // transient state before the authenticated logout request completes.
     for (const hook of preLogoutHooks) {
       try {
         await hook();
@@ -364,17 +451,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const deviceId = await getDeviceId();
-      await authApi.logout({ device_id: deviceId });
+      await authApi.logout({
+        device_id: deviceId,
+        push_token: currentPushToken,
+      });
     } catch {
       // Logout on server failed, clean up locally anyway
     }
     await SecureStore.deleteItemAsync("token");
+    useBootstrapStore.getState().disableSafeMode();
+    useBootstrapStore.getState().resetTransient();
     set({ user: null, token: null, isAuthenticated: false });
   },
 
   hydrate: async () => {
     const token = await SecureStore.getItemAsync("token");
     if (!token) {
+      useBootstrapStore.getState().disableSafeMode();
+      useBootstrapStore.getState().resetTransient();
       set({ user: null, token: null, isAuthenticated: false });
       return;
     }
@@ -392,6 +486,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Any failure: expired token, network error, invalid response → logout
       await SecureStore.deleteItemAsync("token");
+      useBootstrapStore.getState().disableSafeMode();
+      useBootstrapStore.getState().resetTransient();
       set({ user: null, token: null, isAuthenticated: false });
     }
   },
