@@ -47,6 +47,16 @@ const STATUS_BADGES: Record<
   declined: { bg: "bg-red-50", text: "Declined", color: "text-red-500" },
 };
 
+function formatDeparture(value?: string) {
+  if (!value) return "Flexible departure";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Flexible departure";
+  return date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export default function DriverRideDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -202,10 +212,12 @@ export default function DriverRideDetailsScreen() {
     ride?.driver_id && typeof ride.driver_id === "object"
       ? ride.driver_id
       : null;
+  const requesterName = ride?.created_by?.name || "Passenger";
+  const requestedSeats = ride?.booked_seats || ride?.available_seats || 1;
   const seatsLeft = ride
     ? (ride.seats_remaining ?? ride.available_seats - ride.booked_seats)
     : 0;
-  const dep = ride?.departure_time ? new Date(ride.departure_time) : null;
+  const departureLabel = formatDeparture(ride?.departure_time);
   const dist = ride?.distance_meters
     ? `${(ride.distance_meters / 1000).toFixed(1)} km`
     : null;
@@ -451,65 +463,66 @@ export default function DriverRideDetailsScreen() {
             />
           }
         >
-          {/* Route */}
+          {/* Route Overview */}
           <Animated.View
             entering={FadeInUp.delay(100).duration(300)}
-            className="mx-5 mt-3 bg-gray-50 rounded-2xl p-4"
+            className="mx-5 mt-3"
           >
-            <View className="flex-row items-start">
-              <View className="items-center mr-3 mt-1">
-                <View className="w-3 h-3 rounded-full bg-green-500" />
-                <View className="w-0.5 h-10 bg-gray-300 my-1" />
-                <View className="w-3 h-3 rounded-full bg-red-500" />
+            <View
+              className="rounded-[26px] border border-slate-200 bg-white p-4"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.04,
+                shadowRadius: 5,
+              }}
+            >
+              <View className="mb-3 flex-row items-center justify-between">
+                <View className="flex-row items-center">
+                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+                    <Ionicons name="navigate-outline" size={18} color="#7C3AED" />
+                  </View>
+                  <View className="max-w-[72%]">
+                    <Text className="text-sm font-semibold text-slate-900">
+                      {pickup?.short_name || pickup?.name || "Pickup"} {"→"} {dest?.short_name || dest?.name || "Destination"}
+                    </Text>
+                    <Text className="mt-1 text-xs text-slate-500">
+                      {[dist, dur].filter(Boolean).join(" · ") || "Campus route"}
+                    </Text>
+                  </View>
+                </View>
+                <View className={`rounded-full px-3 py-1.5 ${badge.bg}`}>
+                  <Text className={`text-xs font-semibold ${badge.color}`}>
+                    <T>{badge.text}</T>
+                  </Text>
+                </View>
               </View>
-              <View className="flex-1">
-                <Text className="text-sm font-semibold text-gray-800">
-                  {pickup?.short_name || pickup?.name || "Pickup"}
-                </Text>
-                <Text className="text-xs text-gray-400 mb-5">
-                  {pickup?.address || ""}
-                </Text>
-                <Text className="text-sm font-semibold text-gray-800">
-                  {dest?.short_name || dest?.name || "Destination"}
-                </Text>
-                <Text className="text-xs text-gray-400">
-                  {dest?.address || ""}
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row mt-4 pt-3 border-t border-gray-200 gap-3">
-              {dep && (
-                <View className="flex-1 items-center">
-                  <Ionicons name="time-outline" size={14} color="#6B7280" />
-                  <Text className="text-xs font-semibold text-gray-700 mt-1">
-                    {dep.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+
+              <View className="flex-row gap-3">
+                <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                  <Text className="text-[11px] text-slate-500">
+                    <T>Fare</T>
+                  </Text>
+                  <Text className="mt-1 text-base font-bold text-slate-900">
+                    ₦{Number(ride.fare || 0).toLocaleString()}
                   </Text>
                 </View>
-              )}
-              {dist && (
-                <View className="flex-1 items-center">
-                  <Ionicons name="navigate-outline" size={14} color="#6B7280" />
-                  <Text className="text-xs font-semibold text-gray-700 mt-1">
-                    {dist}
+                <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                  <Text className="text-[11px] text-slate-500">
+                    <T>Seats</T>
+                  </Text>
+                  <Text className="mt-1 text-base font-bold text-slate-900">
+                    {seatsLeft}/{ride.available_seats}
                   </Text>
                 </View>
-              )}
-              {dur && (
-                <View className="flex-1 items-center">
-                  <Ionicons name="timer-outline" size={14} color="#6B7280" />
-                  <Text className="text-xs font-semibold text-gray-700 mt-1">
-                    {dur}
+                <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                  <Text className="text-[11px] text-slate-500">
+                    <T>Departure</T>
+                  </Text>
+                  <Text className="mt-1 text-base font-bold text-slate-900">
+                    {departureLabel}
                   </Text>
                 </View>
-              )}
-              <View className="flex-1 items-center">
-                <Ionicons name="people-outline" size={14} color="#6B7280" />
-                <Text className="text-xs font-semibold text-gray-700 mt-1">
-                  {seatsLeft}/{ride.available_seats}
-                </Text>
               </View>
             </View>
           </Animated.View>
@@ -553,21 +566,62 @@ export default function DriverRideDetailsScreen() {
             </View>
           </Animated.View>
 
-          {/* Fare */}
-          <Animated.View
-            entering={FadeInUp.delay(150).duration(300)}
-            className="mx-5 mt-3 bg-white rounded-2xl p-4 flex-row items-center justify-between border border-slate-200"
-          >
-            <Text className="text-sm text-gray-600">
-              <T>Fare</T>
-            </Text>
-            <Text className="text-2xl font-bold text-primary">
-              ₦{ride.fare}
-              {settings.fare_per_seat ? (
-                <Text className="text-xs font-normal text-gray-400">/seat</Text>
-              ) : null}
-            </Text>
-          </Animated.View>
+          {isRequestRide && (
+            <Animated.View
+              entering={FadeInUp.delay(170).duration(300)}
+              className="mx-5 mt-3"
+            >
+              <View className="rounded-[26px] border border-slate-200 bg-white p-4">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+                      <Ionicons name="hand-right-outline" size={18} color="#7C3AED" />
+                    </View>
+                    <View>
+                      <Text className="text-sm font-semibold text-slate-900">
+                        <T>Request Details</T>
+                      </Text>
+                      <Text className="mt-1 text-xs text-slate-500">
+                        <T>Passenger request waiting for your acceptance.</T>
+                      </Text>
+                    </View>
+                  </View>
+                  <View className="rounded-full bg-violet-50 px-3 py-1.5">
+                    <Text className="text-xs font-semibold text-violet-700">
+                      <T>Open</T>
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3">
+                  <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                    <Text className="text-[11px] text-slate-500">
+                      <T>Requested by</T>
+                    </Text>
+                    <Text className="mt-1 text-base font-bold text-slate-900">
+                      {requesterName}
+                    </Text>
+                  </View>
+                  <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                    <Text className="text-[11px] text-slate-500">
+                      <T>Seats</T>
+                    </Text>
+                    <Text className="mt-1 text-base font-bold text-slate-900">
+                      {requestedSeats}
+                    </Text>
+                  </View>
+                  <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                    <Text className="text-[11px] text-slate-500">
+                      <T>Fare</T>
+                    </Text>
+                    <Text className="mt-1 text-base font-bold text-slate-900">
+                      ₦{Number(ride.fare || 0).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Animated.View>
+          )}
 
           {/* Check-in Code */}
           {ride.check_in_code && (
@@ -575,28 +629,41 @@ export default function DriverRideDetailsScreen() {
               entering={FadeInUp.delay(200).duration(300)}
               className="mx-5 mt-3"
             >
-              <TouchableOpacity
-                onPress={handleShare}
-                className="bg-accent/10 rounded-2xl p-4 flex-row items-center border border-accent/20"
-              >
-                <View className="w-12 h-12 rounded-full bg-accent/20 items-center justify-center mr-3">
-                  <Ionicons name="key" size={24} color="#D4A017" />
+              <View className="rounded-[26px] border border-slate-200 bg-white p-4">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-amber-50">
+                      <Ionicons name="key-outline" size={18} color="#D4A017" />
+                    </View>
+                    <View>
+                      <Text className="text-sm font-semibold text-slate-900">
+                        <T>Check-In Code</T>
+                      </Text>
+                      <Text className="mt-1 text-xs text-slate-500">
+                        <T>Share this code with passengers before pickup.</T>
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleShare}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 flex-row items-center"
+                  >
+                    <Ionicons name="share-outline" size={14} color="#334155" />
+                    <Text className="ml-1 text-xs font-semibold text-slate-700">
+                      <T>Share</T>
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-xs text-gray-400 mb-1">
-                    <T>Check-in Code</T>
+
+                <View className="rounded-2xl bg-slate-50 px-4 py-4 items-center">
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    <T>Boarding Code</T>
                   </Text>
-                  <Text className="text-2xl font-bold text-accent tracking-[8px]">
+                  <Text className="mt-1 text-2xl font-bold text-slate-900 tracking-[8px]">
                     {ride.check_in_code}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={handleShare}
-                  className="bg-accent/20 rounded-full w-10 h-10 items-center justify-center"
-                >
-                  <Ionicons name="share-outline" size={18} color="#D4A017" />
-                </TouchableOpacity>
-              </TouchableOpacity>
+              </View>
             </Animated.View>
           )}
 
@@ -634,89 +701,115 @@ export default function DriverRideDetailsScreen() {
                     key={bk._id}
                     entering={FadeInDown.delay(idx * 50).duration(250)}
                   >
-                    <View className="bg-white rounded-2xl p-4 mb-2.5 border border-slate-200">
-                      <View className="flex-row items-center">
-                        {usr?.profile_picture ? (
-                          <Image
-                            source={{ uri: usr.profile_picture }}
-                            className="w-10 h-10 rounded-full mr-3"
-                          />
-                        ) : (
-                          <View className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3">
-                            <Ionicons name="person" size={18} color="#042F40" />
+                    <View className="mb-3 rounded-[26px] border border-slate-200 bg-white p-4">
+                      <View className="mb-3 flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                          {usr?.profile_picture ? (
+                            <Image
+                              source={{ uri: usr.profile_picture }}
+                              className="mr-3 h-10 w-10 rounded-full"
+                            />
+                          ) : (
+                            <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+                              <Ionicons name="person" size={18} color="#042F40" />
+                            </View>
+                          )}
+                          <View className="max-w-[70%]">
+                            <Text className="text-sm font-semibold text-slate-900">
+                              {usr?.name || "Passenger"}
+                            </Text>
+                            <Text className="mt-1 text-xs text-slate-500">
+                              {passengerPhone || "Phone not added yet"}
+                            </Text>
                           </View>
-                        )}
-                        <View className="flex-1">
-                          <Text className="text-sm font-semibold text-gray-800">
-                            {usr?.name || "Passenger"}
-                          </Text>
-                          <Text className="text-xs text-gray-400">
-                            {bk.seats_requested} seat
-                            {bk.seats_requested > 1 ? "s" : ""} ·{" "}
-                            {bk.payment_method} ·{" "}
-                            <Text className={bBadge.color}>{bk.status}</Text>
-                          </Text>
-                          <Text className="mt-1 text-[11px] text-slate-500">
-                            {passengerPhone || "Phone not added yet"}
-                          </Text>
                         </View>
-                        <View className="flex-row items-center gap-1.5">
-                          {/* Payment badge */}
-                          {isTransfer && (
-                            <View
-                              className={`rounded-full px-2 py-0.5 ${
-                                paymentConfirmed
-                                  ? "bg-green-100"
-                                  : paymentSent
-                                    ? "bg-blue-100"
-                                    : "bg-amber-100"
-                              }`}
-                            >
-                              <Text
-                                className={`text-[10px] font-semibold ${
-                                  paymentConfirmed
-                                    ? "text-green-700"
-                                    : paymentSent
-                                      ? "text-blue-700"
-                                      : "text-amber-700"
-                                }`}
-                              >
-                                {paymentConfirmed
-                                  ? "₦ Paid"
-                                  : paymentSent
-                                    ? "₦ Sent"
-                                    : "₦ Pending"}
-                              </Text>
-                            </View>
-                          )}
-                          {bk.check_in_status === "checked_in" && (
-                            <View className="bg-green-100 rounded-full px-2 py-0.5">
-                              <Text className="text-[10px] text-green-700 font-semibold">
-                                ✓ In
-                              </Text>
-                            </View>
-                          )}
+
+                        <View className={`rounded-full px-3 py-1.5 ${bBadge.bg}`}>
+                          <Text
+                            className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${bBadge.color}`}
+                          >
+                            <T>{bBadge.text}</T>
+                          </Text>
                         </View>
                       </View>
 
-                      <View className="mt-3 flex-row items-center gap-2">
-                        <TouchableOpacity
-                          onPress={() => handleCallPassenger(passengerPhone)}
-                          disabled={!passengerPhone}
-                          className={`flex-1 rounded-xl py-2.5 flex-row items-center justify-center border ${passengerPhone ? "border-primary/10 bg-primary/5" : "border-slate-200 bg-slate-100"}`}
-                        >
-                          <Ionicons
-                            name="call-outline"
-                            size={15}
-                            color={passengerPhone ? "#042F40" : "#94A3B8"}
-                          />
-                          <Text
-                            className={`ml-2 text-xs font-semibold ${passengerPhone ? "text-primary" : "text-slate-400"}`}
-                          >
-                            <T>Call Passenger</T>
+                      <View className="flex-row gap-3">
+                        <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                          <Text className="text-[11px] text-slate-500">
+                            <T>Seats</T>
                           </Text>
-                        </TouchableOpacity>
+                          <Text className="mt-1 text-base font-bold text-slate-900">
+                            {bk.seats_requested}
+                          </Text>
+                        </View>
+                        <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                          <Text className="text-[11px] text-slate-500">
+                            <T>Payment</T>
+                          </Text>
+                          <Text className="mt-1 text-base font-bold text-slate-900 capitalize">
+                            {bk.payment_method}
+                          </Text>
+                        </View>
+                        <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
+                          <Text className="text-[11px] text-slate-500">
+                            <T>Check-In</T>
+                          </Text>
+                          <Text className="mt-1 text-base font-bold text-slate-900">
+                            {bk.check_in_status === "checked_in" ? "In" : "Waiting"}
+                          </Text>
+                        </View>
                       </View>
+
+                      {isTransfer && (
+                        <View
+                          className={`mt-3 self-start rounded-full px-3 py-1.5 ${
+                            paymentConfirmed
+                              ? "bg-green-50"
+                              : paymentSent
+                                ? "bg-blue-50"
+                                : "bg-amber-50"
+                          }`}
+                        >
+                          <Text
+                            className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                              paymentConfirmed
+                                ? "text-green-700"
+                                : paymentSent
+                                  ? "text-blue-700"
+                                  : "text-amber-700"
+                            }`}
+                          >
+                            {paymentConfirmed
+                              ? "Transfer confirmed"
+                              : paymentSent
+                                ? "Transfer sent"
+                                : "Transfer pending"}
+                          </Text>
+                        </View>
+                      )}
+
+                      <TouchableOpacity
+                        onPress={() => handleCallPassenger(passengerPhone)}
+                        disabled={!passengerPhone}
+                        className={`mt-3 rounded-2xl border py-2.5 flex-row items-center justify-center ${
+                          passengerPhone
+                            ? "border-slate-900 bg-white"
+                            : "border-slate-200 bg-slate-100"
+                        }`}
+                      >
+                        <Ionicons
+                          name="call-outline"
+                          size={15}
+                          color={passengerPhone ? "#0F172A" : "#94A3B8"}
+                        />
+                        <Text
+                          className={`ml-2 text-xs font-semibold ${
+                            passengerPhone ? "text-slate-900" : "text-slate-400"
+                          }`}
+                        >
+                          <T>Call Passenger</T>
+                        </Text>
+                      </TouchableOpacity>
 
                       {/* Transfer payment confirm button — only when passenger has sent */}
                       {paymentSent &&
@@ -730,7 +823,7 @@ export default function DriverRideDetailsScreen() {
                               )
                             }
                             disabled={actionId === bk._id}
-                            className="mt-2 bg-blue-50 rounded-xl py-2.5 flex-row items-center justify-center border border-blue-100"
+                            className="mt-2 rounded-2xl border border-blue-100 bg-blue-50 py-2.5 flex-row items-center justify-center"
                           >
                             {actionId === bk._id ? (
                               <ActivityIndicator size="small" color="#2563EB" />
@@ -754,7 +847,7 @@ export default function DriverRideDetailsScreen() {
                           <TouchableOpacity
                             onPress={() => handleAcceptBooking(bk._id)}
                             disabled={actionId === bk._id}
-                            className="flex-1 bg-green-500 rounded-xl py-2.5 items-center"
+                            className="flex-1 rounded-2xl bg-slate-900 py-2.5 items-center"
                           >
                             {actionId === bk._id ? (
                               <ActivityIndicator size="small" color="#fff" />
@@ -767,9 +860,9 @@ export default function DriverRideDetailsScreen() {
                           <TouchableOpacity
                             onPress={() => handleDeclineBooking(bk._id)}
                             disabled={actionId === bk._id}
-                            className="flex-1 bg-red-50 rounded-xl py-2.5 items-center border border-red-100"
+                            className="flex-1 rounded-2xl border border-red-100 bg-red-50 py-2.5 items-center"
                           >
-                            <Text className="text-red-500 font-bold text-sm">
+                            <Text className="text-red-600 font-semibold text-sm">
                               <T>Decline</T>
                             </Text>
                           </TouchableOpacity>
@@ -791,9 +884,10 @@ export default function DriverRideDetailsScreen() {
           {isRequestRide ? (
             <TouchableOpacity
               onPress={handleAcceptRequest}
-              className="bg-purple-600 rounded-2xl py-4 items-center"
+              className="rounded-2xl border border-slate-900 bg-slate-900 py-4 items-center flex-row justify-center"
             >
-              <Text className="text-white font-bold text-base">
+              <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+              <Text className="ml-2 text-white font-semibold text-base">
                 <T>Accept Ride Request</T>
               </Text>
             </TouchableOpacity>
@@ -804,7 +898,7 @@ export default function DriverRideDetailsScreen() {
             <View>
               {/* Check-in progress indicator */}
               {totalPassengers > 0 && (
-                <View className="mb-3">
+                <View className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
                   <View className="flex-row items-center justify-between mb-1.5">
                     <View className="flex-row items-center">
                       <Ionicons
@@ -869,8 +963,10 @@ export default function DriverRideDetailsScreen() {
               <TouchableOpacity
                 onPress={handleStartRide}
                 disabled={!canStartRide}
-                className={`rounded-2xl py-4 items-center flex-row justify-center ${
-                  canStartRide ? "bg-primary" : "bg-gray-200"
+                className={`rounded-2xl border py-4 items-center flex-row justify-center ${
+                  canStartRide
+                    ? "border-slate-900 bg-slate-900"
+                    : "border-slate-200 bg-slate-100"
                 }`}
               >
                 <Ionicons

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,13 @@ import {
   Alert,
   BackHandler,
   ActivityIndicator,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
   Image,
   RefreshControl,
   Linking,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -57,7 +57,6 @@ export default function RideDetailsScreen() {
   const {
     fetchRideDetails,
     bookRide,
-    checkIn,
     cancelBooking,
     updatePaymentStatus,
     myBookings,
@@ -70,12 +69,10 @@ export default function RideDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [seats, setSeats] = useState(1);
   const [payMethod, setPayMethod] = useState<"cash" | "transfer">("cash");
-  const [checkCode, setCheckCode] = useState(["", "", "", ""]);
-  const [checkingIn, setCheckingIn] = useState(false);
   const [markingPaid, setMarkingPaid] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const codeRefs = useRef<(TextInput | null)[]>([null, null, null, null]);
+  const [copied, setCopied] = useState(false);
 
   const loadDetails = useCallback(async () => {
     // If we have a bookingId, find it from myBookings first
@@ -188,6 +185,11 @@ export default function RideDetailsScreen() {
   const driverPhoto = driverUser?.profile_picture || null;
   const driverPhone = driverUser?.phone || driverDoc?.phone || null;
   const driverId = driverDoc?._id || null;
+  const driverBankName = driverDoc?.bank_name?.trim?.() || "Not added yet";
+  const driverBankAccountNumber =
+    driverDoc?.bank_account_number?.trim?.() || "Not added yet";
+  const driverBankAccountName =
+    driverDoc?.bank_account_name?.trim?.() || "Not added yet";
   const seatsLeft = ride
     ? (ride.seats_remaining ?? ride.available_seats - ride.booked_seats)
     : 0;
@@ -215,10 +217,66 @@ export default function RideDetailsScreen() {
   const isCheckedIn = booking?.check_in_status === "checked_in";
   const inProgress = ride?.status === "in_progress";
   const isTransfer = booking?.payment_method === "transfer";
+  const isTransferBookingFlow =
+    booking?.status === "accepted" || booking?.status === "in_progress";
+  const transferPaymentStatus =
+    booking?.payment_status === "paid" || booking?.payment_status === "sent"
+      ? booking.payment_status
+      : "pending";
+  const hasDriverAccountNumber = Boolean(
+    driverDoc?.bank_account_number?.trim?.(),
+  );
+  const transferAmount = Number(booking?.total_fare || ride?.fare || 0);
   const canMarkSent =
-    isTransfer &&
-    booking?.payment_status === "pending" &&
-    (booking?.status === "accepted" || isCheckedIn);
+    isTransfer && isTransferBookingFlow && transferPaymentStatus === "pending";
+
+  useEffect(() => {
+    if (!__DEV__ || !booking || !isTransfer || !isTransferBookingFlow) return;
+
+    if (!driverDoc) {
+      console.info(
+        "[RideDetails][TransferDebug] Missing populated driver_id in ride details payload",
+        {
+          bookingId: booking._id,
+          rideId: ride?._id,
+          bookingStatus: booking.status,
+          paymentStatus: booking.payment_status,
+          hasRideDriverId: Boolean(ride?.driver_id),
+        },
+      );
+      return;
+    }
+
+    const missingFields: string[] = [];
+    if (!driverDoc.bank_name?.trim?.()) missingFields.push("bank_name");
+    if (!driverDoc.bank_account_number?.trim?.())
+      missingFields.push("bank_account_number");
+    if (!driverDoc.bank_account_name?.trim?.())
+      missingFields.push("bank_account_name");
+
+    if (missingFields.length > 0) {
+      console.info(
+        "[RideDetails][TransferDebug] Transfer flow missing bank fields on driver_id",
+        {
+          bookingId: booking._id,
+          rideId: ride?._id,
+          driverId: driverDoc._id,
+          missingFields,
+          driverKeys: Object.keys(driverDoc),
+        },
+      );
+    }
+  }, [
+    booking?._id,
+    booking?.payment_method,
+    booking?.payment_status,
+    booking?.status,
+    driverDoc,
+    isTransfer,
+    isTransferBookingFlow,
+    ride?._id,
+    ride?.driver_id,
+  ]);
 
   // ── Book ──────────────────────────────────────────────────────────
   const handleBook = async () => {
@@ -252,33 +310,6 @@ export default function RideDetailsScreen() {
         e?.response?.data?.message || e?.message || "Booking failed",
       );
     }
-  };
-
-  // ── Check-in ──────────────────────────────────────────────────────
-  const handleCheckIn = async () => {
-    if (!booking) return;
-    const code = checkCode.join("");
-    if (code.length < 4) {
-      Alert.alert("Error", "Enter the 4-digit code");
-      return;
-    }
-    setCheckingIn(true);
-    try {
-      await checkIn(booking._id, code);
-      Alert.alert("Checked In!", "You're all set for the ride.");
-      fetchMyBookings();
-      const bk = {
-        ...booking,
-        check_in_status: "checked_in" as const,
-      };
-      setBooking(bk);
-    } catch (e: any) {
-      Alert.alert(
-        "Invalid Code",
-        e?.response?.data?.message || "Check-in failed",
-      );
-    }
-    setCheckingIn(false);
   };
 
   // ── Cancel ────────────────────────────────────────────────────────
@@ -336,13 +367,19 @@ export default function RideDetailsScreen() {
 
   const handleCallDriver = async () => {
     if (!driverPhone) {
-      Alert.alert("Phone unavailable", "This driver has not added a phone number yet.");
+      Alert.alert(
+        "Phone unavailable",
+        "This driver has not added a phone number yet.",
+      );
       return;
     }
     const telUrl = `tel:${driverPhone}`;
     const supported = await Linking.canOpenURL(telUrl);
     if (!supported) {
-      Alert.alert("Call unavailable", "This device cannot open the phone dialer.");
+      Alert.alert(
+        "Call unavailable",
+        "This device cannot open the phone dialer.",
+      );
       return;
     }
     Linking.openURL(telUrl);
@@ -356,13 +393,39 @@ export default function RideDetailsScreen() {
     });
   };
 
-  // ── Code input ────────────────────────────────────────────────────
-  const handleCodeChange = (text: string, idx: number) => {
-    const digit = text.replace(/[^0-9]/g, "").slice(-1);
-    const next = [...checkCode];
-    next[idx] = digit;
-    setCheckCode(next);
-    if (digit && idx < 3) codeRefs.current[idx + 1]?.focus();
+  const copyAccountNumber = async () => {
+    const accountNumber = driverDoc?.bank_account_number?.trim?.();
+    if (!accountNumber) {
+      Alert.alert(
+        "Account number unavailable",
+        "This driver has not added an account number yet.",
+      );
+      return;
+    }
+    await Clipboard.setStringAsync(accountNumber);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleOpenCheckIn = () => {
+    if (!booking) return;
+    router.push({
+      pathname: "/(users)/check-in" as any,
+      params: {
+        bookingId: booking._id,
+        rideId: ride?._id,
+        pickup:
+          pickup?.short_name ||
+          pickup?.name ||
+          ride?.pickup_location?.address ||
+          "Pickup",
+        destination:
+          dest?.short_name ||
+          dest?.name ||
+          ride?.destination?.address ||
+          "Destination",
+      },
+    });
   };
 
   if (loading)
@@ -611,7 +674,9 @@ export default function RideDetailsScreen() {
                     </View>
                   )}
                 </View>
-                {(driverPhone || booking?.status === "accepted" || inProgress) && (
+                {(driverPhone ||
+                  booking?.status === "accepted" ||
+                  inProgress) && (
                   <View className="mt-4 flex-row items-center gap-3">
                     <TouchableOpacity
                       onPress={handleOpenDriverProfile}
@@ -625,14 +690,18 @@ export default function RideDetailsScreen() {
                         {driverPhone || "Phone not added yet"}
                       </Text>
                       <Text className="mt-1 text-xs text-slate-500">
-                        View the full driver profile or call directly for pickup coordination.
+                        View the full driver profile or call.
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleOpenDriverProfile}
                       className="h-14 w-14 rounded-2xl items-center justify-center bg-slate-900"
                     >
-                      <Ionicons name="person-outline" size={20} color="#FFFFFF" />
+                      <Ionicons
+                        name="person-outline"
+                        size={20}
+                        color="#FFFFFF"
+                      />
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleCallDriver}
@@ -664,10 +733,13 @@ export default function RideDetailsScreen() {
                       Phone number required
                     </Text>
                     <Text className="mt-1 text-xs leading-5 text-amber-700">
-                      Add your phone number before booking so the driver can contact you for pickup and ride coordination.
+                      Add your phone number before booking so the driver can
+                      contact you for pickup and ride coordination.
                     </Text>
                     <TouchableOpacity
-                      onPress={() => router.push("/settings/edit-profile" as any)}
+                      onPress={() =>
+                        router.push("/settings/edit-profile" as any)
+                      }
                       className="mt-3 self-start rounded-xl bg-amber-500 px-4 py-2.5"
                     >
                       <Text className="text-xs font-bold text-white">
@@ -707,60 +779,54 @@ export default function RideDetailsScreen() {
                 entering={FadeInUp.delay(300).duration(300)}
                 className="mx-5 mt-4"
               >
-                <View className="bg-accent/5 rounded-2xl p-5 border border-accent/20">
-                  <View className="items-center mb-4">
-                    <View className="w-14 h-14 rounded-full bg-accent/10 items-center justify-center mb-2">
-                      <Ionicons name="key" size={28} color="#D4A017" />
+                <View className="rounded-[26px] border border-slate-200 bg-white p-4">
+                  <View className="mb-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                        <Ionicons
+                          name="key-outline"
+                          size={18}
+                          color="#7C3AED"
+                        />
+                      </View>
+                      <View>
+                        <Text className="text-sm font-semibold text-slate-900">
+                          <T>Check-In Required</T>
+                        </Text>
+                        <Text className="text-xs text-slate-500">
+                          <T>Enter the 4-digit code shared by your driver.</T>
+                        </Text>
+                      </View>
                     </View>
-                    <Text className="text-lg font-bold text-gray-900">
-                      <T>Check In</T>
-                    </Text>
-                    <Text className="text-sm text-gray-500 text-center mt-1">
-                      <T>Enter the 4-digit code from your driver</T>
-                    </Text>
-                  </View>
-                  <View className="mb-4 rounded-2xl bg-white px-4 py-3 border border-amber-100">
-                    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-600">
-                      Boarding Step
-                    </Text>
-                    <Text className="mt-1 text-sm text-slate-700">
-                      Use the code the driver shares with you before the ride starts.
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-center gap-3 mb-5">
-                    {checkCode.map((d, i) => (
-                      <TextInput
-                        key={i}
-                        ref={(r) => {
-                          codeRefs.current[i] = r;
-                        }}
-                        value={d}
-                        onChangeText={(t) => handleCodeChange(t, i)}
-                        keyboardType="number-pad"
-                        maxLength={1}
-                        className="w-14 h-16 bg-white rounded-2xl text-center text-2xl font-bold text-gray-800 border-2"
-                        style={{ borderColor: d ? "#D4A017" : "#E5E7EB" }}
-                        onKeyPress={({ nativeEvent }) => {
-                          if (nativeEvent.key === "Backspace" && !d && i > 0)
-                            codeRefs.current[i - 1]?.focus();
-                        }}
-                      />
-                    ))}
-                  </View>
-                  <TouchableOpacity
-                    onPress={handleCheckIn}
-                    disabled={checkingIn || checkCode.join("").length < 4}
-                    className={`rounded-2xl py-4 items-center ${checkCode.join("").length === 4 ? "bg-accent" : "bg-gray-200"}`}
-                  >
-                    {checkingIn ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text
-                        className={`font-bold text-base ${checkCode.join("").length === 4 ? "text-white" : "text-gray-400"}`}
-                      >
-                        <T>Verify & Check In</T>
+                    <View className="rounded-full bg-violet-50 px-3 py-1.5">
+                      <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+                        Boarding
                       </Text>
-                    )}
+                    </View>
+                  </View>
+
+                  <View className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Route
+                    </Text>
+                    <Text className="mt-1 text-sm font-semibold text-slate-900">
+                      {pickup?.short_name || pickup?.name || "Pickup"} {"→"}{" "}
+                      {dest?.short_name || dest?.name || "Destination"}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={handleOpenCheckIn}
+                    className="rounded-2xl border border-slate-900 bg-slate-900 py-3.5 items-center flex-row justify-center"
+                  >
+                    <Ionicons
+                      name="shield-checkmark-outline"
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                    <Text className="ml-2 text-sm font-semibold text-white">
+                      <T>Open Check-In</T>
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </Animated.View>
@@ -857,101 +923,167 @@ export default function RideDetailsScreen() {
             )}
 
             {/* ── Transfer Payment Section ─────────────────────────── */}
-            {booking &&
-              isTransfer &&
-              booking.status !== "cancelled" &&
-              booking.status !== "declined" && (
-                <Animated.View
-                  entering={FadeInUp.delay(375).duration(300)}
-                  className="mx-5 mt-3"
-                >
-                  <View
-                    className={`rounded-2xl p-4 border ${
-                      booking.payment_status === "paid"
-                        ? "bg-green-50 border-green-100"
-                        : booking.payment_status === "sent"
-                          ? "bg-blue-50 border-blue-100"
-                          : "bg-amber-50 border-amber-100"
-                    }`}
-                  >
-                    <View className="flex-row items-center mb-2">
-                      <View
-                        className={`w-9 h-9 rounded-full items-center justify-center mr-3 ${
-                          booking.payment_status === "paid"
-                            ? "bg-green-100"
-                            : booking.payment_status === "sent"
-                              ? "bg-blue-100"
-                              : "bg-amber-100"
-                        }`}
-                      >
+            {booking && isTransfer && isTransferBookingFlow && (
+              <Animated.View
+                entering={FadeInUp.delay(375).duration(300)}
+                className="mx-5 mt-3"
+              >
+                <View className="rounded-[26px] border border-slate-200 bg-white p-4">
+                  <View className="mb-3 flex-row items-center justify-between">
+                    <View className="flex-row items-center">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
                         <Ionicons
-                          name={
-                            booking.payment_status === "paid"
-                              ? "checkmark-circle"
-                              : booking.payment_status === "sent"
-                                ? "time"
-                                : "card-outline"
-                          }
+                          name="card-outline"
                           size={18}
-                          color={
-                            booking.payment_status === "paid"
-                              ? "#16A34A"
-                              : booking.payment_status === "sent"
-                                ? "#2563EB"
-                                : "#D97706"
-                          }
+                          color="#7C3AED"
                         />
                       </View>
-                      <View className="flex-1">
-                        <Text
-                          className={`text-sm font-semibold ${
-                            booking.payment_status === "paid"
-                              ? "text-green-700"
-                              : booking.payment_status === "sent"
-                                ? "text-blue-700"
-                                : "text-amber-700"
-                          }`}
-                        >
-                          {booking.payment_status === "paid" ? (
-                            <T>Payment Confirmed</T>
-                          ) : booking.payment_status === "sent" ? (
-                            <T>Awaiting Driver Confirmation</T>
-                          ) : (
-                            <T>Transfer Payment Required</T>
-                          )}
+                      <View>
+                        <Text className="text-sm font-semibold text-slate-900">
+                          <T>Transfer Payment</T>
                         </Text>
-                        <Text className="text-xs text-gray-500 mt-0.5">
-                          {booking.payment_status === "paid" ? (
-                            <T>Driver confirmed receiving your payment</T>
-                          ) : booking.payment_status === "sent" ? (
-                            <T>Driver will confirm receipt shortly</T>
+                        <Text className="text-xs text-slate-500">
+                          {transferPaymentStatus === "paid" ? (
+                            <T>Driver confirmed payment receipt.</T>
+                          ) : transferPaymentStatus === "sent" ? (
+                            <T>Waiting for the driver to confirm.</T>
                           ) : (
-                            <T>{`Send ₦${booking.total_fare || ride?.fare || 0} to the driver's bank account`}</T>
+                            <T>{`Send ₦${transferAmount.toLocaleString()} to the driver's account.`}</T>
                           )}
                         </Text>
                       </View>
                     </View>
-                    {canMarkSent && (
-                      <TouchableOpacity
-                        onPress={handleMarkSent}
-                        disabled={markingPaid}
-                        className="bg-amber-500 rounded-xl py-3 items-center mt-1 flex-row justify-center"
+                    <View
+                      className={`rounded-full px-3 py-1.5 ${
+                        transferPaymentStatus === "paid"
+                          ? "bg-green-50"
+                          : transferPaymentStatus === "sent"
+                            ? "bg-blue-50"
+                            : "bg-amber-50"
+                      }`}
+                    >
+                      <Text
+                        className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                          transferPaymentStatus === "paid"
+                            ? "text-green-700"
+                            : transferPaymentStatus === "sent"
+                              ? "text-blue-700"
+                              : "text-amber-700"
+                        }`}
                       >
-                        {markingPaid ? (
-                          <ActivityIndicator size="small" color="#fff" />
+                        {transferPaymentStatus === "paid" ? (
+                          <T>Confirmed</T>
+                        ) : transferPaymentStatus === "sent" ? (
+                          <T>Sent</T>
                         ) : (
-                          <>
-                            <Ionicons name="send" size={14} color="#FFFFFF" />
-                            <Text className="text-white font-bold text-sm ml-2">
-                              <T>I've Sent the Money</T>
-                            </Text>
-                          </>
+                          <T>Pending</T>
                         )}
-                      </TouchableOpacity>
-                    )}
+                      </Text>
+                    </View>
                   </View>
-                </Animated.View>
-              )}
+
+                  <View className="mb-3 rounded-2xl bg-slate-50 px-4 py-3">
+                    <View className="flex-row justify-between">
+                      <Text className="text-[11px] text-slate-500">
+                        <T>Amount</T>
+                      </Text>
+                      <Text className="text-base font-bold text-slate-900">
+                        ₦{transferAmount.toLocaleString()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {canMarkSent && (
+                    <TouchableOpacity
+                      onPress={handleMarkSent}
+                      disabled={markingPaid}
+                      className="rounded-2xl border border-slate-900 bg-slate-900 py-3 items-center mb-3 flex-row justify-center"
+                    >
+                      {markingPaid ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="paper-plane-outline"
+                            size={14}
+                            color="#FFFFFF"
+                          />
+                          <Text className="text-white text-sm font-semibold ml-2">
+                            <T>{"I've Sent the Money"}</T>
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+
+                  <View className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Driver Account Details
+                    </Text>
+                    <View className="mt-3 flex-row justify-between">
+                      <Text className="text-xs text-slate-500">
+                        <T>Bank Name</T>
+                      </Text>
+                      <Text className="text-xs font-semibold text-slate-900">
+                        {driverBankName}
+                      </Text>
+                    </View>
+                    <View className="mt-2 flex-row justify-between">
+                      <Text className="text-xs text-slate-500">
+                        <T>Account Number</T>
+                      </Text>
+                      <View className="items-end">
+                        <Text className="text-xs font-semibold text-slate-900">
+                          {driverBankAccountNumber}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={copyAccountNumber}
+                          disabled={!hasDriverAccountNumber}
+                          className={`mt-1 flex-row items-center rounded-full border px-2.5 py-1 ${
+                            hasDriverAccountNumber
+                              ? "border-slate-900 bg-white"
+                              : "border-slate-200 bg-slate-100"
+                          }`}
+                        >
+                          <Ionicons
+                            name={copied ? "checkmark-circle" : "copy-outline"}
+                            size={12}
+                            color={
+                              hasDriverAccountNumber ? "#0F172A" : "#94A3B8"
+                            }
+                          />
+                          <Text
+                            className={`ml-1 text-[10px] font-semibold ${
+                              hasDriverAccountNumber
+                                ? "text-slate-900"
+                                : "text-slate-400"
+                            }`}
+                          >
+                            {copied ? "Copied" : "Copy"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <View className="mt-2 flex-row justify-between">
+                      <Text className="text-xs text-slate-500">
+                        <T>Account Name</T>
+                      </Text>
+                      <Text className="text-xs font-semibold text-slate-900">
+                        {driverBankAccountName}
+                      </Text>
+                    </View>
+                    <View className="mt-2 flex-row justify-between">
+                      <Text className="text-xs text-slate-500">
+                        <T>Amount</T>
+                      </Text>
+                      <Text className="text-xs font-semibold text-slate-900">
+                        ₦{transferAmount.toLocaleString()}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -1023,7 +1155,12 @@ export default function RideDetailsScreen() {
                     <Text
                       className={`font-bold text-base ${hasBookingPhone ? "text-white" : "text-amber-700"}`}
                     >
-                      {hasBookingPhone ? <T>Book Ride</T> : <T>Add Phone to Book</T>} · ₦{totalFare}
+                      {hasBookingPhone ? (
+                        <T>Book Ride</T>
+                      ) : (
+                        <T>Add Phone to Book</T>
+                      )}{" "}
+                      · ₦{totalFare}
                     </Text>
                   )}
                 </TouchableOpacity>

@@ -20,6 +20,12 @@ export interface CampusLocation {
 
 export interface Ride {
   _id: string;
+  created_by?: {
+    _id: string;
+    name: string;
+    profile_picture?: string | null;
+    phone?: string | null;
+  } | null;
   driver_id: any;
   pickup_location_id: CampusLocation | string;
   destination_id: CampusLocation | string;

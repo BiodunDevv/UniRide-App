@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import * as Location from "expo-location";
-import { Alert, Linking, Platform } from "react-native";
+import { Alert, Linking } from "react-native";
 import { useLocationStore } from "@/store/useLocationStore";
 
 /** Try getCurrentPositionAsync with a timeout, fall back to getLastKnownPositionAsync */
@@ -56,15 +56,6 @@ export function useLocation() {
 
       setLocationPermission(true);
 
-      // Get initial location (with fallback for simulators / cold GPS)
-      const location = await safeGetCurrentPosition(Location.Accuracy.Balanced);
-      if (location) {
-        setUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-      }
-
       setIsRequesting(false);
       return true;
     } catch (error) {
@@ -109,7 +100,7 @@ export function useLocation() {
   const getCurrentLocation = useCallback(async () => {
     try {
       const location = await safeGetCurrentPosition(Location.Accuracy.High);
-      if (!location) return userLocation || null;
+      if (!location) return null;
       const coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -118,9 +109,9 @@ export function useLocation() {
       return coords;
     } catch (error) {
       console.warn("Get current location error:", error);
-      return userLocation || null;
+      return null;
     }
-  }, [setUserLocation, userLocation]);
+  }, [setUserLocation]);
 
   useEffect(() => {
     return () => {

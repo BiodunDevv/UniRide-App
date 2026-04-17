@@ -14,8 +14,9 @@ import {
 } from "@/components/map/ExpoMap";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useBootstrapStore } from "@/store/useBootstrapStore";
 import Constants from "expo-constants";
+import { isGoogleMapsConfigured } from "@/lib/mapSafety";
+import { recordBootstrapTrace } from "@/lib/post-auth";
 
 // Prevent the native splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -61,7 +62,21 @@ function PlatformSettingsLoader() {
 
   // Keep Expo Maps availability in sync with backend settings
   useEffect(() => {
-    setMapsEnabled(Boolean(settings.expo_maps_enabled) && isExpoMapsAvailable);
+    const canUseNativeMaps =
+      Boolean(settings.expo_maps_enabled) &&
+      isExpoMapsAvailable &&
+      isGoogleMapsConfigured();
+
+    setMapsEnabled(canUseNativeMaps);
+
+    if (settings.expo_maps_enabled && !canUseNativeMaps) {
+      recordBootstrapTrace(
+        "maps:disabled",
+        isExpoMapsAvailable
+          ? "android-provider-not-configured"
+          : "native-map-module-unavailable",
+      ).catch(() => {});
+    }
   }, [settings.expo_maps_enabled, setMapsEnabled]);
 
   // Gate: redirect to maintenance screen when maintenance_mode is on or app version is too old
@@ -133,6 +148,14 @@ export default function RootLayout() {
             <Stack.Screen name="bootstrap" options={{ animation: "fade" }} />
             <Stack.Screen name="(users)" options={{ animation: "fade" }} />
             <Stack.Screen name="(drivers)" options={{ animation: "fade" }} />
+            <Stack.Screen
+              name="(users)/check-in"
+              options={{
+                headerShown: false,
+                presentation: "modal",
+                animation: "slide_from_bottom",
+              }}
+            />
             <Stack.Screen
               name="settings"
               options={{

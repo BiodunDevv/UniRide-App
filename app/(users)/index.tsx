@@ -12,6 +12,8 @@ import {
   Modal,
   BackHandler,
   InteractionManager,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -23,6 +25,7 @@ import {
   Camera,
   LocationPuck,
   Marker,
+  useMapProvider,
 } from "@/components/map/ExpoMap";
 import Animated, {
   FadeInDown,
@@ -45,6 +48,10 @@ import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { locationApi } from "@/lib/rideApi";
+import {
+  sanitizeHeading,
+  sanitizeLatLng,
+} from "@/lib/mapSafety";
 
 const CATEGORIES: Record<string, { label: string; icon: string }> = {
   academic: { label: "Academic", icon: "school" },
@@ -61,7 +68,12 @@ export default function UserHomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
   useReviewPrompt(!!user);
-  const { onlineDrivers, fetchOnlineDrivers, userLocation } =
+  const {
+    onlineDrivers,
+    fetchOnlineDrivers,
+    userLocation,
+    locationPermissionGranted,
+  } =
     useLocationStore();
   const {
     campusLocations,
@@ -76,9 +88,10 @@ export default function UserHomeScreen() {
     rateDriver,
   } = useRideStore();
   const { unreadCount, fetchNotifications } = useNotificationStore();
-  const mapsEnabled = usePlatformSettingsStore(
+  const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
   );
+  const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
@@ -93,7 +106,9 @@ export default function UserHomeScreen() {
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
   const hasCentered = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
+  const [mapType, setMapType] = useState<"satellite" | "standard">(
+    Platform.OS === "android" ? "satellite" : "standard",
+  );
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [ratingVal, setRatingVal] = useState(0);
@@ -102,6 +117,10 @@ export default function UserHomeScreen() {
   const [sheetHidden, setSheetHidden] = useState(false);
   const [sheetIndex, setSheetIndex] = useState(0);
   const [showTopOverlayCards, setShowTopOverlayCards] = useState(true);
+  const [isPreparingLocation, setIsPreparingLocation] = useState(true);
+  const [locationIssue, setLocationIssue] = useState<
+    "unavailable" | "denied" | null
+  >(null);
   const skippedRatings = useRef<Set<string>>(new Set());
   const bottomSheetRef = useRef<BottomSheet>(null);
 
@@ -110,7 +129,7 @@ export default function UserHomeScreen() {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsEnabled) && !safeMode);
+        setAllowMapCanvas(Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode);
       }
     });
 
@@ -123,8 +142,18 @@ export default function UserHomeScreen() {
       try {
         if (!safeMode) {
           const ok = await requestPermission();
+          if (!cancelled && !ok) {
+            setIsPreparingLocation(false);
+            setLocationIssue("denied");
+          }
           if (ok && !cancelled) {
-            await getCurrentLocation();
+            const currentLocation = await getCurrentLocation();
+            if (currentLocation && !cancelled) {
+              setIsPreparingLocation(false);
+              setLocationIssue(null);
+            } else if (!cancelled) {
+              setLocationIssue("unavailable");
+            }
             if (!cancelled) {
               setTimeout(() => {
                 if (!cancelled) startWatching();
@@ -165,7 +194,14 @@ export default function UserHomeScreen() {
       clearInterval(ivDrivers);
       clearInterval(ivData);
     };
-  }, [mapsEnabled, safeMode]);
+  }, [canRenderMaps, mapsFeatureEnabled, safeMode]);
+
+  useEffect(() => {
+    if (userLocation) {
+      setIsPreparingLocation(false);
+      setLocationIssue(null);
+    }
+  }, [userLocation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -323,12 +359,27 @@ export default function UserHomeScreen() {
     }
   }, [userLocation]);
 
-  const showMapCanvas = mapsEnabled && allowMapCanvas && !safeMode;
+  const mapsOperational =
+    mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
+  const showMapCanvas = mapsOperational;
   const sheetSnapPoints = React.useMemo(
     () => (showMapCanvas ? ["18%", "46%", "82%"] : ["36%", "64%", "90%"]),
     [showMapCanvas],
   );
   const initialSheetIndex = showMapCanvas ? 0 : 1;
+  const driverMarkers = onlineDrivers
+    .map((driver) => {
+      const coordinate = sanitizeLatLng(driver.location);
+      if (!coordinate) return null;
+      return {
+        key: driver.driver_id,
+        coordinate,
+        heading: sanitizeHeading(driver.heading),
+        label: driver.name?.split(" ")[0] || "Driver",
+        seats: driver.available_seats || 0,
+      };
+    })
+    .filter((marker): marker is NonNullable<typeof marker> => Boolean(marker));
 
   useEffect(() => {
     setSheetIndex(initialSheetIndex);
@@ -364,27 +415,14 @@ export default function UserHomeScreen() {
           mapType={mapType}
           showsCompass
           showsBuildings
+          allowEmptyInitialRegion
         >
-          <Camera
-            ref={cameraRef}
-            defaultSettings={{
-              centerCoordinate: userLocation
-                ? [userLocation.longitude, userLocation.latitude]
-                : [4.52, 7.52],
-              zoomLevel: 14,
-            }}
-            animationDuration={1500}
-          />
+          <Camera ref={cameraRef} animationDuration={1500} />
           <LocationPuck />
-          {onlineDrivers
-            .filter((driver) => driver.location)
-            .map((driver) => (
+          {driverMarkers.map((driver) => (
               <Marker
-                key={driver.driver_id}
-                coordinate={{
-                  latitude: driver.location!.latitude,
-                  longitude: driver.location!.longitude,
-                }}
+                key={driver.key}
+                coordinate={driver.coordinate}
                 anchor={{ x: 0.5, y: 0.5 }}
                 tracksViewChanges={false}
               >
@@ -394,15 +432,14 @@ export default function UserHomeScreen() {
                     style={{
                       width: 36,
                       height: 36,
-                      transform: [{ rotate: `${driver.heading || 0}deg` }],
+                      transform: [{ rotate: `${driver.heading}deg` }],
                     }}
                     resizeMode="contain"
                   />
                   <View className="mt-1 rounded-full bg-white/95 px-2 py-0.5">
                     <Text className="text-[10px] font-semibold text-gray-700">
-                      {driver.name?.split(" ")[0] || "Driver"} ·{" "}
-                      {driver.available_seats || 0} seat
-                      {driver.available_seats === 1 ? "" : "s"}
+                      {driver.label} · {driver.seats} seat
+                      {driver.seats === 1 ? "" : "s"}
                     </Text>
                   </View>
                 </View>
@@ -416,19 +453,68 @@ export default function UserHomeScreen() {
             <View className="w-full max-w-[360px] rounded-[30px] border border-white/60 bg-white/92 px-6 py-6">
               <View className="items-center">
                 <View className="h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-                  <Ionicons name="map-outline" size={26} color="#042F40" />
+                  {mapsOperational && isPreparingLocation ? (
+                    <ActivityIndicator color="#042F40" />
+                  ) : (
+                    <Ionicons
+                      name={
+                        mapsOperational && !locationPermissionGranted
+                          ? "locate-outline"
+                          : "map-outline"
+                      }
+                      size={26}
+                      color="#042F40"
+                    />
+                  )}
                 </View>
                 <Text className="mt-4 text-center text-xl font-bold text-slate-900">
-                  <T>Map is not available</T>
+                  {mapsOperational && isPreparingLocation ? (
+                    <T>Finding your location</T>
+                  ) : mapsOperational && !locationPermissionGranted ? (
+                    <T>Location access needed</T>
+                  ) : (
+                    <T>Map is not available</T>
+                  )}
                 </Text>
                 <Text className="mt-2 text-center text-sm leading-6 text-slate-600">
-                  <T>
-                    You can still browse rides, manage bookings, and keep your
-                    trip moving from the panel below while maps are unavailable.
-                  </T>
+                  {mapsOperational && isPreparingLocation ? (
+                    <T>
+                      We are waiting for a live GPS fix before we show the map.
+                    </T>
+                  ) : mapsOperational && !locationPermissionGranted ? (
+                    <T>
+                      Turn on location access so UniRide can center the map on
+                      your live position and show nearby drivers.
+                    </T>
+                  ) : (
+                    <T>
+                      You can still browse rides, manage bookings, and keep your
+                      trip moving from the panel below while maps are unavailable.
+                    </T>
+                  )}
                 </Text>
               </View>
-              {safeMode ? (
+              {mapsOperational ? (
+                <TouchableOpacity
+                  onPress={async () => {
+                    setIsPreparingLocation(true);
+                    const ok = await requestPermission();
+                    if (ok) {
+                      const currentLocation = await getCurrentLocation();
+                      if (!currentLocation) {
+                        startWatching();
+                      }
+                    } else {
+                      setIsPreparingLocation(false);
+                    }
+                  }}
+                  className="mt-5 rounded-2xl bg-primary px-4 py-3 items-center"
+                >
+                  <Text className="text-sm font-semibold text-white">
+                    <T>Try Location Again</T>
+                  </Text>
+                </TouchableOpacity>
+              ) : safeMode ? (
                 <TouchableOpacity
                   onPress={() => router.push("/bootstrap")}
                   className="mt-5 rounded-2xl bg-primary px-4 py-3 items-center"
@@ -441,6 +527,90 @@ export default function UserHomeScreen() {
             </View>
           </View>
         </View>
+      )}
+
+      {showMapCanvas && (
+        <SafeAreaView
+          edges={["top"]}
+          className="absolute top-0 left-0 right-0 z-10"
+          pointerEvents="box-none"
+        >
+          {isPreparingLocation || !userLocation || locationIssue ? (
+            <View className="mx-5 mt-2 rounded-[28px] border border-white/70 bg-white/92 px-5 py-4">
+              <View className="flex-row items-start">
+                <View className="mr-3 mt-0.5 h-11 w-11 items-center justify-center rounded-2xl bg-slate-100">
+                  {isPreparingLocation ? (
+                    <ActivityIndicator color="#042F40" />
+                  ) : (
+                    <Ionicons
+                      name={
+                        locationIssue === "denied"
+                          ? "locate-outline"
+                          : "time-outline"
+                      }
+                      size={22}
+                      color="#042F40"
+                    />
+                  )}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm font-bold text-slate-900">
+                    {isPreparingLocation ? (
+                      <T>Finding your location</T>
+                    ) : locationIssue === "denied" ? (
+                      <T>Location access needed</T>
+                    ) : (
+                      <T>Waiting for GPS signal</T>
+                    )}
+                  </Text>
+                  <Text className="mt-1 text-xs leading-5 text-slate-600">
+                    {isPreparingLocation ? (
+                      <T>
+                        The map is ready. We are waiting for your live location
+                        before centering it.
+                      </T>
+                    ) : locationIssue === "denied" ? (
+                      <T>
+                        Turn on location permission so UniRide can center the map
+                        on your real position.
+                      </T>
+                    ) : (
+                      <T>
+                        GPS is taking a little longer than usual. Keep the app
+                        open and we will center the map as soon as a live fix
+                        arrives.
+                      </T>
+                    )}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={async () => {
+                      setIsPreparingLocation(true);
+                      const ok = await requestPermission();
+                      if (!ok) {
+                        setIsPreparingLocation(false);
+                        setLocationIssue("denied");
+                        return;
+                      }
+                      const currentLocation = await getCurrentLocation();
+                      if (currentLocation) {
+                        setLocationIssue(null);
+                        setIsPreparingLocation(false);
+                      } else {
+                        setLocationIssue("unavailable");
+                        startWatching();
+                      }
+                    }}
+                    className="mt-3 self-start rounded-2xl bg-primary px-4 py-2.5"
+                  >
+                    <Text className="text-xs font-semibold text-white">
+                      <T>Try Location Again</T>
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </SafeAreaView>
       )}
 
       {/* ── Header ─────────────────────────────────────────────────── */}
@@ -489,7 +659,7 @@ export default function UserHomeScreen() {
               <TouchableOpacity
                 onPress={() =>
                   setMapType((current) =>
-                    current === "hybrid" ? "standard" : "hybrid",
+                    current === "satellite" ? "standard" : "satellite",
                   )
                 }
                 className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
@@ -501,7 +671,9 @@ export default function UserHomeScreen() {
                 }}
               >
                 <Ionicons
-                  name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                  name={
+                    mapType === "satellite" ? "map-outline" : "layers-outline"
+                  }
                   size={20}
                   color="#042F40"
                 />

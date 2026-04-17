@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   InteractionManager,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -19,6 +20,7 @@ import {
   MapView,
   Camera,
   LocationPuck,
+  useMapProvider,
 } from "@/components/map/ExpoMap";
 import Animated, {
   FadeInDown,
@@ -40,6 +42,7 @@ import LanguageOnboarding from "@/components/LanguageOnboarding";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
+import { resolveSafeCenter } from "@/lib/mapSafety";
 
 export default function DriverHomeScreen() {
   const router = useRouter();
@@ -64,9 +67,10 @@ export default function DriverHomeScreen() {
     isLoadingDriverRides,
   } = useRideStore();
   const { unreadCount, fetchNotifications } = useNotificationStore();
-  const mapsEnabled = usePlatformSettingsStore(
+  const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
   );
+  const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
@@ -76,7 +80,9 @@ export default function DriverHomeScreen() {
   const hasCentered = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
+  const [mapType, setMapType] = useState<"satellite" | "standard">(
+    Platform.OS === "android" ? "satellite" : "standard",
+  );
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
   const [sheetHidden, setSheetHidden] = useState(false);
   const [sheetIndex, setSheetIndex] = useState(0);
@@ -99,7 +105,7 @@ export default function DriverHomeScreen() {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsEnabled) && !safeMode);
+        setAllowMapCanvas(Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode);
       }
     });
 
@@ -154,7 +160,7 @@ export default function DriverHomeScreen() {
       interactionHandle.cancel();
       if (locationInterval.current) clearInterval(locationInterval.current);
     };
-  }, [mapsEnabled, safeMode]);
+  }, [canRenderMaps, mapsFeatureEnabled, safeMode]);
 
   useFocusEffect(
     useCallback(() => {
@@ -339,7 +345,8 @@ export default function DriverHomeScreen() {
     driverRides.find((r) => r.status === "in_progress") ||
     driverRides.find((r) => r.status === "accepted") ||
     null;
-  const showMapCanvas = mapsEnabled && allowMapCanvas && !safeMode;
+  const showMapCanvas =
+    mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
   const sheetSnapPoints = React.useMemo(
     () => (showMapCanvas ? ["20%", "50%", "84%"] : ["40%", "68%", "92%"]),
     [showMapCanvas],
@@ -402,14 +409,10 @@ export default function DriverHomeScreen() {
           <Camera
             ref={cameraRef}
             defaultSettings={{
-              centerCoordinate: userLocation
-                ? [userLocation.longitude, userLocation.latitude]
-                : lastDriverPresenceLocation
-                  ? [
-                      lastDriverPresenceLocation.longitude,
-                      lastDriverPresenceLocation.latitude,
-                    ]
-                : [4.52, 7.52],
+              centerCoordinate: resolveSafeCenter(
+                userLocation,
+                lastDriverPresenceLocation,
+              ),
               zoomLevel: 14,
             }}
             animationDuration={1500}
@@ -494,7 +497,7 @@ export default function DriverHomeScreen() {
               <TouchableOpacity
                 onPress={() =>
                   setMapType((current) =>
-                    current === "hybrid" ? "standard" : "hybrid",
+                    current === "satellite" ? "standard" : "satellite",
                   )
                 }
                 className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
@@ -506,7 +509,9 @@ export default function DriverHomeScreen() {
                 }}
               >
                 <Ionicons
-                  name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                  name={
+                    mapType === "satellite" ? "map-outline" : "layers-outline"
+                  }
                   size={20}
                   color="#042F40"
                 />
@@ -881,6 +886,8 @@ export default function DriverHomeScreen() {
                     typeof req.destination_id === "object"
                       ? req.destination_id
                       : null;
+                  const requesterName = req.created_by?.name || "Passenger";
+                  const requestedSeats = req.booked_seats || req.available_seats || 1;
                   return (
                     <TouchableOpacity
                       key={req._id}
@@ -908,7 +915,9 @@ export default function DriverHomeScreen() {
                           {dest?.short_name || dest?.name || "Destination"}
                         </Text>
                         <Text className="text-[11px] text-gray-400 mt-1">
-                          {req.available_seats} seats · ₦{req.fare} · <T>Open request</T>
+                          Requested by {requesterName} · {requestedSeats}{" "}
+                          seat{requestedSeats === 1 ? "" : "s"} · ₦
+                          {req.fare}
                         </Text>
                       </View>
                       <Ionicons

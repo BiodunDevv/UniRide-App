@@ -10,6 +10,7 @@ import {
   Linking,
   ScrollView,
   InteractionManager,
+  Platform,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,6 +22,7 @@ import {
   LocationPuck,
   Marker,
   Polyline,
+  useMapProvider,
 } from "@/components/map/ExpoMap";
 import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 
@@ -35,6 +37,11 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { useLocation } from "@/hooks/use-location";
 import { locationApi } from "@/lib/rideApi";
+import {
+  resolveSafeCenter,
+  sanitizeLngLatTuple,
+  sanitizeRouteGeometry,
+} from "@/lib/mapSafety";
 
 export default function UserActiveRideScreen() {
   const router = useRouter();
@@ -47,9 +54,10 @@ export default function UserActiveRideScreen() {
     updatePaymentStatus,
   } = useRideStore();
   const { userLocation } = useLocationStore();
-  const mapsEnabled = usePlatformSettingsStore(
+  const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
   );
+  const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { joinRide, leaveRide, streamPassengerLocation } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
@@ -63,9 +71,12 @@ export default function UserActiveRideScreen() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [markingSent, setMarkingSent] = useState(false);
   const rideIdRef = useRef<string | null>(null);
   const [rideCompleted, setRideCompleted] = useState(false);
-  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
+  const [mapType, setMapType] = useState<"satellite" | "standard">(
+    Platform.OS === "android" ? "satellite" : "standard",
+  );
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
   const [driverLastUpdated, setDriverLastUpdated] = useState<string | null>(
     null,
@@ -86,7 +97,9 @@ export default function UserActiveRideScreen() {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsEnabled) && !safeMode);
+        setAllowMapCanvas(
+          Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode,
+        );
       }
     });
 
@@ -99,9 +112,10 @@ export default function UserActiveRideScreen() {
       cancelled = true;
       interactionHandle.cancel();
     };
-  }, [mapsEnabled, safeMode]);
+  }, [canRenderMaps, mapsFeatureEnabled, safeMode]);
 
   useEffect(() => {
+    if (safeMode) return;
     requestPermission()
       .then((granted) => {
         if (granted) {
@@ -109,7 +123,7 @@ export default function UserActiveRideScreen() {
         }
       })
       .catch(() => {});
-  }, [requestPermission, startWatching]);
+  }, [requestPermission, safeMode, startWatching]);
 
   // ── Find active booking & join ride room ──────────────────────────
   useEffect(() => {
@@ -123,8 +137,7 @@ export default function UserActiveRideScreen() {
           b.status === "accepted" ||
           b.status === "pending",
       );
-      const completed =
-        bks.find((b) => b.status === "completed") || null;
+      const completed = bks.find((b) => b.status === "completed") || null;
       const targetBooking = active || completed;
 
       if (targetBooking) {
@@ -145,8 +158,11 @@ export default function UserActiveRideScreen() {
             if (r?.status === "completed") {
               setRideCompleted(true);
             }
-            if (r.current_location?.coordinates) {
-              setDriverCoords(r.current_location.coordinates);
+            const safeDriverCoords = sanitizeLngLatTuple(
+              r.current_location?.coordinates,
+            );
+            if (safeDriverCoords) {
+              setDriverCoords(safeDriverCoords);
               setDriverLastUpdated(new Date().toISOString());
             }
           } catch {}
@@ -164,8 +180,9 @@ export default function UserActiveRideScreen() {
     const unsub = eventBus.on("driver-location-updated", (data: any) => {
       const latitude = data?.location?.latitude ?? data?.latitude;
       const longitude = data?.location?.longitude ?? data?.longitude;
-      if (typeof latitude === "number" && typeof longitude === "number") {
-        setDriverCoords([longitude, latitude]);
+      const safeCoords = sanitizeLngLatTuple([longitude, latitude]);
+      if (safeCoords) {
+        setDriverCoords(safeCoords);
         setDriverLastUpdated(
           data?.timestamp
             ? new Date(data.timestamp).toISOString()
@@ -180,7 +197,9 @@ export default function UserActiveRideScreen() {
     if (!booking || !user || !userLocation) return;
 
     const rideId =
-      typeof booking.ride_id === "object" ? booking.ride_id._id : booking.ride_id;
+      typeof booking.ride_id === "object"
+        ? booking.ride_id._id
+        : booking.ride_id;
     if (!rideId) return;
 
     const emitLocation = () => {
@@ -273,18 +292,36 @@ export default function UserActiveRideScreen() {
     ]);
   };
 
-  const handleMarkPaid = async () => {
+  const handleMarkSent = async () => {
     if (!booking) return;
-    try {
-      await updatePaymentStatus(booking._id, "paid");
-      setBooking({ ...booking, payment_status: "paid" });
-      Alert.alert("Done", "Payment marked.");
-    } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed");
-    }
+    Alert.alert(
+      "Confirm Transfer",
+      "Have you sent the transfer payment to the driver's bank account?",
+      [
+        { text: "Not Yet", style: "cancel" },
+        {
+          text: "Yes, I've Sent It",
+          onPress: async () => {
+            setMarkingSent(true);
+            try {
+              await updatePaymentStatus(booking._id, "sent");
+              setBooking({ ...booking, payment_status: "sent" });
+              Alert.alert(
+                "Transfer Noted",
+                "Your driver will be notified to confirm receipt.",
+              );
+            } catch (e: any) {
+              Alert.alert("Error", e?.message || "Failed");
+            }
+            setMarkingSent(false);
+          },
+        },
+      ],
+    );
   };
 
   const copyAcct = async (text: string) => {
+    if (!text) return;
     await Clipboard.setStringAsync(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -313,9 +350,7 @@ export default function UserActiveRideScreen() {
         typeof ride.destination_id === "object" &&
         (ride.destination_id.short_name || ride.destination_id.name)) ||
       "Destination";
-    const label = encodeURIComponent(
-      `${pickupLabel} to ${destinationLabel}`,
-    );
+    const label = encodeURIComponent(`${pickupLabel} to ${destinationLabel}`);
 
     try {
       await Linking.openURL(
@@ -327,17 +362,7 @@ export default function UserActiveRideScreen() {
   }, [driverCoords, ride]);
 
   // ── Map data ──────────────────────────────────────────────────────
-  const routeGeo = ride?.route_geometry || null;
-  const routeCoordinates =
-    routeGeo?.coordinates?.map?.((coordinate: [number, number]) => ({
-      latitude: coordinate[1],
-      longitude: coordinate[0],
-    })) ||
-    routeGeo?.geometry?.coordinates?.map?.((coordinate: [number, number]) => ({
-      latitude: coordinate[1],
-      longitude: coordinate[0],
-    })) ||
-    [];
+  const routeCoordinates = sanitizeRouteGeometry(ride?.route_geometry);
 
   const pickup =
     ride && typeof ride.pickup_location_id === "object"
@@ -367,18 +392,73 @@ export default function UserActiveRideScreen() {
     .toUpperCase()
     .slice(0, 2);
   const showBankDetails =
-    booking &&
-    booking.payment_method === "transfer" &&
-    (booking.status === "accepted" || booking.status === "in_progress") &&
-    driverObj?.bank_account_number;
+    booking?.payment_method === "transfer" &&
+    (booking?.status === "accepted" || booking?.status === "in_progress");
+  const transferPaymentStatus =
+    booking?.payment_status === "paid" || booking?.payment_status === "sent"
+      ? booking.payment_status
+      : "pending";
+  const hasDriverAccountNumber = Boolean(
+    driverObj?.bank_account_number?.trim?.(),
+  );
+  const canMarkSent = showBankDetails && transferPaymentStatus === "pending";
   const totalFare = booking?.total_fare || ride?.fare || 0;
+  const driverBankName = driverObj?.bank_name?.trim?.() || "Not added yet";
+  const driverBankAccountNumber =
+    driverObj?.bank_account_number?.trim?.() || "Not added yet";
+  const driverBankAccountName =
+    driverObj?.bank_account_name?.trim?.() || "Not added yet";
 
-  const center =
-    driverCoords ||
-    (userLocation
-      ? ([userLocation.longitude, userLocation.latitude] as [number, number])
-      : ([4.52, 7.52] as [number, number]));
-  const showMapCanvas = mapsEnabled && allowMapCanvas && !safeMode;
+  useEffect(() => {
+    if (!__DEV__ || !booking || !showBankDetails) return;
+
+    if (!driverObj) {
+      console.info(
+        "[ActiveRide][TransferDebug] Missing populated driver_id in ride details payload",
+        {
+          bookingId: booking._id,
+          rideId: ride?._id,
+          bookingStatus: booking.status,
+          paymentStatus: booking.payment_status,
+          hasRideDriverId: Boolean(ride?.driver_id),
+        },
+      );
+      return;
+    }
+
+    const missingFields: string[] = [];
+    if (!driverObj.bank_name?.trim?.()) missingFields.push("bank_name");
+    if (!driverObj.bank_account_number?.trim?.())
+      missingFields.push("bank_account_number");
+    if (!driverObj.bank_account_name?.trim?.())
+      missingFields.push("bank_account_name");
+
+    if (missingFields.length > 0) {
+      console.info(
+        "[ActiveRide][TransferDebug] Transfer flow missing bank fields on driver_id",
+        {
+          bookingId: booking._id,
+          rideId: ride?._id,
+          driverId: driverObj._id,
+          missingFields,
+          driverKeys: Object.keys(driverObj),
+        },
+      );
+    }
+  }, [
+    booking?._id,
+    booking?.payment_method,
+    booking?.payment_status,
+    booking?.status,
+    driverObj,
+    ride?._id,
+    ride?.driver_id,
+    showBankDetails,
+  ]);
+
+  const center = resolveSafeCenter(driverCoords, userLocation);
+  const showMapCanvas =
+    mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
 
   const openDriverProfile = useCallback(() => {
     if (!driverId) return;
@@ -404,7 +484,7 @@ export default function UserActiveRideScreen() {
           <T>No Active Ride</T>
         </Text>
         <Text className="text-sm text-gray-400 text-center mb-6">
-          <T>You don't have an active ride right now</T>
+          <T>{"You don't have an active ride right now"}</T>
         </Text>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -427,12 +507,20 @@ export default function UserActiveRideScreen() {
           <T>Ride details unavailable</T>
         </Text>
         <Text className="text-sm text-gray-400 text-center mb-6">
-          <T>Your booking is active, but the live ride details could not load.</T>
+          <T>
+            Your booking is active, but the live ride details could not load.
+          </T>
         </Text>
         <TouchableOpacity
-          onPress={() => fetchRideDetails(
-            typeof booking.ride_id === "object" ? booking.ride_id._id : booking.ride_id,
-          ).then(setRide).catch(() => router.back())}
+          onPress={() =>
+            fetchRideDetails(
+              typeof booking.ride_id === "object"
+                ? booking.ride_id._id
+                : booking.ride_id,
+            )
+              .then(setRide)
+              .catch(() => router.back())
+          }
           className="bg-primary rounded-2xl px-8 py-3"
         >
           <Text className="text-white font-bold">
@@ -481,7 +569,12 @@ export default function UserActiveRideScreen() {
 
         {showMapCanvas ? (
           <View className="mx-5 mt-3 h-[280px] overflow-hidden rounded-[28px] bg-white">
-            <MapView style={{ flex: 1 }} mapType={mapType} showsCompass showsBuildings>
+            <MapView
+              style={{ flex: 1 }}
+              mapType={mapType}
+              showsCompass
+              showsBuildings
+            >
               <Camera
                 ref={cameraRef}
                 defaultSettings={{
@@ -519,13 +612,15 @@ export default function UserActiveRideScreen() {
               <TouchableOpacity
                 onPress={() =>
                   setMapType((current) =>
-                    current === "hybrid" ? "standard" : "hybrid",
+                    current === "satellite" ? "standard" : "satellite",
                   )
                 }
                 className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
               >
                 <Ionicons
-                  name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                  name={
+                    mapType === "satellite" ? "map-outline" : "layers-outline"
+                  }
                   size={20}
                   color="#042F40"
                 />
@@ -557,7 +652,9 @@ export default function UserActiveRideScreen() {
               Live trip details are still available
             </Text>
             <Text className="mt-2 text-sm leading-6 text-slate-600">
-              Your booking, driver updates, fare, and check-in flow are still active. The map view has been temporarily disabled by admin settings.
+              Your booking, driver updates, fare, and check-in flow are still
+              active. The map view has been temporarily disabled by admin
+              settings.
             </Text>
             {safeMode ? (
               <TouchableOpacity
@@ -592,7 +689,10 @@ export default function UserActiveRideScreen() {
                 )}
               </Text>
               <Text className="mt-1 text-xs leading-5 text-slate-300">
-                <T>Follow the latest ride status, driver details, and payment steps from one place.</T>
+                <T>
+                  Follow the latest ride status, driver details, and payment
+                  steps from one place.
+                </T>
               </Text>
             </View>
 
@@ -618,10 +718,14 @@ export default function UserActiveRideScreen() {
                   Your location
                 </Text>
                 <Text className="mt-1 text-sm font-bold text-slate-900">
-                  {userLocation ? "Sharing current position" : "Location pending"}
+                  {userLocation
+                    ? "Sharing current position"
+                    : "Location pending"}
                 </Text>
                 <Text className="mt-1 text-xs text-slate-500">
-                  {userLocation ? "Visible for ride coordination" : "Waiting for GPS access"}
+                  {userLocation
+                    ? "Visible for ride coordination"
+                    : "Waiting for GPS access"}
                 </Text>
                 {userLocation ? (
                   <Text className="mt-1 text-[11px] text-slate-400">
@@ -751,55 +855,120 @@ export default function UserActiveRideScreen() {
 
             {/* Bank Details (Transfer Payment) */}
             {showBankDetails && (
-              <View className="bg-blue-50 rounded-xl p-3 mb-3 border border-blue-100">
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="card" size={16} color="#2563EB" />
-                  <Text className="text-xs font-bold text-blue-900 ml-2">
-                    <T>Transfer Payment</T>
-                  </Text>
-                  {booking.payment_status === "paid" && (
-                    <View className="bg-green-100 rounded-full px-2 py-0.5 ml-auto">
-                      <Text className="text-[10px] font-bold text-green-700">
-                        <T>Paid</T>
+              <View className="mb-3 rounded-[26px] border border-slate-200 bg-white p-4">
+                <View className="mb-3 flex-row items-center justify-between">
+                  <View className="flex-row items-center">
+                    <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                      <Ionicons name="card-outline" size={18} color="#7C3AED" />
+                    </View>
+                    <View>
+                      <Text className="text-sm font-semibold text-slate-900">
+                        <T>Transfer Payment</T>
+                      </Text>
+                      <Text className="text-xs text-slate-500">
+                        {transferPaymentStatus === "paid" ? (
+                          <T>Driver confirmed your transfer.</T>
+                        ) : transferPaymentStatus === "sent" ? (
+                          <T>Waiting for driver confirmation.</T>
+                        ) : (
+                          <T>{`Send ₦${Number(totalFare).toLocaleString()} to the driver's account.`}</T>
+                        )}
                       </Text>
                     </View>
-                  )}
+                  </View>
+                  <View
+                    className={`rounded-full px-3 py-1.5 ${
+                      transferPaymentStatus === "paid"
+                        ? "bg-green-50"
+                        : transferPaymentStatus === "sent"
+                          ? "bg-blue-50"
+                          : "bg-amber-50"
+                    }`}
+                  >
+                    <Text
+                      className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                        transferPaymentStatus === "paid"
+                          ? "text-green-700"
+                          : transferPaymentStatus === "sent"
+                            ? "text-blue-700"
+                            : "text-amber-700"
+                      }`}
+                    >
+                      {transferPaymentStatus === "paid" ? (
+                        <T>Confirmed</T>
+                      ) : transferPaymentStatus === "sent" ? (
+                        <T>Sent</T>
+                      ) : (
+                        <T>Pending</T>
+                      )}
+                    </Text>
+                  </View>
                 </View>
-                <View className="bg-white rounded-lg p-2.5 border border-blue-50">
+
+                <View className="mb-3 rounded-2xl bg-slate-50 px-4 py-3">
+                  <View className="flex-row justify-between">
+                    <Text className="text-[11px] text-slate-500">
+                      <T>Amount</T>
+                    </Text>
+                    <Text className="text-base font-bold text-slate-900">
+                      ₦{Number(totalFare).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                   <View className="flex-row justify-between mb-1.5">
                     <Text className="text-[10px] text-gray-400">
-                      <T>Bank</T>
+                      <T>Bank Name</T>
                     </Text>
                     <Text className="text-xs font-semibold text-gray-800">
-                      {driverObj?.bank_name || "—"}
+                      {driverBankName}
                     </Text>
                   </View>
                   <View className="flex-row justify-between items-center mb-1.5">
                     <Text className="text-[10px] text-gray-400">
-                      <T>Account No.</T>
+                      <T>Account Number</T>
                     </Text>
-                    <TouchableOpacity
-                      onPress={() =>
-                        copyAcct(driverObj?.bank_account_number || "")
-                      }
-                      className="flex-row items-center"
-                    >
-                      <Text className="text-sm font-bold text-primary tracking-wider mr-1.5">
-                        {driverObj?.bank_account_number}
+                    <View className="items-end">
+                      <Text className="text-xs font-semibold text-gray-800">
+                        {driverBankAccountNumber}
                       </Text>
-                      <Ionicons
-                        name={copied ? "checkmark-circle" : "copy-outline"}
-                        size={13}
-                        color={copied ? "#16A34A" : "#6B7280"}
-                      />
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() =>
+                          copyAcct(
+                            driverObj?.bank_account_number?.trim?.() || "",
+                          )
+                        }
+                        disabled={!hasDriverAccountNumber}
+                        className={`mt-1 flex-row items-center rounded-full border px-2.5 py-1 ${
+                          hasDriverAccountNumber
+                            ? "border-slate-900 bg-white"
+                            : "border-slate-200 bg-slate-100"
+                        }`}
+                      >
+                        <Ionicons
+                          name={copied ? "checkmark-circle" : "copy-outline"}
+                          size={13}
+                          color={hasDriverAccountNumber ? "#0F172A" : "#94A3B8"}
+                        />
+                        <Text
+                          className={`ml-1 text-[10px] font-semibold ${
+                            hasDriverAccountNumber
+                              ? "text-slate-900"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {copied ? "Copied" : "Copy"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                   <View className="flex-row justify-between mb-1.5">
                     <Text className="text-[10px] text-gray-400">
-                      <T>Name</T>
+                      <T>Account Name</T>
                     </Text>
                     <Text className="text-xs font-semibold text-gray-800">
-                      {driverObj?.bank_account_name || "—"}
+                      {driverBankAccountName}
                     </Text>
                   </View>
                   <View className="flex-row justify-between">
@@ -807,18 +976,23 @@ export default function UserActiveRideScreen() {
                       <T>Amount</T>
                     </Text>
                     <Text className="text-base font-bold text-primary">
-                      ₦{totalFare}
+                      ₦{Number(totalFare).toLocaleString()}
                     </Text>
                   </View>
                 </View>
-                {booking.payment_status !== "paid" && (
+                {canMarkSent && (
                   <TouchableOpacity
-                    onPress={handleMarkPaid}
-                    className="bg-blue-600 rounded-lg py-2.5 items-center mt-2"
+                    onPress={handleMarkSent}
+                    disabled={markingSent}
+                    className="mt-3 rounded-2xl border border-slate-900 bg-slate-900 py-3 items-center"
                   >
-                    <Text className="text-white font-bold text-xs">
-                      <T>I've Sent the Money</T>
-                    </Text>
+                    {markingSent ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text className="text-white text-sm font-semibold">
+                        <T>{"I've Sent the Money"}</T>
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 )}
               </View>
@@ -829,27 +1003,36 @@ export default function UserActiveRideScreen() {
               <TouchableOpacity
                 onPress={() =>
                   router.push({
-                    pathname: "/(users)/ride-details" as any,
-                    params: { bookingId: booking._id },
+                    pathname: "/(users)/check-in" as any,
+                    params: {
+                      bookingId: booking._id,
+                      rideId: ride?._id,
+                      pickup: pickup?.short_name || pickup?.name || "Pickup",
+                      destination:
+                        dest?.short_name || dest?.name || "Destination",
+                    },
                   })
                 }
-                className="bg-accent/10 rounded-2xl p-4 mb-3 flex-row items-center border border-accent/20"
+                className="mb-3 rounded-[24px] border border-slate-200 bg-white p-4"
               >
-                <View className="w-10 h-10 rounded-full bg-accent/20 items-center justify-center mr-3">
-                  <Ionicons name="key" size={20} color="#D4A017" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-semibold text-gray-900">
-                    <T>Check In Required</T>
-                  </Text>
-                  <Text className="text-xs text-gray-500">
-                    <T>Tap to enter your check-in code</T>
-                  </Text>
+                <View className="flex-row items-center">
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                    <Ionicons name="key-outline" size={18} color="#7C3AED" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-slate-900">
+                      <T>Check-In Required</T>
+                    </Text>
+                    <Text className="text-xs text-slate-500">
+                      <T>Open check-in and enter your boarding code.</T>
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#64748B" />
                 </View>
                 {booking.check_in_code && (
-                  <View className="bg-accent/20 rounded-xl px-3 py-1.5">
-                    <Text className="text-xs font-bold text-accent tracking-widest">
-                      {booking.check_in_code}
+                  <View className="mt-3 self-start rounded-full bg-slate-100 px-3 py-1.5">
+                    <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      <T>Code Hint</T> · {booking.check_in_code}
                     </Text>
                   </View>
                 )}
@@ -906,8 +1089,9 @@ export default function UserActiveRideScreen() {
                 </Text>
                 <Text className="mt-2 text-center text-sm leading-6 text-slate-500">
                   <T>
-                    You've arrived at your destination. Thanks for riding with
-                    UniRide.
+                    {
+                      "You've arrived at your destination. Thanks for riding with UniRide."
+                    }
                   </T>
                 </Text>
               </View>

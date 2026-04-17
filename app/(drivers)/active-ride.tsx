@@ -11,6 +11,7 @@ import {
   Linking,
   InteractionManager,
   ScrollView,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -21,6 +22,7 @@ import {
   LocationPuck,
   Marker,
   Polyline,
+  useMapProvider,
 } from "@/components/map/ExpoMap";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
@@ -33,6 +35,11 @@ import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { useLocation } from "@/hooks/use-location";
+import {
+  resolveSafeCenter,
+  sanitizeLatLng,
+  sanitizeRouteGeometry,
+} from "@/lib/mapSafety";
 
 export default function DriverActiveRideScreen() {
   const router = useRouter();
@@ -46,9 +53,10 @@ export default function DriverActiveRideScreen() {
     updatePaymentStatus,
   } = useRideStore();
   const { userLocation, updateLiveLocation } = useLocationStore();
-  const mapsEnabled = usePlatformSettingsStore(
+  const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
   );
+  const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { joinRide, leaveRide } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
@@ -119,13 +127,17 @@ export default function DriverActiveRideScreen() {
             ) => {
               const user = bk?.user_id;
               const coordinates = user?.current_location?.coordinates;
-              if (!user?._id || !coordinates || coordinates.length !== 2) {
+              const safeLocation = sanitizeLatLng({
+                latitude: coordinates?.[1],
+                longitude: coordinates?.[0],
+              });
+              if (!user?._id || !safeLocation) {
                 return acc;
               }
 
               acc[user._id] = {
-                latitude: coordinates[1],
-                longitude: coordinates[0],
+                latitude: safeLocation.latitude,
+                longitude: safeLocation.longitude,
                 name: user?.name || "Passenger",
                 profile_picture: user?.profile_picture || null,
                 timestamp: bk?.updatedAt
@@ -178,12 +190,12 @@ export default function DriverActiveRideScreen() {
   useEffect(() => {
     requestPermission()
       .then((granted) => {
-        if (granted) {
+        if (granted && !safeMode) {
           startWatching();
         }
       })
       .catch(() => {});
-  }, [requestPermission, startWatching]);
+  }, [requestPermission, safeMode, startWatching]);
 
   // ── GPS broadcast ─────────────────────────────────────────────────
   useEffect(() => {
@@ -238,13 +250,17 @@ export default function DriverActiveRideScreen() {
             ) => {
               const user = bk?.user_id;
               const coordinates = user?.current_location?.coordinates;
-              if (!user?._id || !coordinates || coordinates.length !== 2) {
+              const safeLocation = sanitizeLatLng({
+                latitude: coordinates?.[1],
+                longitude: coordinates?.[0],
+              });
+              if (!user?._id || !safeLocation) {
                 return acc;
               }
 
               acc[user._id] = {
-                latitude: coordinates[1],
-                longitude: coordinates[0],
+                latitude: safeLocation.latitude,
+                longitude: safeLocation.longitude,
                 name: user?.name || "Passenger",
                 profile_picture: user?.profile_picture || null,
                 timestamp: bk?.updatedAt
@@ -293,11 +309,13 @@ export default function DriverActiveRideScreen() {
   useEffect(() => {
     const unsub = eventBus.on("passenger-location-updated", (data: any) => {
       if (!data?.user_id || !data?.location) return;
+      const safeLocation = sanitizeLatLng(data.location);
+      if (!safeLocation) return;
       setPassengerLocations((prev) => ({
         ...prev,
         [data.user_id]: {
-          latitude: data.location.latitude,
-          longitude: data.location.longitude,
+          latitude: safeLocation.latitude,
+          longitude: safeLocation.longitude,
           name: data.name || "Passenger",
           profile_picture: data.profile_picture || null,
           timestamp: data.timestamp
@@ -316,14 +334,16 @@ export default function DriverActiveRideScreen() {
 
   const [actionId, setActionId] = useState<string | null>(null);
   const [rideCompleted, setRideCompleted] = useState(false);
-  const [mapType, setMapType] = useState<"hybrid" | "standard">("hybrid");
+  const [mapType, setMapType] = useState<"satellite" | "standard">(
+    Platform.OS === "android" ? "satellite" : "standard",
+  );
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsEnabled) && !safeMode);
+        setAllowMapCanvas(Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode);
       }
     });
 
@@ -336,7 +356,7 @@ export default function DriverActiveRideScreen() {
       cancelled = true;
       interactionHandle.cancel();
     };
-  }, [mapsEnabled, safeMode]);
+  }, [canRenderMaps, mapsFeatureEnabled, safeMode]);
 
   const handleConfirmPayment = (bookingId: string, passengerName: string) => {
     Alert.alert(
@@ -449,24 +469,13 @@ export default function DriverActiveRideScreen() {
     ride && typeof ride.destination_id === "object"
       ? ride.destination_id
       : null;
-  const routeGeo = ride?.route_geometry || null;
-  const routeCoordinates =
-    routeGeo?.coordinates?.map?.((coordinate: [number, number]) => ({
-      latitude: coordinate[1],
-      longitude: coordinate[0],
-    })) ||
-    routeGeo?.geometry?.coordinates?.map?.((coordinate: [number, number]) => ({
-      latitude: coordinate[1],
-      longitude: coordinate[0],
-    })) ||
-    [];
-  const center = userLocation
-    ? ([userLocation.longitude, userLocation.latitude] as [number, number])
-    : ([4.52, 7.52] as [number, number]);
+  const routeCoordinates = sanitizeRouteGeometry(ride?.route_geometry);
+  const center = resolveSafeCenter(userLocation, ride?.current_location?.coordinates);
   const checkedIn = bookings.filter(
     (b) => b.check_in_status === "checked_in",
   ).length;
-  const showMapCanvas = mapsEnabled && allowMapCanvas && !safeMode;
+  const showMapCanvas =
+    mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
 
   if (loading)
     return (
@@ -584,13 +593,15 @@ export default function DriverActiveRideScreen() {
               <TouchableOpacity
                 onPress={() =>
                   setMapType((current) =>
-                    current === "hybrid" ? "standard" : "hybrid",
+                    current === "satellite" ? "standard" : "satellite",
                   )
                 }
                 className="bg-white/95 w-10 h-10 rounded-full items-center justify-center"
               >
                 <Ionicons
-                  name={mapType === "hybrid" ? "map-outline" : "layers-outline"}
+                  name={
+                    mapType === "satellite" ? "map-outline" : "layers-outline"
+                  }
                   size={20}
                   color="#042F40"
                 />
@@ -808,10 +819,10 @@ export default function DriverActiveRideScreen() {
                               }`}
                             >
                               {paymentConfirmed
-                                ? "₦ Paid"
+                                ? "Transfer confirmed"
                                 : paymentSent
-                                  ? "₦ Sent"
-                                  : "₦ Pending"}
+                                  ? "Transfer sent"
+                                  : "Transfer pending"}
                             </Text>
                           </View>
                         )}

@@ -76,6 +76,8 @@ export default function DriverRideRequestsScreen() {
       typeof item.pickup_location_id === "object" ? item.pickup_location_id : null;
     const destination =
       typeof item.destination_id === "object" ? item.destination_id : null;
+    const requesterName = item.created_by?.name || "Passenger";
+    const requestedSeats = item.booked_seats || item.available_seats || 1;
 
     return (
       <Animated.View entering={FadeInDown.delay(index * 40).duration(220)}>
@@ -106,7 +108,8 @@ export default function DriverRideRequestsScreen() {
                   {destination?.short_name || destination?.name || "Destination"}
                 </Text>
                 <Text className="mt-1 text-xs text-slate-500">
-                  <T>Tap to review and accept this request</T>
+                  Requested by {requesterName} · {requestedSeats} seat
+                  {requestedSeats === 1 ? "" : "s"}
                 </Text>
               </View>
             </View>
