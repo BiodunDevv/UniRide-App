@@ -60,6 +60,17 @@ export interface User {
   preferred_language?: string;
   email_verified?: boolean;
   devices?: { device_id: string; device_name?: string; device_type?: string }[];
+  account_deletion_status?:
+    | "none"
+    | "pending_review"
+    | "approved"
+    | "rejected"
+    | "scheduled"
+    | "cancelled"
+    | "completed";
+  account_deletion_requested_at?: string | null;
+  account_deletion_scheduled_for?: string | null;
+  account_deletion_review_note?: string;
   driver?: DriverProfile;
 }
 

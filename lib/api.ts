@@ -347,6 +347,26 @@ export const authApi = {
     });
   },
 
+  getAccountDeletionStatus() {
+    return request("/api/auth/account-deletion/status");
+  },
+
+  requestAccountDeletion(body: {
+    reason?: string;
+    requested_via?: "mobile" | "web_public" | "admin";
+  }) {
+    return request("/api/auth/account-deletion/request", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+
+  cancelAccountDeletion() {
+    return request("/api/auth/account-deletion/cancel", {
+      method: "POST",
+    });
+  },
+
   getNotificationSettings() {
     return request("/api/settings/notifications");
   },

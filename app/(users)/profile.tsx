@@ -25,6 +25,14 @@ export default function UserProfileScreen() {
   const { user, logout, fetchMe } = useAuthStore();
   const [loggingOut, setLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const deletionStatus = user?.account_deletion_status;
+  const hasDeletionState = ["pending_review", "scheduled", "rejected"].includes(
+    deletionStatus || "",
+  );
+  const deletionUrl =
+    deletionStatus === "scheduled" || deletionStatus === "pending_review"
+      ? `${WEB_URL}/account-deletion?mode=cancel&source=mobile`
+      : `${WEB_URL}/account-deletion?mode=request&source=mobile`;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -32,7 +40,7 @@ export default function UserProfileScreen() {
       await fetchMe();
     } catch {}
     setRefreshing(false);
-  }, []);
+  }, [fetchMe]);
 
   const initials = user?.name
     ? user.name
@@ -115,6 +123,12 @@ export default function UserProfileScreen() {
       label: "Terms of Service",
       route: "/auth/terms",
       color: "#6B7280",
+    },
+    {
+      icon: "trash-outline",
+      label: "Delete Account",
+      route: "__account_deletion__",
+      color: "#DC2626",
     },
   ];
 
@@ -205,6 +219,49 @@ export default function UserProfileScreen() {
             </View>
           </Animated.View>
 
+          {hasDeletionState ? (
+            <Animated.View
+              entering={FadeInUp.delay(140).duration(300)}
+              className="mx-5 mb-4 rounded-[28px] border border-amber-100 bg-amber-50 p-4"
+            >
+              <Text className="text-sm font-semibold text-amber-900">
+                {deletionStatus === "pending_review"
+                  ? "Account deletion request pending review"
+                  : deletionStatus === "scheduled"
+                    ? "Account deletion scheduled"
+                    : "Account deletion request rejected"}
+              </Text>
+              <Text className="mt-2 text-xs leading-5 text-amber-800">
+                {deletionStatus === "pending_review"
+                  ? "UniRide has received your request. An administrator will review it before any deletion is scheduled."
+                  : deletionStatus === "scheduled"
+                    ? `Your account is scheduled for deletion on ${new Date(
+                        user?.account_deletion_scheduled_for || "",
+                      ).toLocaleString()}. You can still cancel this request before that date.`
+                    : user?.account_deletion_review_note ||
+                      "Your request was rejected. Open the account deletion page for more details."}
+              </Text>
+              <TouchableOpacity
+                onPress={() =>
+                  WebBrowser.openBrowserAsync(deletionUrl, {
+                    presentationStyle:
+                      WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                    controlsColor: "#042F40",
+                    toolbarColor: "#FFFFFF",
+                  })
+                }
+                className="mt-3 self-start rounded-full bg-amber-900 px-4 py-2"
+              >
+                <Text className="text-xs font-semibold text-white">
+                  {deletionStatus === "scheduled" ||
+                  deletionStatus === "pending_review"
+                    ? "Cancel deletion request"
+                    : "Open deletion details"}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          ) : null}
+
           {/* Menu */}
           <View className="mx-5 rounded-[28px] bg-white px-4 py-2">
             {menuItems.map((item, idx) => (
@@ -227,6 +284,13 @@ export default function UserProfileScreen() {
                         ? `${WEB_URL}/reviews?token=${authToken}`
                         : `${WEB_URL}/reviews`;
                       WebBrowser.openBrowserAsync(reviewUrl, {
+                        presentationStyle:
+                          WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                        controlsColor: "#042F40",
+                        toolbarColor: "#FFFFFF",
+                      });
+                    } else if (item.route === "__account_deletion__") {
+                      WebBrowser.openBrowserAsync(deletionUrl, {
                         presentationStyle:
                           WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
                         controlsColor: "#042F40",
