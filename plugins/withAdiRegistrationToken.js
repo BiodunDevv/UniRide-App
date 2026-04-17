@@ -45,4 +45,8 @@ function withAdiRegistrationToken(config) {
   });
 }
 
-module.exports = createRunOncePlugin(withAdiRegistrationToken, PLUGIN_NAME, "1.0.0");
+module.exports = createRunOncePlugin(
+  withAdiRegistrationToken,
+  PLUGIN_NAME,
+  "1.0.0",
+);
