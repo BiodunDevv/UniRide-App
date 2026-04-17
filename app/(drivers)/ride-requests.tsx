@@ -99,8 +99,8 @@ export default function DriverRideRequestsScreen() {
         >
           <View className="mb-3 flex-row items-center justify-between">
             <View className="flex-row items-center">
-              <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
-                <Ionicons name="hand-right" size={18} color="#7C3AED" />
+              <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
+                <Ionicons name="hand-right" size={18} color="#042F40" />
               </View>
               <View>
                 <Text className="text-sm font-semibold text-slate-900">
@@ -113,8 +113,8 @@ export default function DriverRideRequestsScreen() {
                 </Text>
               </View>
             </View>
-            <View className="rounded-full bg-violet-50 px-3 py-1.5">
-              <Text className="text-xs font-semibold text-violet-700">
+            <View className="rounded-full bg-primary/10 px-3 py-1.5">
+              <Text className="text-xs font-semibold text-[#042F40]">
                 <T>Open</T>
               </Text>
             </View>

@@ -308,11 +308,11 @@ export default function BootstrapScreen() {
       >
         <View className="w-full" style={{ maxWidth: 620, alignSelf: "center" }}>
           <View className="mb-4 flex-row items-center">
-            <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+            <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
               <Ionicons
                 name={safeMode ? "shield-checkmark-outline" : "flash-outline"}
                 size={18}
-                color="#7C3AED"
+                color="#042F40"
               />
             </View>
             <View className="flex-1">
@@ -390,8 +390,8 @@ export default function BootstrapScreen() {
           <View className="mt-4 rounded-[26px] border border-slate-200 bg-white p-4">
             <View className="mb-3 flex-row items-center justify-between">
               <View className="flex-row items-center">
-                <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
-                  <Ionicons name="list-outline" size={17} color="#7C3AED" />
+                <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                  <Ionicons name="list-outline" size={17} color="#042F40" />
                 </View>
                 <View>
                   <Text className="text-sm font-semibold text-slate-900">
@@ -524,8 +524,8 @@ export default function BootstrapScreen() {
 
           <View className="mt-4 rounded-[26px] border border-slate-200 bg-white p-4">
             <View className="mb-3 flex-row items-center">
-              <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
-                <Ionicons name="build-outline" size={17} color="#7C3AED" />
+              <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                <Ionicons name="build-outline" size={17} color="#042F40" />
               </View>
               <View className="flex-1">
                 <Text className="text-sm font-semibold text-slate-900">
@@ -563,7 +563,7 @@ export default function BootstrapScreen() {
             <View className="mt-4 gap-2.5">
               <Pressable
                 onPress={handleRetry}
-                className="items-center rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3.5"
+                className="items-center rounded-2xl border border-[#042F40] bg-[#042F40] px-4 py-3.5"
               >
                 <Text className="text-sm font-semibold text-white">
                   Retry full startup

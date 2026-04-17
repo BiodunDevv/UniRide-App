@@ -36,6 +36,7 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { useLocation } from "@/hooks/use-location";
 import { locationApi } from "@/lib/rideApi";
+import { resolveSeatCount, resolveTotalFare } from "@/lib/rideDisplay";
 import {
   resolveSafeCenter,
   sanitizeLngLatTuple,
@@ -55,6 +56,9 @@ export default function UserActiveRideScreen() {
   const { userLocation } = useLocationStore();
   const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
+  );
+  const farePerSeatEnabled = usePlatformSettingsStore(
+    (state) => state.settings.fare_per_seat,
   );
   const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
@@ -410,7 +414,13 @@ export default function UserActiveRideScreen() {
     driverObj?.bank_account_number?.trim?.(),
   );
   const canMarkSent = showBankDetails && transferPaymentStatus === "pending";
-  const totalFare = booking?.total_fare || ride?.fare || 0;
+  const bookedSeats = resolveSeatCount(booking?.seats_requested, 1);
+  const totalFare = resolveTotalFare({
+    rideFare: ride?.fare,
+    bookingTotalFare: booking?.total_fare,
+    seatsRequested: bookedSeats,
+    farePerSeat: farePerSeatEnabled,
+  });
   const driverBankName = driverObj?.bank_name?.trim?.() || "Not added yet";
   const driverBankAccountNumber =
     driverObj?.bank_account_number?.trim?.() || "Not added yet";
@@ -477,6 +487,15 @@ export default function UserActiveRideScreen() {
       params: { driverId },
     });
   }, [driverId, router]);
+
+  const handleBackToHome = useCallback(() => {
+    setRideCompleted(false);
+    if (rideIdRef.current) {
+      leaveRide(rideIdRef.current);
+      rideIdRef.current = null;
+    }
+    router.replace("/(users)" as any);
+  }, [leaveRide, router]);
 
   if (loading)
     return (
@@ -826,7 +845,7 @@ export default function UserActiveRideScreen() {
                   <View className="flex-row gap-2">
                     <TouchableOpacity
                       onPress={openDriverProfile}
-                      className="w-9 h-9 rounded-full bg-slate-900 items-center justify-center"
+                      className="w-9 h-9 rounded-full bg-[#042F40] items-center justify-center"
                     >
                       <Ionicons name="person-outline" size={16} color="#fff" />
                     </TouchableOpacity>
@@ -875,8 +894,8 @@ export default function UserActiveRideScreen() {
               <View className="mb-3 rounded-[26px] border border-slate-200 bg-white p-4">
                 <View className="mb-3 flex-row items-center justify-between">
                   <View className="flex-row items-center">
-                    <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
-                      <Ionicons name="card-outline" size={18} color="#7C3AED" />
+                    <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                      <Ionicons name="card-outline" size={18} color="#042F40" />
                     </View>
                     <View>
                       <Text className="text-sm font-semibold text-slate-900">
@@ -1001,7 +1020,7 @@ export default function UserActiveRideScreen() {
                   <TouchableOpacity
                     onPress={handleMarkSent}
                     disabled={markingSent}
-                    className="mt-3 rounded-2xl border border-slate-900 bg-slate-900 py-3 items-center"
+                    className="mt-3 rounded-2xl border border-[#042F40] bg-[#042F40] py-3 items-center"
                   >
                     {markingSent ? (
                       <ActivityIndicator size="small" color="#fff" />
@@ -1033,8 +1052,8 @@ export default function UserActiveRideScreen() {
                 className="mb-3 rounded-[24px] border border-slate-200 bg-white p-4"
               >
                 <View className="flex-row items-center">
-                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
-                    <Ionicons name="key-outline" size={18} color="#7C3AED" />
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                    <Ionicons name="key-outline" size={18} color="#042F40" />
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-semibold text-slate-900">
@@ -1167,7 +1186,7 @@ export default function UserActiveRideScreen() {
               </View>
 
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={handleBackToHome}
                 className="mt-6 w-full items-center rounded-2xl bg-primary py-4"
               >
                 <Text className="text-white font-bold text-base">

@@ -22,6 +22,13 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { useRideStore, Ride, Booking } from "@/store/useRideStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { locationApi } from "@/lib/rideApi";
+import {
+  normalizePhone,
+  resolvePerSeatFare,
+  resolveSeatCount,
+  resolveTotalFare,
+} from "@/lib/rideDisplay";
 import { T } from "@/hooks/use-translation";
 
 const STATUS_BADGES: Record<
@@ -73,6 +80,9 @@ export default function RideDetailsScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [fallbackDriverPhone, setFallbackDriverPhone] = useState<string | null>(
+    null,
+  );
 
   const loadDetails = useCallback(async () => {
     // If we have a bookingId, find it from myBookings first
@@ -192,7 +202,7 @@ export default function RideDetailsScreen() {
       : null;
   const driverName = driverUser?.name || driverDoc?.name || "Driver";
   const driverPhoto = driverUser?.profile_picture || null;
-  const driverPhone = driverUser?.phone || driverDoc?.phone || null;
+  const driverPhone = normalizePhone(driverUser?.phone, driverDoc?.phone);
   const driverId = driverDoc?._id || null;
   const driverBankName = driverDoc?.bank_name?.trim?.() || "Not added yet";
   const driverBankAccountNumber =
@@ -203,11 +213,19 @@ export default function RideDetailsScreen() {
     ? (ride.seats_remaining ?? ride.available_seats - ride.booked_seats)
     : 0;
   const maxSeats = Math.min(seatsLeft, settings.max_seats_per_booking || 10);
-  const totalFare = settings.fare_per_seat
-    ? ride?.fare
-      ? ride.fare * seats
-      : 0
-    : ride?.fare || 0;
+  const displaySeats = resolveSeatCount(booking?.seats_requested, seats);
+  const totalFare = resolveTotalFare({
+    rideFare: ride?.fare,
+    bookingTotalFare: booking?.total_fare,
+    seatsRequested: displaySeats,
+    farePerSeat: settings.fare_per_seat,
+  });
+  const perSeatFare = resolvePerSeatFare({
+    rideFare: ride?.fare,
+    bookingTotalFare: booking?.total_fare,
+    seatsRequested: displaySeats,
+    farePerSeat: settings.fare_per_seat,
+  });
   const dep = ride?.departure_time ? new Date(ride.departure_time) : null;
   const dist = ride?.distance_meters
     ? `${(ride.distance_meters / 1000).toFixed(1)} km`
@@ -235,9 +253,50 @@ export default function RideDetailsScreen() {
   const hasDriverAccountNumber = Boolean(
     driverDoc?.bank_account_number?.trim?.(),
   );
-  const transferAmount = Number(booking?.total_fare || ride?.fare || 0);
+  const transferAmount = Number(totalFare || 0);
   const canMarkSent =
     isTransfer && isTransferBookingFlow && transferPaymentStatus === "pending";
+  const displayDriverPhone = driverPhone || fallbackDriverPhone;
+
+  const pickupLabel =
+    pickup?.short_name ||
+    pickup?.name ||
+    ride?.pickup_location?.address ||
+    "Pickup";
+  const destinationLabel =
+    dest?.short_name ||
+    dest?.name ||
+    ride?.destination?.address ||
+    "Destination";
+
+  useEffect(() => {
+    let mounted = true;
+
+    if (!driverId || driverPhone) {
+      setFallbackDriverPhone(null);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    (async () => {
+      try {
+        const res = await locationApi.getPublicDriverProfile(driverId);
+        const phone = res?.data?.phone?.trim?.() || null;
+        if (mounted) {
+          setFallbackDriverPhone(phone);
+        }
+      } catch {
+        if (mounted) {
+          setFallbackDriverPhone(null);
+        }
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [driverId, driverPhone]);
 
   useEffect(() => {
     if (!__DEV__ || !booking || !isTransfer || !isTransferBookingFlow) return;
@@ -377,14 +436,14 @@ export default function RideDetailsScreen() {
   };
 
   const handleCallDriver = async () => {
-    if (!driverPhone) {
+    if (!displayDriverPhone) {
       Alert.alert(
         "Phone unavailable",
         "This driver has not added a phone number yet.",
       );
       return;
     }
-    const telUrl = `tel:${driverPhone}`;
+    const telUrl = `tel:${displayDriverPhone}`;
     const supported = await Linking.canOpenURL(telUrl);
     if (!supported) {
       Alert.alert(
@@ -425,16 +484,8 @@ export default function RideDetailsScreen() {
       params: {
         bookingId: booking._id,
         rideId: ride?._id,
-        pickup:
-          pickup?.short_name ||
-          pickup?.name ||
-          ride?.pickup_location?.address ||
-          "Pickup",
-        destination:
-          dest?.short_name ||
-          dest?.name ||
-          ride?.destination?.address ||
-          "Destination",
+        pickup: pickupLabel,
+        destination: destinationLabel,
       },
     });
   };
@@ -518,19 +569,13 @@ export default function RideDetailsScreen() {
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-semibold text-gray-800">
-                    {pickup?.short_name ||
-                      pickup?.name ||
-                      ride.pickup_location?.address ||
-                      "Pickup"}
+                    {pickupLabel}
                   </Text>
                   <Text className="text-xs text-gray-400 mb-5">
                     {pickup?.address || ""}
                   </Text>
                   <Text className="text-sm font-semibold text-gray-800">
-                    {dest?.short_name ||
-                      dest?.name ||
-                      ride.destination?.address ||
-                      "Destination"}
+                    {destinationLabel}
                   </Text>
                   <Text className="text-xs text-gray-400">
                     {dest?.address || ""}
@@ -602,15 +647,7 @@ export default function RideDetailsScreen() {
                 Trip Summary
               </Text>
               <Text className="mt-2 text-lg font-bold text-white">
-                {pickup?.short_name ||
-                  pickup?.name ||
-                  ride.pickup_location?.address ||
-                  "Pickup"}{" "}
-                {"→"}{" "}
-                {dest?.short_name ||
-                  dest?.name ||
-                  ride.destination?.address ||
-                  "Destination"}
+                {pickupLabel} {"→"} {destinationLabel}
               </Text>
               <View className="mt-4 flex-row gap-3">
                 <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
@@ -618,7 +655,7 @@ export default function RideDetailsScreen() {
                     <T>Seats</T>
                   </Text>
                   <Text className="mt-1 text-xl font-bold text-white">
-                    {booking?.seats_requested || seats}
+                    {displaySeats}
                   </Text>
                 </View>
                 <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
@@ -626,7 +663,7 @@ export default function RideDetailsScreen() {
                     <T>Fare</T>
                   </Text>
                   <Text className="mt-1 text-xl font-bold text-white">
-                    ₦{totalFare}
+                    ₦{totalFare.toLocaleString()}
                   </Text>
                 </View>
                 <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
@@ -685,7 +722,7 @@ export default function RideDetailsScreen() {
                     </View>
                   )}
                 </View>
-                {(driverPhone ||
+                {(displayDriverPhone ||
                   booking?.status === "accepted" ||
                   inProgress) && (
                   <View className="mt-4 flex-row items-center gap-3">
@@ -698,7 +735,7 @@ export default function RideDetailsScreen() {
                         Driver Contact
                       </Text>
                       <Text className="mt-1 text-sm font-semibold text-slate-800">
-                        {driverPhone || "Phone not added yet"}
+                        {displayDriverPhone || "Phone not added yet"}
                       </Text>
                       <Text className="mt-1 text-xs text-slate-500">
                         View the full driver profile or call.
@@ -706,7 +743,7 @@ export default function RideDetailsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleOpenDriverProfile}
-                      className="h-14 w-14 rounded-2xl items-center justify-center bg-slate-900"
+                      className="h-14 w-14 rounded-2xl items-center justify-center bg-[#042F40]"
                     >
                       <Ionicons
                         name="person-outline"
@@ -716,13 +753,13 @@ export default function RideDetailsScreen() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={handleCallDriver}
-                      disabled={!driverPhone}
-                      className={`h-14 w-14 rounded-2xl items-center justify-center ${driverPhone ? "bg-primary" : "bg-slate-200"}`}
+                      disabled={!displayDriverPhone}
+                      className={`h-14 w-14 rounded-2xl items-center justify-center ${displayDriverPhone ? "bg-primary" : "bg-slate-200"}`}
                     >
                       <Ionicons
                         name="call"
                         size={20}
-                        color={driverPhone ? "#FFFFFF" : "#94A3B8"}
+                        color={displayDriverPhone ? "#FFFFFF" : "#94A3B8"}
                       />
                     </TouchableOpacity>
                   </View>
@@ -773,11 +810,11 @@ export default function RideDetailsScreen() {
                 </Text>
                 <View className="flex-row items-baseline">
                   <Text className="text-2xl font-bold text-primary">
-                    ₦{totalFare}
+                    ₦{totalFare.toLocaleString()}
                   </Text>
-                  {settings.fare_per_seat && seats > 1 && (
+                  {settings.fare_per_seat && displaySeats > 1 && (
                     <Text className="text-xs text-gray-400 ml-2">
-                      ₦{ride.fare} × {seats}
+                      ₦{perSeatFare.toLocaleString()} × {displaySeats}
                     </Text>
                   )}
                 </View>
@@ -793,11 +830,11 @@ export default function RideDetailsScreen() {
                 <View className="rounded-[26px] border border-slate-200 bg-white p-4">
                   <View className="mb-3 flex-row items-center justify-between">
                     <View className="flex-row items-center">
-                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
                         <Ionicons
                           name="key-outline"
                           size={18}
-                          color="#7C3AED"
+                          color="#042F40"
                         />
                       </View>
                       <View>
@@ -809,11 +846,6 @@ export default function RideDetailsScreen() {
                         </Text>
                       </View>
                     </View>
-                    <View className="rounded-full bg-violet-50 px-3 py-1.5">
-                      <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">
-                        Boarding
-                      </Text>
-                    </View>
                   </View>
 
                   <View className="mb-4 rounded-2xl bg-slate-50 px-4 py-3">
@@ -821,14 +853,13 @@ export default function RideDetailsScreen() {
                       Route
                     </Text>
                     <Text className="mt-1 text-sm font-semibold text-slate-900">
-                      {pickup?.short_name || pickup?.name || "Pickup"} {"→"}{" "}
-                      {dest?.short_name || dest?.name || "Destination"}
+                      {pickupLabel} {"→"} {destinationLabel}
                     </Text>
                   </View>
 
                   <TouchableOpacity
                     onPress={handleOpenCheckIn}
-                    className="rounded-2xl border border-slate-900 bg-slate-900 py-3.5 items-center flex-row justify-center"
+                    className="rounded-2xl border border-[#042F40] bg-[#042F40] py-3.5 items-center flex-row justify-center"
                   >
                     <Ionicons
                       name="shield-checkmark-outline"
@@ -942,11 +973,11 @@ export default function RideDetailsScreen() {
                 <View className="rounded-[26px] border border-slate-200 bg-white p-4">
                   <View className="mb-3 flex-row items-center justify-between">
                     <View className="flex-row items-center">
-                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
                         <Ionicons
                           name="card-outline"
                           size={18}
-                          color="#7C3AED"
+                          color="#042F40"
                         />
                       </View>
                       <View>
@@ -1008,7 +1039,7 @@ export default function RideDetailsScreen() {
                     <TouchableOpacity
                       onPress={handleMarkSent}
                       disabled={markingPaid}
-                      className="rounded-2xl border border-slate-900 bg-slate-900 py-3 items-center mb-3 flex-row justify-center"
+                      className="rounded-2xl border border-[#042F40] bg-[#042F40] py-3 items-center mb-3 flex-row justify-center"
                     >
                       {markingPaid ? (
                         <ActivityIndicator size="small" color="#fff" />
@@ -1171,7 +1202,7 @@ export default function RideDetailsScreen() {
                       ) : (
                         <T>Add Phone to Book</T>
                       )}{" "}
-                      · ₦{totalFare}
+                      · ₦{totalFare.toLocaleString()}
                     </Text>
                   )}
                 </TouchableOpacity>

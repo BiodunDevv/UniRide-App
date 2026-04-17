@@ -146,8 +146,8 @@ export default function MaintenanceScreen() {
 
           <View className="mt-4 rounded-[26px] border border-slate-200 bg-white p-4">
             <View className="mb-3 flex-row items-center">
-              <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
-                <Ionicons name="build-outline" size={17} color="#7C3AED" />
+              <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                <Ionicons name="build-outline" size={17} color="#042F40" />
               </View>
               <View className="flex-1">
                 <Text className="text-sm font-semibold text-slate-900">

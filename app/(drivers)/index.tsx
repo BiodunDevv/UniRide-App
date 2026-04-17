@@ -659,13 +659,13 @@ export default function DriverHomeScreen() {
                       onPress={() =>
                         router.push("/(drivers)/ride-requests" as any)
                       }
-                      className="flex-1 rounded-2xl border border-violet-100 bg-violet-50 px-3 py-3"
+                      className="flex-1 rounded-2xl border border-primary/10 bg-primary/10 px-3 py-3"
                       activeOpacity={0.85}
                     >
-                      <Text className="text-[11px] text-violet-700">
+                      <Text className="text-[11px] text-[#042F40]">
                         <T>Ride requests</T>
                       </Text>
-                      <Text className="mt-1 text-lg font-bold text-violet-900">
+                      <Text className="mt-1 text-lg font-bold text-primary">
                         {availableRequests.length}
                       </Text>
                     </TouchableOpacity>
@@ -924,8 +924,8 @@ export default function DriverHomeScreen() {
                       }}
                       className="bg-white rounded-2xl p-4 mb-2.5 flex-row items-center border border-slate-200"
                     >
-                      <View className="w-10 h-10 rounded-2xl bg-violet-100 items-center justify-center mr-3">
-                        <Ionicons name="hand-right" size={14} color="#7C3AED" />
+                      <View className="w-10 h-10 rounded-2xl bg-primary/10 items-center justify-center mr-3">
+                        <Ionicons name="hand-right" size={14} color="#042F40" />
                       </View>
                       <View className="flex-1">
                         <Text className="text-sm font-semibold text-gray-800">
@@ -940,7 +940,7 @@ export default function DriverHomeScreen() {
                       <Ionicons
                         name="chevron-forward"
                         size={14}
-                        color="#7C3AED"
+                        color="#042F40"
                       />
                     </TouchableOpacity>
                   );

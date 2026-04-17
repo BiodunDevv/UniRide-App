@@ -466,6 +466,14 @@ export default function DriverActiveRideScreen() {
     }
   }, [ride]);
 
+  const handleBackToHome = useCallback(() => {
+    setRideCompleted(false);
+    if (rideId) {
+      leaveRide(rideId);
+    }
+    router.replace("/(drivers)" as any);
+  }, [leaveRide, rideId, router]);
+
   const pickup =
     ride && typeof ride.pickup_location_id === "object"
       ? ride.pickup_location_id
@@ -1022,7 +1030,7 @@ export default function DriverActiveRideScreen() {
               </View>
 
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={handleBackToHome}
                 className="mt-6 w-full items-center rounded-2xl bg-primary py-4"
               >
                 <Text className="text-white font-bold text-base">

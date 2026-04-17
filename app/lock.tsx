@@ -402,8 +402,8 @@ export default function CurrentUserScreen() {
                 className="px-5 pt-3"
               >
                 <View className="mb-4 flex-row items-center">
-                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
-                    <Logo width={18} height={11} color="#7C3AED" />
+                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
+                    <Logo width={18} height={11} color="#042F40" />
                   </View>
                   <View className="flex-1">
                     <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -782,7 +782,7 @@ export default function CurrentUserScreen() {
                           entering={FadeInDown.delay(80).duration(400)}
                           onPress={handleBiometric}
                           disabled={authenticating}
-                          className="mb-3 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-4 active:opacity-90"
+                          className="mb-3 rounded-2xl border border-[#042F40] bg-[#042F40] px-4 py-4 active:opacity-90"
                         >
                           <View className="flex-row items-center">
                             <View className="w-12 h-12 rounded-xl bg-white/10 items-center justify-center mr-4">
@@ -826,7 +826,7 @@ export default function CurrentUserScreen() {
                           className={`mb-3 rounded-2xl border px-4 py-4 active:opacity-90 ${
                             hasBiometric
                               ? "border-slate-200 bg-slate-50"
-                              : "border-slate-900 bg-slate-900"
+                              : "border-[#042F40] bg-[#042F40]"
                           }`}
                         >
                           <View className="flex-row items-center">
@@ -877,7 +877,7 @@ export default function CurrentUserScreen() {
                         <AnimatedPressable
                           entering={FadeInDown.delay(80).duration(400)}
                           onPress={navigateHome}
-                          className="mb-3 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-4 active:opacity-90"
+                          className="mb-3 rounded-2xl border border-[#042F40] bg-[#042F40] px-4 py-4 active:opacity-90"
                         >
                           <View className="flex-row items-center">
                             <View className="w-12 h-12 rounded-xl bg-white/10 items-center justify-center mr-4">

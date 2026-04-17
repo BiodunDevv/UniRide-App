@@ -228,11 +228,11 @@ export default function UserCheckInPage() {
               className="rounded-[26px] border border-slate-200 bg-white p-5"
             >
               <View className="mb-2 flex-row items-center">
-                <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
                   <Ionicons
                     name="shield-checkmark-outline"
                     size={18}
-                    color="#7C3AED"
+                    color="#042F40"
                   />
                 </View>
                 <View>
@@ -258,7 +258,7 @@ export default function UserCheckInPage() {
                     maxLength={1}
                     textAlign="center"
                     className="h-16 w-14 rounded-2xl border-2 bg-slate-50 text-2xl font-bold text-slate-900"
-                    style={{ borderColor: digit ? "#7C3AED" : "#E2E8F0" }}
+                    style={{ borderColor: digit ? "#042F40" : "#E2E8F0" }}
                     onKeyPress={({ nativeEvent }) => {
                       if (
                         nativeEvent.key === "Backspace" &&
@@ -277,7 +277,7 @@ export default function UserCheckInPage() {
                 disabled={submitting || code.length < 4}
                 className={`mt-5 flex-row items-center justify-center rounded-2xl border px-4 py-3.5 ${
                   code.length === 4
-                    ? "border-slate-900 bg-slate-900"
+                    ? "border-[#042F40] bg-[#042F40]"
                     : "border-slate-200 bg-slate-100"
                 }`}
               >

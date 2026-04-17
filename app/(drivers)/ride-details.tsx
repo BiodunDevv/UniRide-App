@@ -479,11 +479,11 @@ export default function DriverRideDetailsScreen() {
             >
               <View className="mb-3 flex-row items-center justify-between">
                 <View className="flex-row items-center">
-                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
                     <Ionicons
                       name="navigate-outline"
                       size={18}
-                      color="#7C3AED"
+                      color="#042F40"
                     />
                   </View>
                   <View className="max-w-[72%]">
@@ -580,11 +580,11 @@ export default function DriverRideDetailsScreen() {
               <View className="rounded-[26px] border border-slate-200 bg-white p-4">
                 <View className="mb-3 flex-row items-center justify-between">
                   <View className="flex-row items-center">
-                    <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+                    <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-primary/10">
                       <Ionicons
                         name="hand-right-outline"
                         size={18}
-                        color="#7C3AED"
+                        color="#042F40"
                       />
                     </View>
                     <View>
@@ -596,8 +596,8 @@ export default function DriverRideDetailsScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View className="rounded-full bg-violet-50 px-3 py-1.5">
-                    <Text className="text-xs font-semibold text-violet-700">
+                  <View className="rounded-full bg-primary/10 px-3 py-1.5">
+                    <Text className="text-xs font-semibold text-[#042F40]">
                       <T>Open</T>
                     </Text>
                   </View>
@@ -865,7 +865,7 @@ export default function DriverRideDetailsScreen() {
                           <TouchableOpacity
                             onPress={() => handleAcceptBooking(bk._id)}
                             disabled={actionId === bk._id}
-                            className="flex-1 rounded-2xl bg-slate-900 py-2.5 items-center"
+                            className="flex-1 rounded-2xl border border-[#042F40] bg-[#042F40] py-2.5 items-center"
                           >
                             {actionId === bk._id ? (
                               <ActivityIndicator size="small" color="#fff" />
@@ -902,7 +902,7 @@ export default function DriverRideDetailsScreen() {
           {isRequestRide ? (
             <TouchableOpacity
               onPress={handleAcceptRequest}
-              className="rounded-2xl border border-slate-900 bg-slate-900 py-4 items-center flex-row justify-center"
+              className="rounded-2xl border border-[#042F40] bg-[#042F40] py-4 items-center flex-row justify-center"
             >
               <Ionicons
                 name="checkmark-circle-outline"
@@ -987,7 +987,7 @@ export default function DriverRideDetailsScreen() {
                 disabled={!canStartRide}
                 className={`rounded-2xl border py-4 items-center flex-row justify-center ${
                   canStartRide
-                    ? "border-slate-900 bg-slate-900"
+                    ? "border-[#042F40] bg-[#042F40]"
                     : "border-slate-200 bg-slate-100"
                 }`}
               >
