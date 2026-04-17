@@ -36,7 +36,6 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { useLocation } from "@/hooks/use-location";
 import { locationApi } from "@/lib/rideApi";
-import { resolveSeatCount, resolveTotalFare } from "@/lib/rideDisplay";
 import {
   resolveSafeCenter,
   sanitizeLngLatTuple,
@@ -56,9 +55,6 @@ export default function UserActiveRideScreen() {
   const { userLocation } = useLocationStore();
   const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) => state.settings.expo_maps_enabled,
-  );
-  const farePerSeatEnabled = usePlatformSettingsStore(
-    (state) => state.settings.fare_per_seat,
   );
   const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
@@ -414,13 +410,7 @@ export default function UserActiveRideScreen() {
     driverObj?.bank_account_number?.trim?.(),
   );
   const canMarkSent = showBankDetails && transferPaymentStatus === "pending";
-  const bookedSeats = resolveSeatCount(booking?.seats_requested, 1);
-  const totalFare = resolveTotalFare({
-    rideFare: ride?.fare,
-    bookingTotalFare: booking?.total_fare,
-    seatsRequested: bookedSeats,
-    farePerSeat: farePerSeatEnabled,
-  });
+  const totalFare = booking?.total_fare || ride?.fare || 0;
   const driverBankName = driverObj?.bank_name?.trim?.() || "Not added yet";
   const driverBankAccountNumber =
     driverObj?.bank_account_number?.trim?.() || "Not added yet";
@@ -894,8 +884,8 @@ export default function UserActiveRideScreen() {
               <View className="mb-3 rounded-[26px] border border-slate-200 bg-white p-4">
                 <View className="mb-3 flex-row items-center justify-between">
                   <View className="flex-row items-center">
-                    <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
-                      <Ionicons name="card-outline" size={18} color="#042F40" />
+                    <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                      <Ionicons name="card-outline" size={18} color="#7C3AED" />
                     </View>
                     <View>
                       <Text className="text-sm font-semibold text-slate-900">
@@ -1052,8 +1042,8 @@ export default function UserActiveRideScreen() {
                 className="mb-3 rounded-[24px] border border-slate-200 bg-white p-4"
               >
                 <View className="flex-row items-center">
-                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
-                    <Ionicons name="key-outline" size={18} color="#042F40" />
+                  <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                    <Ionicons name="key-outline" size={18} color="#7C3AED" />
                   </View>
                   <View className="flex-1">
                     <Text className="text-sm font-semibold text-slate-900">

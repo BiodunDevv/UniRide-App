@@ -9,6 +9,17 @@ module.exports = () => {
   const googleMapsConfigured = Boolean(googleMapsApiKey);
 
   const plugins = [...(expo.plugins || [])];
+  const mapsPlugin = [
+    "react-native-maps",
+    {
+      androidGoogleMapsApiKey: googleMapsApiKey,
+    },
+  ];
+  const resolvedPlugins = [
+    ...plugins,
+    ...(googleMapsConfigured ? [mapsPlugin] : []),
+    "./plugins/withAdiRegistrationToken",
+  ];
 
   return {
     expo: {
@@ -24,17 +35,7 @@ module.exports = () => {
             }
           : expo.android?.config,
       },
-      plugins: googleMapsConfigured
-        ? [
-            ...plugins,
-            [
-              "react-native-maps",
-              {
-                androidGoogleMapsApiKey: googleMapsApiKey,
-              },
-            ],
-          ]
-        : plugins,
+      plugins: resolvedPlugins,
       extra: {
         ...expo.extra,
         googleMapsConfigured,
