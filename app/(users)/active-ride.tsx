@@ -10,7 +10,6 @@ import {
   Linking,
   ScrollView,
   InteractionManager,
-  Platform,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -59,7 +58,7 @@ export default function UserActiveRideScreen() {
   );
   const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
-  const { joinRide, leaveRide, streamPassengerLocation } = useSocket();
+  const { connect, joinRide, leaveRide, streamPassengerLocation } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
   const { requestPermission, startWatching } = useLocation();
 
@@ -74,9 +73,7 @@ export default function UserActiveRideScreen() {
   const [markingSent, setMarkingSent] = useState(false);
   const rideIdRef = useRef<string | null>(null);
   const [rideCompleted, setRideCompleted] = useState(false);
-  const [mapType, setMapType] = useState<"satellite" | "standard">(
-    Platform.OS === "android" ? "satellite" : "standard",
-  );
+  const [mapType, setMapType] = useState<"satellite" | "standard">("satellite");
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
   const [driverLastUpdated, setDriverLastUpdated] = useState<string | null>(
     null,
@@ -129,6 +126,7 @@ export default function UserActiveRideScreen() {
   useEffect(() => {
     (async () => {
       setLoading(true);
+      await connect();
       await fetchMyBookings();
       const bks = useRideStore.getState().myBookings;
       const active = bks.find(
@@ -173,7 +171,7 @@ export default function UserActiveRideScreen() {
     return () => {
       if (rideIdRef.current) leaveRide(rideIdRef.current);
     };
-  }, []);
+  }, [connect]);
 
   // ── Socket: driver location ───────────────────────────────────────
   useEffect(() => {
@@ -372,10 +370,19 @@ export default function UserActiveRideScreen() {
     ride && typeof ride.destination_id === "object"
       ? ride.destination_id
       : null;
-  const driverObj: any =
+  const bookingRideObj =
+    booking?.ride_id && typeof booking.ride_id === "object"
+      ? booking.ride_id
+      : null;
+  const rideDriverObj =
     ride?.driver_id && typeof ride.driver_id === "object"
       ? ride.driver_id
       : null;
+  const bookingRideDriverObj =
+    bookingRideObj?.driver_id && typeof bookingRideObj.driver_id === "object"
+      ? bookingRideObj.driver_id
+      : null;
+  const driverObj: any = rideDriverObj || bookingRideDriverObj;
   const driverUser: any =
     driverObj?.user_id && typeof driverObj.user_id === "object"
       ? driverObj.user_id
@@ -385,6 +392,7 @@ export default function UserActiveRideScreen() {
   const driverName = driverUser?.name || driverObj?.name || "Driver";
   const driverPic = driverUser?.profile_picture || driverObj?.profile_picture;
   const driverId = driverObj?._id || null;
+  const driverMapLabel = driverName.split(" ")[0] || "Driver";
   const driverInitials = driverName
     .split(" ")
     .map((n: string) => n[0])
@@ -421,6 +429,7 @@ export default function UserActiveRideScreen() {
           bookingStatus: booking.status,
           paymentStatus: booking.payment_status,
           hasRideDriverId: Boolean(ride?.driver_id),
+          hasBookingRideDriverId: Boolean(bookingRideDriverObj),
         },
       );
       return;
@@ -451,6 +460,7 @@ export default function UserActiveRideScreen() {
     booking?.payment_status,
     booking?.status,
     driverObj,
+    bookingRideDriverObj,
     ride?._id,
     ride?.driver_id,
     showBankDetails,
@@ -597,14 +607,21 @@ export default function UserActiveRideScreen() {
                     latitude: driverCoords[1],
                     longitude: driverCoords[0],
                   }}
-                  anchor={{ x: 0.5, y: 0.5 }}
+                  anchor={{ x: 0.5, y: 1 }}
                   tracksViewChanges={false}
                 >
-                  <Image
-                    source={require("@/assets/images/car-marker.png")}
-                    style={{ width: 38, height: 38 }}
-                    resizeMode="contain"
-                  />
+                  <View className="items-center">
+                    <Image
+                      source={require("@/assets/images/car-marker.png")}
+                      style={{ width: 38, height: 38 }}
+                      resizeMode="contain"
+                    />
+                    <View className="mt-1 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1">
+                      <Text className="text-[10px] font-semibold text-slate-700">
+                        {driverMapLabel}
+                      </Text>
+                    </View>
+                  </View>
                 </Marker>
               )}
             </MapView>
@@ -1003,7 +1020,7 @@ export default function UserActiveRideScreen() {
               <TouchableOpacity
                 onPress={() =>
                   router.push({
-                    pathname: "/(users)/check-in" as any,
+                    pathname: "/check-in" as any,
                     params: {
                       bookingId: booking._id,
                       rideId: ride?._id,

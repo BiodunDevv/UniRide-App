@@ -265,7 +265,9 @@ export default function CurrentUserScreen() {
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (!hasHardware || !isEnrolled) {
-        throw new Error("Biometric authentication is not available on this device.");
+        throw new Error(
+          "Biometric authentication is not available on this device.",
+        );
       }
 
       const result = await LocalAuthentication.authenticateAsync({
@@ -387,107 +389,144 @@ export default function CurrentUserScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <View className="flex-1 bg-white">
+      <View className="flex-1 bg-slate-50">
         <SafeAreaView className="flex-1" edges={["top", "bottom"]}>
           <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             className="flex-1"
           >
             <View className="flex-1">
-              {/* ── Top Bar: Logo left · Role right ────────────── */}
+              {/* ── Header + Hero Card ─────────────────────────── */}
               <Animated.View
                 entering={FadeIn.duration(350)}
-                className="flex-row items-center justify-between px-6 pt-3 pb-2"
+                className="px-5 pt-3"
               >
-                <View className="flex-row items-center gap-2.5">
-                  <View className="w-9 h-9 rounded-xl bg-primary items-center justify-center">
-                    <Logo width={18} height={11} color="#FFFFFF" />
+                <View className="mb-4 flex-row items-center">
+                  <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+                    <Logo width={18} height={11} color="#7C3AED" />
                   </View>
-                  <Text className="text-primary text-base font-bold tracking-tight">
-                    UniRide
-                  </Text>
+                  <View className="flex-1">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Account Security
+                    </Text>
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
+                      <T>Secure unlock</T>
+                    </Text>
+                  </View>
+                  <View className="rounded-full bg-amber-50 px-3 py-1.5">
+                    <Text className="text-xs font-semibold text-amber-700">
+                      <T>Locked</T>
+                    </Text>
+                  </View>
                 </View>
-                <View className="flex-row items-center gap-2">
-                  <Pressable
-                    onPress={() => router.push("/language-picker")}
-                    className="flex-row items-center px-3 py-2 rounded-full bg-primary/5 border border-primary/10 active:opacity-70"
-                  >
-                    <Ionicons name="globe-outline" size={16} color="#042F40" />
-                    <Text className="text-primary text-xs font-bold ml-1.5">
-                      {LANG_LABEL[language] || language.toUpperCase()}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={12}
-                      color="#042F40"
-                      style={{ marginLeft: 2 }}
-                    />
-                  </Pressable>
-                  <View
-                    className={`px-3 py-1 rounded-full ${
-                      user?.role === "driver"
-                        ? "bg-[#D4A017]/10"
-                        : "bg-primary/5"
-                    }`}
-                  >
-                    <Text
-                      className={`text-[11px] font-bold capitalize ${
-                        user?.role === "driver"
-                          ? "text-[#D4A017]"
-                          : "text-primary"
-                      }`}
+
+                <View className="rounded-[28px] bg-[#042F40] px-5 py-5">
+                  <View className="flex-row items-start justify-between">
+                    <View className="mr-3 flex-1">
+                      <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+                        Welcome Back
+                      </Text>
+                      <Text className="mt-2 text-2xl font-bold text-white">
+                        {firstName}
+                      </Text>
+                      <Text
+                        className="mt-1 text-sm text-slate-300"
+                        numberOfLines={1}
+                      >
+                        {user?.email}
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => router.push("/language-picker")}
+                      className="rounded-full border border-white/15 bg-white/10 px-3 py-2"
                     >
-                      {user?.role === "driver" ? <T>Driver</T> : <T>Rider</T>}
-                    </Text>
+                      <View className="flex-row items-center">
+                        <Ionicons
+                          name="globe-outline"
+                          size={14}
+                          color="#FFFFFF"
+                        />
+                        <Text className="ml-1.5 text-xs font-semibold text-white">
+                          {LANG_LABEL[language] || language.toUpperCase()}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </View>
+
+                  <View className="mt-4 flex-row gap-3">
+                    <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                      <Text className="text-[11px] text-slate-300">
+                        <T>Role</T>
+                      </Text>
+                      <Text className="mt-1 text-base font-bold text-white capitalize">
+                        {user?.role === "driver" ? <T>Driver</T> : <T>Rider</T>}
+                      </Text>
+                    </View>
+                    <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
+                      <Text className="text-[11px] text-slate-300">
+                        <T>Security</T>
+                      </Text>
+                      <Text className="mt-1 text-base font-bold text-white">
+                        {hasBiometric && hasPin
+                          ? "Biometric + PIN"
+                          : hasBiometric
+                            ? "Biometric"
+                            : hasPin
+                              ? "PIN"
+                              : "Quick access"}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </Animated.View>
 
               <ScrollView
                 className="flex-1"
-                contentContainerStyle={{ flexGrow: 1 }}
+                contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
                 bounces={false}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
               >
                 {/* ── User Identity Section ─────────────────────── */}
-                <View className="items-center pt-6 pb-4 px-8">
-                  <Animated.View
-                    style={avatarStyle}
-                    className="w-20 h-20 rounded-full bg-primary items-center justify-center mb-4 shadow-lg overflow-hidden"
-                  >
-                    {user?.profile_picture ? (
-                      <Image
-                        source={{ uri: user.profile_picture }}
-                        className="w-20 h-20 rounded-full"
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <Text className="text-white text-2xl font-bold">
-                        {initials}
+                <View className="px-5 pb-3 pt-4">
+                  <View className="items-center rounded-[24px] border border-slate-200 bg-white px-4 py-4">
+                    <Animated.View
+                      style={avatarStyle}
+                      className="mb-3 h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-primary"
+                    >
+                      {user?.profile_picture ? (
+                        <Image
+                          source={{ uri: user.profile_picture }}
+                          className="h-16 w-16 rounded-full"
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text className="text-xl font-bold text-white">
+                          {initials}
+                        </Text>
+                      )}
+                    </Animated.View>
+                    <Animated.View style={nameStyle} className="items-center">
+                      <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Identity Check
                       </Text>
-                    )}
-                  </Animated.View>
-                  <Animated.View style={nameStyle} className="items-center">
-                    <Text className="text-gray-400 text-xs font-medium tracking-wide uppercase">
-                      <T>Welcome back</T>
-                    </Text>
-                    <Text className="text-primary text-xl font-bold mt-1">
-                      {firstName}
-                    </Text>
-                    <Text className="text-gray-300 text-xs mt-0.5">
-                      {user?.email}
-                    </Text>
-                  </Animated.View>
+                      <Text className="mt-1 text-base font-bold text-slate-900">
+                        {user?.name}
+                      </Text>
+                      <Text className="mt-0.5 text-xs text-slate-500">
+                        {user?.email}
+                      </Text>
+                    </Animated.View>
+                  </View>
                 </View>
 
                 {/* ── Auth Content ──────────────────────────────── */}
-                <Animated.View style={cardsStyle} className="flex-1 px-6">
+                <Animated.View style={cardsStyle} className="flex-1 px-5 pb-2">
                   {showPinReset ? (
                     /* ── PIN Reset Flow ───────────────────────────── */
                     <Animated.View
                       entering={FadeInDown.duration(350)}
-                      className="flex-1"
+                      className="flex-1 rounded-[26px] border border-slate-200 bg-white p-4"
                     >
                       <View className="items-center mb-2 mt-2">
                         <View className="w-14 h-14 rounded-2xl bg-primary/5 items-center justify-center mb-3">
@@ -636,7 +675,7 @@ export default function CurrentUserScreen() {
                     /* ── PIN Entry ────────────────────────────────── */
                     <Animated.View
                       entering={FadeInDown.duration(350)}
-                      className="flex-1"
+                      className="flex-1 rounded-[26px] border border-slate-200 bg-white p-4"
                     >
                       <View className="items-center mt-2 mb-1">
                         <Animated.View
@@ -736,14 +775,14 @@ export default function CurrentUserScreen() {
                     </Animated.View>
                   ) : (
                     /* ── Main Actions ─────────────────────────────── */
-                    <View className="flex-1 pt-4">
+                    <View className="flex-1">
                       {/* Biometric Card */}
                       {hasBiometric && (
                         <AnimatedPressable
                           entering={FadeInDown.delay(80).duration(400)}
                           onPress={handleBiometric}
                           disabled={authenticating}
-                          className="bg-primary rounded-2xl p-5 mb-3 active:opacity-90 shadow-sm"
+                          className="mb-3 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-4 active:opacity-90"
                         >
                           <View className="flex-row items-center">
                             <View className="w-12 h-12 rounded-xl bg-white/10 items-center justify-center mr-4">
@@ -784,16 +823,16 @@ export default function CurrentUserScreen() {
                             setShowPinInput(true);
                             setTimeout(() => pinRef.current?.focus(), 300);
                           }}
-                          className={`rounded-2xl p-5 mb-3 active:opacity-90 border-2 ${
+                          className={`mb-3 rounded-2xl border px-4 py-4 active:opacity-90 ${
                             hasBiometric
-                              ? "bg-white border-gray-100"
-                              : "bg-primary border-primary shadow-sm"
+                              ? "border-slate-200 bg-slate-50"
+                              : "border-slate-900 bg-slate-900"
                           }`}
                         >
                           <View className="flex-row items-center">
                             <View
                               className={`w-12 h-12 rounded-xl items-center justify-center mr-4 ${
-                                hasBiometric ? "bg-primary/5" : "bg-white/10"
+                                hasBiometric ? "bg-slate-200" : "bg-white/10"
                               }`}
                             >
                               <Ionicons
@@ -838,7 +877,7 @@ export default function CurrentUserScreen() {
                         <AnimatedPressable
                           entering={FadeInDown.delay(80).duration(400)}
                           onPress={navigateHome}
-                          className="bg-primary rounded-2xl p-5 mb-3 active:opacity-90 shadow-sm"
+                          className="mb-3 rounded-2xl border border-slate-900 bg-slate-900 px-4 py-4 active:opacity-90"
                         >
                           <View className="flex-row items-center">
                             <View className="w-12 h-12 rounded-xl bg-white/10 items-center justify-center mr-4">
@@ -873,14 +912,14 @@ export default function CurrentUserScreen() {
               {!showPinInput && !showPinReset && (
                 <Animated.View
                   entering={FadeInUp.delay(600).duration(400)}
-                  className="px-6 pb-4 pt-2"
+                  className="px-5 pb-4 pt-2"
                 >
                   <Pressable
                     onPress={async () => {
                       await logout();
                       router.replace("/auth/role-select");
                     }}
-                    className="flex-row items-center justify-center py-3 rounded-full bg-gray-50 active:bg-gray-100"
+                    className="flex-row items-center justify-center rounded-2xl border border-slate-200 bg-white py-3 active:opacity-80"
                   >
                     <Ionicons
                       name="swap-horizontal-outline"

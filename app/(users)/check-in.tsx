@@ -1,4 +1,10 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +22,9 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 import { useRideStore } from "@/store/useRideStore";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useSocket } from "@/hooks/use-socket";
+import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
 
 export default function UserCheckInPage() {
@@ -26,15 +35,89 @@ export default function UserCheckInPage() {
     pickup?: string;
     destination?: string;
   }>();
+  const { user } = useAuthStore();
   const { checkIn, fetchMyBookings } = useRideStore();
+  const { connect, joinUserFeed } = useSocket();
   const [digits, setDigits] = useState(["", "", "", ""]);
   const [submitting, setSubmitting] = useState(false);
+  const [syncState, setSyncState] = useState<"idle" | "syncing" | "checked">(
+    "idle",
+  );
   const refs = useRef<(TextInput | null)[]>([null, null, null, null]);
+  const hasNavigatedRef = useRef(false);
+  const fallbackSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const code = useMemo(() => digits.join(""), [digits]);
   const pickup = params.pickup || "Pickup";
   const destination = params.destination || "Destination";
   const bookingShortId = params.bookingId ? params.bookingId.slice(-6) : null;
+
+  const goBackToRide = useCallback(() => {
+    if (hasNavigatedRef.current) return;
+    hasNavigatedRef.current = true;
+    router.replace({
+      pathname: "/(users)/ride-details" as any,
+      params: params.bookingId
+        ? { bookingId: params.bookingId }
+        : params.rideId
+          ? { rideId: params.rideId }
+          : {},
+    });
+  }, [params.bookingId, params.rideId, router]);
+
+  const settleCheckedIn = useCallback(() => {
+    if (fallbackSyncTimerRef.current) {
+      clearTimeout(fallbackSyncTimerRef.current);
+      fallbackSyncTimerRef.current = null;
+    }
+    setSyncState("checked");
+    fetchMyBookings().catch(() => {});
+    setTimeout(goBackToRide, 650);
+  }, [fetchMyBookings, goBackToRide]);
+
+  useEffect(() => {
+    connect()
+      .then(() => {
+        if (user?.id) {
+          joinUserFeed(user.id);
+        }
+      })
+      .catch(() => {});
+  }, [connect, joinUserFeed, user?.id]);
+
+  useEffect(() => {
+    if (!params.bookingId) return;
+
+    const onBookingCheckIn = (data: any) => {
+      if (data?.booking_id !== params.bookingId) return;
+      settleCheckedIn();
+    };
+
+    const onBookingUpdated = (data: any) => {
+      if (data?.booking_id !== params.bookingId) return;
+      if (data?.check_in_status === "checked_in") {
+        settleCheckedIn();
+      }
+    };
+
+    const unsub1 = eventBus.on("booking:checkin", onBookingCheckIn);
+    const unsub2 = eventBus.on("booking:updated", onBookingUpdated);
+
+    return () => {
+      unsub1();
+      unsub2();
+    };
+  }, [params.bookingId, settleCheckedIn]);
+
+  useEffect(() => {
+    return () => {
+      if (fallbackSyncTimerRef.current) {
+        clearTimeout(fallbackSyncTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleChange = (value: string, index: number) => {
     const digit = value.replace(/[^0-9]/g, "").slice(-1);
@@ -57,24 +140,15 @@ export default function UserCheckInPage() {
     }
 
     setSubmitting(true);
+    setSyncState("syncing");
     try {
       await checkIn(params.bookingId, code);
+      eventBus.emit("booking:checkin", { booking_id: params.bookingId });
       await fetchMyBookings();
-      Alert.alert("Checked in", "You are confirmed and ready for the ride.", [
-        {
-          text: "Back to ride",
-          onPress: () =>
-            router.replace({
-              pathname: "/(users)/ride-details" as any,
-              params: params.bookingId
-                ? { bookingId: params.bookingId }
-                : params.rideId
-                  ? { rideId: params.rideId }
-                  : {},
-            }),
-        },
-      ]);
+      // Primary path: rely on socket event; fallback keeps flow responsive.
+      fallbackSyncTimerRef.current = setTimeout(settleCheckedIn, 1200);
     } catch (error: any) {
+      setSyncState("idle");
       Alert.alert(
         "Invalid code",
         error?.data?.message || error?.message || "Check-in failed.",
@@ -228,6 +302,29 @@ export default function UserCheckInPage() {
                   </>
                 )}
               </TouchableOpacity>
+
+              {syncState !== "idle" && (
+                <View className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                  <View className="flex-row items-center">
+                    {syncState === "checked" ? (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#16A34A"
+                      />
+                    ) : (
+                      <ActivityIndicator size="small" color="#334155" />
+                    )}
+                    <Text className="ml-2 text-xs font-semibold text-slate-700">
+                      {syncState === "checked" ? (
+                        <T>Check-in confirmed. Opening your ride details...</T>
+                      ) : (
+                        <T>Syncing your check-in status in real time...</T>
+                      )}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </Animated.View>
 
             <Animated.View

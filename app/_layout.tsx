@@ -27,9 +27,15 @@ const screenTransition = Platform.select({
     animationDuration: 350,
   },
   android: {
-    animation: "fade_from_bottom" as const,
-    animationDuration: 300,
+    animation: "simple_push" as const,
+    animationDuration: 260,
   },
+});
+
+const modalTransition = Platform.select({
+  ios: "slide_from_bottom" as const,
+  android: "fade_from_bottom" as const,
+  default: "fade_from_bottom" as const,
 });
 
 function PlatformSettingsLoader() {
@@ -149,19 +155,11 @@ export default function RootLayout() {
             <Stack.Screen name="(users)" options={{ animation: "fade" }} />
             <Stack.Screen name="(drivers)" options={{ animation: "fade" }} />
             <Stack.Screen
-              name="(users)/check-in"
-              options={{
-                headerShown: false,
-                presentation: "modal",
-                animation: "slide_from_bottom",
-              }}
-            />
-            <Stack.Screen
               name="settings"
               options={{
                 headerShown: false,
                 presentation: "modal",
-                animation: "slide_from_bottom",
+                animation: modalTransition,
               }}
             />
             <Stack.Screen
@@ -169,7 +167,7 @@ export default function RootLayout() {
               options={{
                 headerShown: false,
                 presentation: "modal",
-                animation: "slide_from_bottom",
+                animation: modalTransition,
               }}
             />
           </Stack>

@@ -9,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
   InteractionManager,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -80,9 +79,7 @@ export default function DriverHomeScreen() {
   const hasCentered = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [toggling, setToggling] = useState(false);
-  const [mapType, setMapType] = useState<"satellite" | "standard">(
-    Platform.OS === "android" ? "satellite" : "standard",
-  );
+  const [mapType, setMapType] = useState<"satellite" | "standard">("satellite");
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
   const [sheetHidden, setSheetHidden] = useState(false);
   const [sheetIndex, setSheetIndex] = useState(0);
@@ -105,7 +102,9 @@ export default function DriverHomeScreen() {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode);
+        setAllowMapCanvas(
+          Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode,
+        );
       }
     });
 
@@ -372,7 +371,9 @@ export default function DriverHomeScreen() {
 
   const openSheet = useCallback(() => {
     setSheetHidden(false);
-    bottomSheetRef.current?.snapToIndex(Math.min(1, sheetSnapPoints.length - 1));
+    bottomSheetRef.current?.snapToIndex(
+      Math.min(1, sheetSnapPoints.length - 1),
+    );
   }, [sheetSnapPoints.length]);
 
   const expandSheet = useCallback(() => {
@@ -481,7 +482,9 @@ export default function DriverHomeScreen() {
                 />
               ) : (
                 <View className="w-9 h-9 rounded-full bg-primary items-center justify-center">
-                  <Text className="text-white font-bold text-xs">{initials}</Text>
+                  <Text className="text-white font-bold text-xs">
+                    {initials}
+                  </Text>
                 </View>
               )}
               <View className="ml-2.5">
@@ -635,7 +638,9 @@ export default function DriverHomeScreen() {
                     </Text>
                   </View>
                   <TouchableOpacity
-                    onPress={() => router.push("/(drivers)/ride-requests" as any)}
+                    onPress={() =>
+                      router.push("/(drivers)/ride-requests" as any)
+                    }
                     className="rounded-full bg-[#042F40] px-4 py-2.5"
                     activeOpacity={0.9}
                   >
@@ -651,7 +656,9 @@ export default function DriverHomeScreen() {
                 <View className="mt-3 flex-row gap-2">
                   {availableRequests.length > 0 ? (
                     <TouchableOpacity
-                      onPress={() => router.push("/(drivers)/ride-requests" as any)}
+                      onPress={() =>
+                        router.push("/(drivers)/ride-requests" as any)
+                      }
                       className="flex-1 rounded-2xl border border-violet-100 bg-violet-50 px-3 py-3"
                       activeOpacity={0.85}
                     >
@@ -724,13 +731,23 @@ export default function DriverHomeScreen() {
                     Driver Mode
                   </Text>
                   <Text className="mt-1 text-lg font-bold text-white">
-                    {isOnline ? <T>Ready for new passengers</T> : <T>Offline and resting</T>}
+                    {isOnline ? (
+                      <T>Ready for new passengers</T>
+                    ) : (
+                      <T>Offline and resting</T>
+                    )}
                   </Text>
                   <Text className="mt-1 text-xs leading-5 text-slate-300">
                     {isOnline ? (
-                      <T>Live requests, passenger bookings, and active rides are flowing into this panel.</T>
+                      <T>
+                        Live requests, passenger bookings, and active rides are
+                        flowing into this panel.
+                      </T>
                     ) : (
-                      <T>Go live when you are ready to accept ride requests and appear on the map.</T>
+                      <T>
+                        Go live when you are ready to accept ride requests and
+                        appear on the map.
+                      </T>
                     )}
                   </Text>
                 </View>
@@ -767,9 +784,13 @@ export default function DriverHomeScreen() {
                     </Text>
                     <Text className="text-[11px] text-white/80">
                       {isOnline ? (
-                        <T>Passengers can currently discover and book your rides.</T>
+                        <T>
+                          Passengers can currently discover and book your rides.
+                        </T>
                       ) : (
-                        <T>Start receiving ride requests from nearby passengers.</T>
+                        <T>
+                          Start receiving ride requests from nearby passengers.
+                        </T>
                       )}
                     </Text>
                   </View>
@@ -824,11 +845,7 @@ export default function DriverHomeScreen() {
                     <Text className="text-base font-bold text-emerald-800">
                       <T>View summary</T>
                     </Text>
-                    <Ionicons
-                      name="wallet-outline"
-                      size={18}
-                      color="#047857"
-                    />
+                    <Ionicons name="wallet-outline" size={18} color="#047857" />
                   </View>
                 </TouchableOpacity>
               </View>
@@ -887,7 +904,8 @@ export default function DriverHomeScreen() {
                       ? req.destination_id
                       : null;
                   const requesterName = req.created_by?.name || "Passenger";
-                  const requestedSeats = req.booked_seats || req.available_seats || 1;
+                  const requestedSeats =
+                    req.booked_seats || req.available_seats || 1;
                   return (
                     <TouchableOpacity
                       key={req._id}
@@ -915,9 +933,8 @@ export default function DriverHomeScreen() {
                           {dest?.short_name || dest?.name || "Destination"}
                         </Text>
                         <Text className="text-[11px] text-gray-400 mt-1">
-                          Requested by {requesterName} · {requestedSeats}{" "}
-                          seat{requestedSeats === 1 ? "" : "s"} · ₦
-                          {req.fare}
+                          Requested by {requesterName} · {requestedSeats} seat
+                          {requestedSeats === 1 ? "" : "s"} · ₦{req.fare}
                         </Text>
                       </View>
                       <Ionicons

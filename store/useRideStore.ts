@@ -312,6 +312,20 @@ export const useRideStore = create<RideState>((set, get) => ({
 
   checkIn: async (bookingId, code) => {
     await bookingApi.checkIn({ booking_id: bookingId, check_in_code: code });
+    set((state) => ({
+      myBookings: state.myBookings.map((b) =>
+        b._id === bookingId
+          ? { ...b, check_in_status: "checked_in" as const }
+          : b,
+      ),
+      activeBooking:
+        state.activeBooking?._id === bookingId
+          ? {
+              ...state.activeBooking,
+              check_in_status: "checked_in" as const,
+            }
+          : state.activeBooking,
+    }));
   },
 
   rateDriver: async (bookingId, rating, feedback) => {

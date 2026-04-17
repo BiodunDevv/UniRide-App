@@ -173,10 +173,19 @@ export default function RideDetailsScreen() {
     ride && typeof ride.destination_id === "object"
       ? ride.destination_id
       : null;
-  const driverDoc =
+  const bookingRide =
+    booking?.ride_id && typeof booking.ride_id === "object"
+      ? booking.ride_id
+      : null;
+  const rideDriverDoc =
     ride?.driver_id && typeof ride.driver_id === "object"
       ? ride.driver_id
       : null;
+  const bookingRideDriverDoc =
+    bookingRide?.driver_id && typeof bookingRide.driver_id === "object"
+      ? bookingRide.driver_id
+      : null;
+  const driverDoc = rideDriverDoc || bookingRideDriverDoc;
   const driverUser =
     driverDoc?.user_id && typeof driverDoc.user_id === "object"
       ? driverDoc.user_id
@@ -242,6 +251,7 @@ export default function RideDetailsScreen() {
           bookingStatus: booking.status,
           paymentStatus: booking.payment_status,
           hasRideDriverId: Boolean(ride?.driver_id),
+          hasBookingRideDriverId: Boolean(bookingRideDriverDoc),
         },
       );
       return;
@@ -274,6 +284,7 @@ export default function RideDetailsScreen() {
     driverDoc,
     isTransfer,
     isTransferBookingFlow,
+    bookingRideDriverDoc,
     ride?._id,
     ride?.driver_id,
   ]);
@@ -410,7 +421,7 @@ export default function RideDetailsScreen() {
   const handleOpenCheckIn = () => {
     if (!booking) return;
     router.push({
-      pathname: "/(users)/check-in" as any,
+      pathname: "/check-in" as any,
       params: {
         bookingId: booking._id,
         rideId: ride?._id,

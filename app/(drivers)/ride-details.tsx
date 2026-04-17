@@ -480,14 +480,20 @@ export default function DriverRideDetailsScreen() {
               <View className="mb-3 flex-row items-center justify-between">
                 <View className="flex-row items-center">
                   <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
-                    <Ionicons name="navigate-outline" size={18} color="#7C3AED" />
+                    <Ionicons
+                      name="navigate-outline"
+                      size={18}
+                      color="#7C3AED"
+                    />
                   </View>
                   <View className="max-w-[72%]">
                     <Text className="text-sm font-semibold text-slate-900">
-                      {pickup?.short_name || pickup?.name || "Pickup"} {"→"} {dest?.short_name || dest?.name || "Destination"}
+                      {pickup?.short_name || pickup?.name || "Pickup"} {"→"}{" "}
+                      {dest?.short_name || dest?.name || "Destination"}
                     </Text>
                     <Text className="mt-1 text-xs text-slate-500">
-                      {[dist, dur].filter(Boolean).join(" · ") || "Campus route"}
+                      {[dist, dur].filter(Boolean).join(" · ") ||
+                        "Campus route"}
                     </Text>
                   </View>
                 </View>
@@ -575,7 +581,11 @@ export default function DriverRideDetailsScreen() {
                 <View className="mb-3 flex-row items-center justify-between">
                   <View className="flex-row items-center">
                     <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
-                      <Ionicons name="hand-right-outline" size={18} color="#7C3AED" />
+                      <Ionicons
+                        name="hand-right-outline"
+                        size={18}
+                        color="#7C3AED"
+                      />
                     </View>
                     <View>
                       <Text className="text-sm font-semibold text-slate-900">
@@ -711,7 +721,11 @@ export default function DriverRideDetailsScreen() {
                             />
                           ) : (
                             <View className="mr-3 h-10 w-10 items-center justify-center rounded-full bg-slate-100">
-                              <Ionicons name="person" size={18} color="#042F40" />
+                              <Ionicons
+                                name="person"
+                                size={18}
+                                color="#042F40"
+                              />
                             </View>
                           )}
                           <View className="max-w-[70%]">
@@ -724,7 +738,9 @@ export default function DriverRideDetailsScreen() {
                           </View>
                         </View>
 
-                        <View className={`rounded-full px-3 py-1.5 ${bBadge.bg}`}>
+                        <View
+                          className={`rounded-full px-3 py-1.5 ${bBadge.bg}`}
+                        >
                           <Text
                             className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${bBadge.color}`}
                           >
@@ -755,7 +771,9 @@ export default function DriverRideDetailsScreen() {
                             <T>Check-In</T>
                           </Text>
                           <Text className="mt-1 text-base font-bold text-slate-900">
-                            {bk.check_in_status === "checked_in" ? "In" : "Waiting"}
+                            {bk.check_in_status === "checked_in"
+                              ? "In"
+                              : "Waiting"}
                           </Text>
                         </View>
                       </View>
@@ -886,7 +904,11 @@ export default function DriverRideDetailsScreen() {
               onPress={handleAcceptRequest}
               className="rounded-2xl border border-slate-900 bg-slate-900 py-4 items-center flex-row justify-center"
             >
-              <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+              <Ionicons
+                name="checkmark-circle-outline"
+                size={18}
+                color="#FFFFFF"
+              />
               <Text className="ml-2 text-white font-semibold text-base">
                 <T>Accept Ride Request</T>
               </Text>

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Image,
   ScrollView,
   Pressable,
@@ -10,9 +11,11 @@ import {
   Alert,
   TextInput,
   Modal,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   BackHandler,
   InteractionManager,
-  Platform,
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -48,10 +51,7 @@ import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { locationApi } from "@/lib/rideApi";
-import {
-  sanitizeHeading,
-  sanitizeLatLng,
-} from "@/lib/mapSafety";
+import { sanitizeHeading, sanitizeLatLng } from "@/lib/mapSafety";
 
 const CATEGORIES: Record<string, { label: string; icon: string }> = {
   academic: { label: "Academic", icon: "school" },
@@ -73,8 +73,7 @@ export default function UserHomeScreen() {
     fetchOnlineDrivers,
     userLocation,
     locationPermissionGranted,
-  } =
-    useLocationStore();
+  } = useLocationStore();
   const {
     campusLocations,
     availableRides,
@@ -106,14 +105,13 @@ export default function UserHomeScreen() {
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
   const hasCentered = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [mapType, setMapType] = useState<"satellite" | "standard">(
-    Platform.OS === "android" ? "satellite" : "standard",
-  );
+  const [mapType, setMapType] = useState<"satellite" | "standard">("satellite");
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [ratingVal, setRatingVal] = useState(0);
   const [ratingText, setRatingText] = useState("");
   const [ratingBookingId, setRatingBookingId] = useState<string | null>(null);
+  const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [sheetHidden, setSheetHidden] = useState(false);
   const [sheetIndex, setSheetIndex] = useState(0);
   const [showTopOverlayCards, setShowTopOverlayCards] = useState(true);
@@ -129,7 +127,9 @@ export default function UserHomeScreen() {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode);
+        setAllowMapCanvas(
+          Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode,
+        );
       }
     });
 
@@ -306,9 +306,11 @@ export default function UserHomeScreen() {
   }, [myBookings]);
 
   const submitRating = async () => {
-    if (!ratingBookingId || ratingVal === 0) return;
+    if (!ratingBookingId || ratingVal === 0 || ratingSubmitting) return;
+    setRatingSubmitting(true);
     try {
       await rateDriver(ratingBookingId, ratingVal, ratingText);
+      Keyboard.dismiss();
       setShowRating(false);
       setRatingVal(0);
       setRatingText("");
@@ -316,9 +318,12 @@ export default function UserHomeScreen() {
       fetchMyBookings();
     } catch (e: any) {
       Alert.alert("Error", e?.message || "Failed");
+    } finally {
+      setRatingSubmitting(false);
     }
   };
   const skipRating = () => {
+    Keyboard.dismiss();
     if (ratingBookingId) skippedRatings.current.add(ratingBookingId);
     setShowRating(false);
     setRatingBookingId(null);
@@ -420,31 +425,31 @@ export default function UserHomeScreen() {
           <Camera ref={cameraRef} animationDuration={1500} />
           <LocationPuck />
           {driverMarkers.map((driver) => (
-              <Marker
-                key={driver.key}
-                coordinate={driver.coordinate}
-                anchor={{ x: 0.5, y: 0.5 }}
-                tracksViewChanges={false}
-              >
-                <View className="items-center">
-                  <Image
-                    source={require("@/assets/images/car-marker.png")}
-                    style={{
-                      width: 36,
-                      height: 36,
-                      transform: [{ rotate: `${driver.heading}deg` }],
-                    }}
-                    resizeMode="contain"
-                  />
-                  <View className="mt-1 rounded-full bg-white/95 px-2 py-0.5">
-                    <Text className="text-[10px] font-semibold text-gray-700">
-                      {driver.label} · {driver.seats} seat
-                      {driver.seats === 1 ? "" : "s"}
-                    </Text>
-                  </View>
+            <Marker
+              key={driver.key}
+              coordinate={driver.coordinate}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges={false}
+            >
+              <View className="items-center">
+                <Image
+                  source={require("@/assets/images/car-marker.png")}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    transform: [{ rotate: `${driver.heading}deg` }],
+                  }}
+                  resizeMode="contain"
+                />
+                <View className="mt-1 rounded-full bg-white/95 px-2 py-0.5">
+                  <Text className="text-[10px] font-semibold text-gray-700">
+                    {driver.label} · {driver.seats} seat
+                    {driver.seats === 1 ? "" : "s"}
+                  </Text>
                 </View>
-              </Marker>
-            ))}
+              </View>
+            </Marker>
+          ))}
         </MapView>
       ) : (
         <View className="flex-1 bg-slate-200">
@@ -489,7 +494,8 @@ export default function UserHomeScreen() {
                   ) : (
                     <T>
                       You can still browse rides, manage bookings, and keep your
-                      trip moving from the panel below while maps are unavailable.
+                      trip moving from the panel below while maps are
+                      unavailable.
                     </T>
                   )}
                 </Text>
@@ -571,8 +577,8 @@ export default function UserHomeScreen() {
                       </T>
                     ) : locationIssue === "denied" ? (
                       <T>
-                        Turn on location permission so UniRide can center the map
-                        on your real position.
+                        Turn on location permission so UniRide can center the
+                        map on your real position.
                       </T>
                     ) : (
                       <T>
@@ -829,20 +835,20 @@ export default function UserHomeScreen() {
         enablePanDownToClose
         onChange={handleSheetChange}
         onAnimate={handleSheetAnimate}
-        handleIndicatorStyle={{ backgroundColor: "#CBD5E1", width: 44 }}
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 28 }}
+        handleIndicatorStyle={{ backgroundColor: "#CBD5E1", width: 36 }}
+        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 24 }}
         style={{
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.08,
-          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.07,
+          shadowRadius: 12,
           zIndex: 50,
         }}
       >
         <BottomSheetScrollView
           showsVerticalScrollIndicator={false}
           bounces={false}
-          contentContainerStyle={{ paddingBottom: 28 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -851,22 +857,22 @@ export default function UserHomeScreen() {
             />
           }
         >
-          <SafeAreaView edges={["bottom"]} className="pb-2">
+          <SafeAreaView edges={["bottom"]} className="pb-1">
             <Animated.View
               entering={FadeInUp.delay(220).duration(400)}
-              className="mx-5 mb-4 rounded-[26px] bg-[#042F40] px-4 py-4"
+              className="mx-4 mb-3 rounded-[22px] bg-[#042F40] px-4 py-3.5"
             >
               <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
                 Rider Console
               </Text>
-              <Text className="mt-1 text-lg font-bold text-white">
+              <Text className="mt-1 text-base font-bold text-white">
                 {activeBookings.length > 0 ? (
                   <T>Your next ride is within reach</T>
                 ) : (
                   <T>Ready to request your next trip</T>
                 )}
               </Text>
-              <Text className="mt-1 text-xs leading-5 text-slate-300">
+              <Text className="mt-1 text-[11px] leading-5 text-slate-300">
                 {activeBookings.length > 0 ? (
                   <T>
                     Track active bookings, check in quickly, and keep your trip
@@ -881,11 +887,11 @@ export default function UserHomeScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => router.push("/(users)/search-ride" as any)}
-                className="mt-4 flex-row items-center rounded-2xl bg-[#D4A017] px-4 py-3"
+                className="mt-3 flex-row items-center rounded-xl bg-[#D4A017] px-3.5 py-2.5"
                 activeOpacity={0.9}
               >
-                <View className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3">
-                  <Ionicons name="search" size={18} color="#fff" />
+                <View className="h-9 w-9 rounded-full bg-white/20 items-center justify-center mr-3">
+                  <Ionicons name="search" size={16} color="#fff" />
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-bold text-white">
@@ -902,24 +908,24 @@ export default function UserHomeScreen() {
             </Animated.View>
 
             <Animated.View entering={FadeInUp.delay(300).duration(400)}>
-              <View className="mx-5 mb-5 rounded-[24px] bg-slate-50 px-4 py-4">
+              <View className="mx-4 mb-4 rounded-[22px] border border-slate-200 bg-white px-4 py-3.5">
                 <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                   <T>Live snapshot</T>
                 </Text>
                 <View className="mt-3 flex-row gap-3">
-                  <View className="flex-1 rounded-2xl bg-white px-4 py-4">
+                  <View className="flex-1 rounded-xl bg-slate-50 px-3.5 py-3">
                     <Text className="text-[11px] text-slate-500">
                       <T>Drivers online</T>
                     </Text>
-                    <Text className="mt-1 text-2xl font-bold text-slate-900">
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
                       {onlineDrivers.length}
                     </Text>
                   </View>
-                  <View className="flex-1 rounded-2xl bg-white px-4 py-4">
+                  <View className="flex-1 rounded-xl bg-slate-50 px-3.5 py-3">
                     <Text className="text-[11px] text-slate-500">
                       <T>Open rides</T>
                     </Text>
-                    <Text className="mt-1 text-2xl font-bold text-slate-900">
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
                       {availableRides.length}
                     </Text>
                   </View>
@@ -927,7 +933,7 @@ export default function UserHomeScreen() {
                 <View className="mt-3 flex-row gap-3">
                   <TouchableOpacity
                     onPress={() => router.push("/(users)/activity")}
-                    className="flex-1 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-4"
+                    className="flex-1 rounded-xl border border-amber-100 bg-amber-50 px-3.5 py-3"
                     activeOpacity={0.8}
                   >
                     <Text className="text-[11px] text-amber-700">
@@ -941,7 +947,7 @@ export default function UserHomeScreen() {
                     onPress={() =>
                       router.push("/(users)/available-rides" as any)
                     }
-                    className="flex-1 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-4"
+                    className="flex-1 rounded-xl border border-primary/10 bg-primary/5 px-3.5 py-3"
                     activeOpacity={0.8}
                   >
                     <Text className="text-[11px] text-primary">
@@ -957,13 +963,13 @@ export default function UserHomeScreen() {
 
             {popularLocs.length > 0 && (
               <Animated.View entering={FadeInUp.delay(380).duration(400)}>
-                <Text className="mx-5 mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <Text className="mx-4 mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                   <T>Quick destinations</T>
                 </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  className="px-5 mb-4"
+                  className="px-4 mb-3"
                 >
                   {popularLocs.slice(0, 8).map((loc) => (
                     <TouchableOpacity
@@ -972,7 +978,7 @@ export default function UserHomeScreen() {
                         setSelectedDestination(loc);
                         router.push("/(users)/search-ride" as any);
                       }}
-                      className="mr-2 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 flex-row items-center"
+                      className="mr-2 rounded-xl border border-primary/10 bg-primary/5 px-3 py-2.5 flex-row items-center"
                     >
                       <Ionicons
                         name={
@@ -1005,7 +1011,7 @@ export default function UserHomeScreen() {
                 <Animated.View
                   key={bk._id}
                   entering={FadeInUp.delay(520).duration(400)}
-                  className="mx-5 mb-4"
+                  className="mx-4 mb-3"
                 >
                   <TouchableOpacity
                     onPress={() =>
@@ -1016,11 +1022,11 @@ export default function UserHomeScreen() {
                             params: { bookingId: bk._id },
                           })
                     }
-                    className={`rounded-[24px] p-4 ${needsCheckIn ? "bg-accent/10 border border-accent/20" : isCheckedInWaiting ? "bg-green-50 border border-green-100" : inProg ? "bg-blue-50 border border-blue-100" : "bg-green-50 border border-green-100"}`}
+                    className={`rounded-[22px] border p-3.5 ${needsCheckIn ? "border-amber-100 bg-amber-50" : isCheckedInWaiting ? "border-green-100 bg-green-50" : inProg ? "border-blue-100 bg-blue-50" : "border-green-100 bg-green-50"}`}
                   >
                     <View className="flex-row items-center">
                       <View
-                        className={`w-10 h-10 rounded-full items-center justify-center ${needsCheckIn ? "bg-accent/20" : isCheckedInWaiting ? "bg-green-100" : inProg ? "bg-blue-100" : "bg-green-100"}`}
+                        className={`h-9 w-9 rounded-full items-center justify-center ${needsCheckIn ? "bg-amber-100" : isCheckedInWaiting ? "bg-green-100" : inProg ? "bg-blue-100" : "bg-green-100"}`}
                       >
                         <Ionicons
                           name={
@@ -1032,7 +1038,7 @@ export default function UserHomeScreen() {
                                   ? "hourglass"
                                   : "checkmark-circle"
                           }
-                          size={20}
+                          size={18}
                           color={
                             needsCheckIn
                               ? "#D4A017"
@@ -1071,8 +1077,8 @@ export default function UserHomeScreen() {
                         </Text>
                       </View>
                       {needsCheckIn && bk.check_in_code ? (
-                        <View className="bg-accent/20 rounded-xl px-3 py-1.5">
-                          <Text className="text-xs font-bold text-accent tracking-widest">
+                        <View className="rounded-lg bg-slate-100 px-2.5 py-1">
+                          <Text className="text-[11px] font-bold tracking-widest text-slate-700">
                             {bk.check_in_code}
                           </Text>
                         </View>
@@ -1089,7 +1095,7 @@ export default function UserHomeScreen() {
               );
             })}
 
-            <View className="mx-5 mb-1 flex-row items-center">
+            <View className="mx-4 mb-1 flex-row items-center">
               <View className="w-2 h-2 rounded-full bg-green-500 mr-2" />
               <Text className="text-xs text-gray-400">
                 {onlineDrivers.length}{" "}
@@ -1112,7 +1118,7 @@ export default function UserHomeScreen() {
         >
           <TouchableOpacity
             onPress={openSheet}
-            className="flex-row items-center rounded-full bg-[#042F40] px-4 py-3"
+            className="flex-row items-center rounded-full bg-[#042F40] px-3.5 py-2.5"
             style={{
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 6 },
@@ -1134,94 +1140,140 @@ export default function UserHomeScreen() {
       <Modal
         visible={showRating}
         transparent
+        animationType="fade"
         onRequestClose={skipRating}
       >
-        <View className="flex-1 items-center justify-center bg-black/50 px-6">
-          <Animated.View
-            className="w-full rounded-[32px] bg-white p-6"
-           
-          >
-            <Pressable
-              onPress={skipRating}
-              className="absolute right-4 top-4 z-10 h-8 w-8 items-center justify-center rounded-full bg-gray-100"
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1"
+        >
+          <View className="flex-1 items-center justify-center bg-black/50 px-6">
+            <Pressable className="absolute inset-0" onPress={skipRating} />
+            <TouchableWithoutFeedback
+              onPress={Keyboard.dismiss}
+              accessible={false}
             >
-              <Ionicons name="close" size={18} color="#6B7280" />
-            </Pressable>
-            <View className="mb-5 items-center">
-              <View className="mb-3 h-16 w-16 items-center justify-center rounded-full bg-accent/10">
-                <Ionicons name="star" size={30} color="#D4A017" />
-              </View>
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
-                <T>Trip Feedback</T>
-              </Text>
-              <Text className="mt-2 text-xl font-bold text-gray-900">
-                <T>Rate Your Ride</T>
-              </Text>
-              <Text className="mt-1 text-sm text-gray-500">
-                <T>How was your experience with this completed ride?</T>
-              </Text>
-            </View>
-            <View className="mb-5 rounded-[24px] bg-slate-50 px-4 py-4">
-              <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                <T>Your Rating</T>
-              </Text>
-              <View className="mt-4 flex-row justify-center">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <TouchableOpacity
-                  key={s}
-                  onPress={() => setRatingVal(s)}
-                  className="mx-1.5"
+              <Animated.View className="w-full rounded-[30px] border border-slate-200 bg-white p-5">
+                <Pressable
+                  onPress={skipRating}
+                  className="absolute right-4 top-4 z-10 h-8 w-8 items-center justify-center rounded-full bg-gray-100"
                 >
-                  <Ionicons
-                    name={s <= ratingVal ? "star" : "star-outline"}
-                    size={40}
-                    color={s <= ratingVal ? "#D4A017" : "#D1D5DB"}
+                  <Ionicons name="close" size={18} color="#6B7280" />
+                </Pressable>
+
+                <View className="mb-4 items-center">
+                  <View className="mb-3 h-14 w-14 items-center justify-center rounded-full bg-amber-50">
+                    <Ionicons name="star" size={28} color="#D4A017" />
+                  </View>
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-600">
+                    <T>Trip Feedback</T>
+                  </Text>
+                  <Text className="mt-2 text-xl font-bold text-gray-900">
+                    <T>Rate your ride</T>
+                  </Text>
+                  <Text className="mt-1 text-center text-sm text-gray-500">
+                    <T>How was your experience with this completed ride?</T>
+                  </Text>
+                </View>
+
+                <View className="mb-4 rounded-[22px] bg-slate-50 px-4 py-4">
+                  <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <T>Your rating</T>
+                  </Text>
+                  <View className="mt-4 flex-row justify-center">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <TouchableOpacity
+                        key={s}
+                        onPress={() => setRatingVal(s)}
+                        className="mx-1.5"
+                        activeOpacity={0.85}
+                      >
+                        <Ionicons
+                          name={s <= ratingVal ? "star" : "star-outline"}
+                          size={38}
+                          color={s <= ratingVal ? "#D4A017" : "#D1D5DB"}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text className="mt-3 text-center text-xs text-slate-500">
+                    {ratingVal === 0 ? (
+                      <T>Select a rating to continue</T>
+                    ) : ratingVal <= 2 ? (
+                      <T>We are sorry this trip missed the mark.</T>
+                    ) : ratingVal === 3 ? (
+                      <T>Thanks. Your feedback helps us improve.</T>
+                    ) : (
+                      <T>Great to hear. Thanks for riding with UniRide.</T>
+                    )}
+                  </Text>
+                </View>
+
+                <View className="mb-4 rounded-2xl border border-slate-200 bg-white px-3.5 py-3">
+                  <Text className="mb-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-400">
+                    <T>Remark (optional)</T>
+                  </Text>
+                  <TextInput
+                    value={ratingText}
+                    onChangeText={setRatingText}
+                    placeholder="Add a short remark"
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    maxLength={220}
+                    className="text-sm text-gray-800"
+                    style={{ minHeight: 84, textAlignVertical: "top" }}
                   />
+                </View>
+
+                <TouchableOpacity
+                  onPress={submitRating}
+                  disabled={ratingVal === 0 || ratingSubmitting}
+                  className={`items-center rounded-2xl border px-4 py-3.5 ${
+                    ratingVal > 0 && !ratingSubmitting
+                      ? "border-slate-900 bg-slate-900"
+                      : "border-slate-200 bg-slate-100"
+                  }`}
+                  activeOpacity={0.88}
+                >
+                  <View className="flex-row items-center">
+                    {ratingSubmitting ? (
+                      <ActivityIndicator size="small" color="#334155" />
+                    ) : (
+                      <Ionicons
+                        name="paper-plane-outline"
+                        size={16}
+                        color={ratingVal > 0 ? "#FFFFFF" : "#6B7280"}
+                      />
+                    )}
+                    <Text
+                      className={`ml-2 text-sm font-semibold ${
+                        ratingVal > 0 && !ratingSubmitting
+                          ? "text-white"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {ratingSubmitting ? (
+                        <T>Sending...</T>
+                      ) : (
+                        <T>Send rating</T>
+                      )}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
-              ))}
-              </View>
-              <Text className="mt-3 text-center text-xs text-slate-500">
-                {ratingVal === 0 ? (
-                  <T>Select a rating to continue</T>
-                ) : ratingVal <= 2 ? (
-                  <T>We are sorry this trip missed the mark.</T>
-                ) : ratingVal === 3 ? (
-                  <T>Thanks. Your feedback helps us improve.</T>
-                ) : (
-                  <T>Great to hear. Thanks for riding with UniRide.</T>
-                )}
-              </Text>
-            </View>
-            <TextInput
-              value={ratingText}
-              onChangeText={setRatingText}
-              placeholder="Feedback (optional)"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              className="mb-5 rounded-2xl bg-gray-50 px-4 py-3 text-sm text-gray-800"
-              style={{ minHeight: 88, textAlignVertical: "top" }}
-            />
-            <TouchableOpacity
-              onPress={submitRating}
-              disabled={ratingVal === 0}
-              className={`items-center rounded-2xl py-4 ${ratingVal > 0 ? "bg-primary" : "bg-gray-200"}`}
-            >
-              <Text
-                className={`font-bold text-base ${ratingVal > 0 ? "text-white" : "text-gray-400"}`}
-              >
-                <T>Submit Rating</T>
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={skipRating}
-              className="mt-3 items-center py-2"
-            >
-              <Text className="text-sm text-gray-400">
-                <T>Maybe Later</T>
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </View>
+
+                <TouchableOpacity
+                  onPress={skipRating}
+                  className="mt-3 items-center py-2"
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-sm text-gray-400">
+                    <T>Maybe later</T>
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </TouchableWithoutFeedback>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

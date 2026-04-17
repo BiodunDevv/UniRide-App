@@ -20,7 +20,21 @@ export function useSocket() {
   const { addDriverToList, removeDriverFromList, updateDriverInList } =
     useLocationStore();
 
+  useEffect(() => {
+    if (socketInstance && !socketRef.current) {
+      socketRef.current = socketInstance;
+    }
+  }, []);
+
   const connect = useCallback(async () => {
+    if (socketInstance) {
+      socketRef.current = socketInstance;
+      if (!socketInstance.connected) {
+        socketInstance.connect();
+      }
+      return;
+    }
+
     if (socketRef.current?.connected) return;
 
     const token = await SecureStore.getItemAsync("token");
@@ -332,12 +346,6 @@ export function useSocket() {
     },
     [],
   );
-
-  useEffect(() => {
-    return () => {
-      disconnect();
-    };
-  }, [disconnect]);
 
   return {
     connect,

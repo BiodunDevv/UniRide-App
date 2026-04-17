@@ -23,7 +23,6 @@ import {
 } from "@/lib/post-auth";
 
 type BootstrapMode = "full" | "safe";
-
 type StepStatus = "pending" | "active" | "done" | "warning";
 
 type StepItem = {
@@ -44,7 +43,9 @@ const BASE_STEPS: StepItem[] = [
 export default function BootstrapScreen() {
   const router = useRouter();
   const { token, user, fetchMe, logout } = useAuthStore();
-  const fetchSettings = usePlatformSettingsStore((state) => state.fetchSettings);
+  const fetchSettings = usePlatformSettingsStore(
+    (state) => state.fetchSettings,
+  );
   const { requestPermission, getCurrentLocation } = useLocation();
   const { connect } = useSocket();
   const {
@@ -63,6 +64,7 @@ export default function BootstrapScreen() {
   const [trace, setTrace] = useState<string[]>([]);
   const didStart = useRef(false);
   const isMounted = useRef(true);
+
   const buildVersion =
     Constants.expoConfig?.version || Constants.nativeAppVersion || "1.0.0";
 
@@ -116,7 +118,9 @@ export default function BootstrapScreen() {
         await fetchMe();
         const freshUser = useAuthStore.getState().user;
         if (!freshUser) {
-          throw new Error("Your session is no longer valid. Please sign in again.");
+          throw new Error(
+            "Your session is no longer valid. Please sign in again.",
+          );
         }
         updateStep("session", "done", freshUser.email);
         advance("settings");
@@ -275,156 +279,311 @@ export default function BootstrapScreen() {
     }
   };
 
+  const completedSteps = useMemo(
+    () => steps.filter((step) => step.status === "done").length,
+    [steps],
+  );
+
+  const warningSteps = useMemo(
+    () => steps.filter((step) => step.status === "warning").length,
+    [steps],
+  );
+
+  const activeStepLabel = useMemo(
+    () => steps.find((step) => step.status === "active")?.label,
+    [steps],
+  );
+
+  const progressPercent = useMemo(() => {
+    if (!steps.length) return 0;
+    return Math.round((completedSteps / steps.length) * 100);
+  }, [completedSteps, steps.length]);
+
   return (
-    <SafeAreaView className="flex-1 bg-[#031E29]">
+    <SafeAreaView className="flex-1 bg-slate-50">
       <ScrollView
         className="flex-1"
-        contentContainerClassName="flex-grow px-5 py-5"
+        contentContainerClassName="px-5 pb-10 pt-3"
         showsVerticalScrollIndicator={false}
       >
-        <View
-          className="w-full flex-1"
-          style={{
-            maxWidth: 620,
-            alignSelf: "center",
-          }}
-        >
-          <View className="rounded-[34px] bg-[#062634] px-6 py-6">
-            <View className="flex-row items-start justify-between">
-              <View className="mr-4 flex-1">
-                <Text className="text-xs font-semibold uppercase tracking-[0.2em] text-[#D4A017]">
-                  Post-Login Bootstrap
-                </Text>
-                <Text className="mt-3 text-3xl font-bold text-white">
-                  {title}
-                </Text>
-                <Text className="mt-3 text-sm leading-6 text-slate-300">
-                  {subtitle}
-                </Text>
-              </View>
-              <View className="h-14 w-14 items-center justify-center rounded-[20px] bg-white/10">
-                <Ionicons
-                  name={safeMode ? "shield-checkmark-outline" : "flash-outline"}
-                  size={24}
-                  color="#D4A017"
-                />
-              </View>
+        <View className="w-full" style={{ maxWidth: 620, alignSelf: "center" }}>
+          <View className="mb-4 flex-row items-center">
+            <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-violet-50">
+              <Ionicons
+                name={safeMode ? "shield-checkmark-outline" : "flash-outline"}
+                size={18}
+                color="#7C3AED"
+              />
             </View>
+            <View className="flex-1">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Driver Operations
+              </Text>
+              <Text className="mt-1 text-xl font-bold text-slate-900">
+                {title}
+              </Text>
+            </View>
+            <View
+              className={`rounded-full px-3 py-1.5 ${
+                safeMode ? "bg-amber-50" : "bg-emerald-50"
+              }`}
+            >
+              <Text
+                className={`text-xs font-semibold ${
+                  safeMode ? "text-amber-700" : "text-emerald-700"
+                }`}
+              >
+                {safeMode ? "Recovery" : "Live"}
+              </Text>
+            </View>
+          </View>
+
+          <View className="rounded-[28px] bg-[#042F40] px-5 py-5">
+            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+              Startup Sequence
+            </Text>
+            <Text className="mt-2 text-2xl font-bold text-white">
+              {safeMode
+                ? "Recovery startup in progress"
+                : "Preparing UniRide services"}
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-300">
+              {subtitle}
+            </Text>
 
             <View className="mt-5 flex-row gap-3">
               <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
-                <Text className="text-[11px] uppercase tracking-[0.18em] text-slate-300">
-                  Build
-                </Text>
+                <Text className="text-[11px] text-slate-300">Build</Text>
                 <Text className="mt-1 text-base font-bold text-white">
                   v{buildVersion}
                 </Text>
               </View>
               <View className="flex-1 rounded-2xl bg-white/10 px-4 py-3">
-                <Text className="text-[11px] uppercase tracking-[0.18em] text-slate-300">
-                  Mode
-                </Text>
+                <Text className="text-[11px] text-slate-300">Mode</Text>
                 <Text className="mt-1 text-base font-bold text-white">
-                  {safeMode ? "Recovery" : "Full startup"}
+                  {mode === "safe" ? "Recovery" : "Full startup"}
                 </Text>
               </View>
             </View>
-          </View>
 
-          <View className="mt-5 rounded-[30px] bg-white px-4 py-4">
-            <Text className="px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Startup sequence
-            </Text>
-            <View className="mt-2">
-              {steps.map((step) => (
+            <View className="mt-3 rounded-2xl bg-white/10 px-4 py-3">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-[11px] text-slate-300">Progress</Text>
+                <Text className="text-[11px] font-semibold text-white">
+                  {completedSteps}/{steps.length} complete
+                </Text>
+              </View>
+              <View className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
                 <View
-                  key={step.key}
-                  className="flex-row items-start border-b border-slate-100 py-3 last:border-b-0"
-                >
-                  <View className="mr-3 mt-0.5">
-                    {step.status === "done" ? (
-                      <View className="h-8 w-8 items-center justify-center rounded-full bg-emerald-100">
-                        <Ionicons name="checkmark" size={18} color="#047857" />
-                      </View>
-                    ) : step.status === "warning" ? (
-                      <View className="h-8 w-8 items-center justify-center rounded-full bg-amber-100">
-                        <Ionicons
-                          name="warning-outline"
-                          size={18}
-                          color="#B45309"
-                        />
-                      </View>
-                    ) : step.status === "active" ? (
-                      <View className="h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-                        <ActivityIndicator size="small" color="#042F40" />
-                      </View>
-                    ) : (
-                      <View className="h-8 w-8 items-center justify-center rounded-full bg-slate-100">
-                        <Ionicons
-                          name="ellipse-outline"
-                          size={16}
-                          color="#64748B"
-                        />
-                      </View>
-                    )}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-sm font-semibold text-slate-900">
-                      {step.label}
-                    </Text>
-                    {step.note ? (
-                      <Text className="mt-1 text-xs leading-5 text-slate-500">
-                        {step.note}
-                      </Text>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
+                  className="h-full rounded-full bg-[#D4A017]"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </View>
+              <Text className="mt-2 text-[11px] text-slate-300">
+                {activeStepLabel
+                  ? `Current: ${activeStepLabel}`
+                  : "All startup steps completed"}
+              </Text>
             </View>
           </View>
 
-          <View className="mt-5 rounded-[30px] border border-white/10 bg-white/5 px-5 py-5">
-            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-              Recovery actions
-            </Text>
-            <Text className="mt-2 text-sm leading-6 text-slate-300">
+          <View className="mt-4 rounded-[26px] border border-slate-200 bg-white p-4">
+            <View className="mb-3 flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                  <Ionicons name="list-outline" size={17} color="#7C3AED" />
+                </View>
+                <View>
+                  <Text className="text-sm font-semibold text-slate-900">
+                    Startup Steps
+                  </Text>
+                  <Text className="text-xs text-slate-500">
+                    Real-time execution
+                  </Text>
+                </View>
+              </View>
+              <View className="rounded-full bg-slate-100 px-3 py-1.5">
+                <Text className="text-xs font-semibold text-slate-700">
+                  {progressPercent}%
+                </Text>
+              </View>
+            </View>
+
+            <View className="gap-2">
+              {steps.map((step, index) => {
+                const isDone = step.status === "done";
+                const isWarning = step.status === "warning";
+                const isActive = step.status === "active";
+
+                return (
+                  <View
+                    key={step.key}
+                    className={`rounded-2xl border px-3.5 py-3 ${
+                      isDone
+                        ? "border-emerald-100 bg-emerald-50"
+                        : isWarning
+                          ? "border-amber-100 bg-amber-50"
+                          : isActive
+                            ? "border-slate-300 bg-slate-100"
+                            : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <View className="flex-row items-start justify-between">
+                      <View className="flex-1 flex-row items-start">
+                        <View
+                          className={`mr-3 h-9 w-9 items-center justify-center rounded-xl ${
+                            isDone
+                              ? "bg-emerald-100"
+                              : isWarning
+                                ? "bg-amber-100"
+                                : "bg-slate-200"
+                          }`}
+                        >
+                          {isActive ? (
+                            <ActivityIndicator size="small" color="#334155" />
+                          ) : isDone ? (
+                            <Ionicons
+                              name="checkmark"
+                              size={17}
+                              color="#047857"
+                            />
+                          ) : isWarning ? (
+                            <Ionicons
+                              name="warning-outline"
+                              size={17}
+                              color="#B45309"
+                            />
+                          ) : (
+                            <Ionicons
+                              name="time-outline"
+                              size={16}
+                              color="#64748B"
+                            />
+                          )}
+                        </View>
+
+                        <View className="flex-1">
+                          <Text className="text-sm font-semibold text-slate-900">
+                            {index + 1}. {step.label}
+                          </Text>
+                          {step.note ? (
+                            <Text className="mt-1 text-xs leading-5 text-slate-600">
+                              {step.note}
+                            </Text>
+                          ) : (
+                            <Text className="mt-1 text-xs leading-5 text-slate-500">
+                              {isDone
+                                ? "Completed successfully"
+                                : isActive
+                                  ? "Running now"
+                                  : isWarning
+                                    ? "Needs attention"
+                                    : "Queued"}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      <View
+                        className={`ml-2 rounded-full px-2.5 py-1 ${
+                          isDone
+                            ? "bg-emerald-100"
+                            : isWarning
+                              ? "bg-amber-100"
+                              : isActive
+                                ? "bg-slate-200"
+                                : "bg-slate-200"
+                        }`}
+                      >
+                        <Text
+                          className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${
+                            isDone
+                              ? "text-emerald-700"
+                              : isWarning
+                                ? "text-amber-700"
+                                : isActive
+                                  ? "text-slate-700"
+                                  : "text-slate-500"
+                          }`}
+                        >
+                          {isDone
+                            ? "Done"
+                            : isWarning
+                              ? "Warning"
+                              : isActive
+                                ? "Running"
+                                : "Pending"}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          <View className="mt-4 rounded-[26px] border border-slate-200 bg-white p-4">
+            <View className="mb-3 flex-row items-center">
+              <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                <Ionicons name="build-outline" size={17} color="#7C3AED" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-slate-900">
+                  Recovery Actions
+                </Text>
+                <Text className="text-xs leading-5 text-slate-500">
+                  Retry full startup, continue in recovery mode, or sign out
+                  safely.
+                </Text>
+              </View>
+            </View>
+
+            <Text className="text-sm leading-6 text-slate-600">
               {lastError
                 ? "A startup stage failed. You can retry the full live dashboard, continue in no-map recovery mode, or sign out safely."
                 : "If a release build still struggles with maps or live services, you can continue in recovery mode and retry the full dashboard later."}
             </Text>
 
             {lastError ? (
-              <View className="mt-4 rounded-[24px] border border-amber-400/25 bg-amber-400/10 px-4 py-4">
-                <Text className="text-sm font-semibold text-amber-200">
-                  {lastError}
-                </Text>
+              <View className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                <View className="flex-row items-start">
+                  <Ionicons
+                    name="warning-outline"
+                    size={16}
+                    color="#B45309"
+                    style={{ marginTop: 1 }}
+                  />
+                  <Text className="ml-2 flex-1 text-xs font-semibold leading-5 text-amber-700">
+                    {lastError}
+                  </Text>
+                </View>
               </View>
             ) : null}
 
-            <View className="mt-5 gap-3">
+            <View className="mt-4 gap-2.5">
               <Pressable
                 onPress={handleRetry}
-                className="items-center rounded-2xl bg-[#D4A017] px-4 py-4"
+                className="items-center rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3.5"
               >
-                <Text className="text-sm font-bold text-[#031E29]">
+                <Text className="text-sm font-semibold text-white">
                   Retry full startup
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={handleContinueWithoutMap}
-                className="items-center rounded-2xl border border-white/15 bg-white/5 px-4 py-4"
+                className="items-center rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3.5"
               >
-                <Text className="text-sm font-semibold text-white">
+                <Text className="text-sm font-semibold text-slate-700">
                   Continue without live map
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={handleSignOut}
-                className="items-center rounded-2xl border border-white/10 px-4 py-4"
+                className="items-center rounded-2xl border border-red-100 bg-red-50 px-4 py-3.5"
               >
-                <Text className="text-sm font-semibold text-slate-200">
+                <Text className="text-sm font-semibold text-red-600">
                   Sign out instead
                 </Text>
               </Pressable>
@@ -432,14 +591,14 @@ export default function BootstrapScreen() {
           </View>
 
           {trace.length > 0 ? (
-            <View className="mt-5 rounded-[24px] border border-white/10 bg-black/10 px-4 py-4">
-              <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-                Recent trace
+            <View className="mt-4 rounded-[24px] border border-slate-200 bg-white px-4 py-4">
+              <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Recent Trace
               </Text>
               {trace.map((entry) => (
                 <Text
                   key={entry}
-                  className="mt-2 text-[11px] leading-5 text-slate-400"
+                  className="mt-2 text-[11px] leading-5 text-slate-500"
                 >
                   {entry}
                 </Text>
@@ -447,9 +606,25 @@ export default function BootstrapScreen() {
             </View>
           ) : null}
 
-          <Text className="mt-5 text-center text-xs text-slate-400">
-            {user?.email || "Session pending"} {safeMode ? "· Recovery mode" : ""}
-          </Text>
+          <View className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs font-semibold text-slate-500">
+                Session
+              </Text>
+              <Text className="text-xs font-semibold text-slate-700">
+                {safeMode ? "Recovery mode" : "Live mode"}
+              </Text>
+            </View>
+            <Text className="mt-1 text-sm font-semibold text-slate-900">
+              {user?.email || "Session pending"}
+            </Text>
+            {warningSteps > 0 ? (
+              <Text className="mt-1 text-xs text-amber-600">
+                {warningSteps} startup step{warningSteps === 1 ? "" : "s"}{" "}
+                {warningSteps === 1 ? "needs" : "need"} attention.
+              </Text>
+            ) : null}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

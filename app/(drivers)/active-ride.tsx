@@ -11,7 +11,6 @@ import {
   Linking,
   InteractionManager,
   ScrollView,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -58,7 +57,7 @@ export default function DriverActiveRideScreen() {
   );
   const { canRenderMaps } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
-  const { joinRide, leaveRide } = useSocket();
+  const { connect, joinRide, leaveRide } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
   const { requestPermission, startWatching } = useLocation();
 
@@ -100,6 +99,7 @@ export default function DriverActiveRideScreen() {
       setLoading(true);
       try {
         if (rideId) {
+          await connect();
           joinRide(rideId);
           const r = await fetchRideDetails(rideId);
           setRide(r);
@@ -185,7 +185,14 @@ export default function DriverActiveRideScreen() {
       } catch {}
       setLoading(false);
     })();
-  }, [rideId]);
+  }, [
+    connect,
+    fetchDriverBookings,
+    fetchRideDetails,
+    joinRide,
+    rideId,
+    startRide,
+  ]);
 
   useEffect(() => {
     requestPermission()
@@ -224,7 +231,7 @@ export default function DriverActiveRideScreen() {
     return () => {
       if (rideId) leaveRide(rideId);
     };
-  }, []);
+  }, [leaveRide, rideId]);
   useEffect(() => {
     const refresh = async () => {
       if (rideId) {
@@ -334,16 +341,16 @@ export default function DriverActiveRideScreen() {
 
   const [actionId, setActionId] = useState<string | null>(null);
   const [rideCompleted, setRideCompleted] = useState(false);
-  const [mapType, setMapType] = useState<"satellite" | "standard">(
-    Platform.OS === "android" ? "satellite" : "standard",
-  );
+  const [mapType, setMapType] = useState<"satellite" | "standard">("satellite");
   const [allowMapCanvas, setAllowMapCanvas] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     const interactionHandle = InteractionManager.runAfterInteractions(() => {
       if (!cancelled) {
-        setAllowMapCanvas(Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode);
+        setAllowMapCanvas(
+          Boolean(mapsFeatureEnabled && canRenderMaps) && !safeMode,
+        );
       }
     });
 
@@ -448,9 +455,7 @@ export default function DriverActiveRideScreen() {
         typeof ride.destination_id === "object" &&
         (ride.destination_id.short_name || ride.destination_id.name)) ||
       "Destination";
-    const label = encodeURIComponent(
-      `${pickupLabel} to ${destinationLabel}`,
-    );
+    const label = encodeURIComponent(`${pickupLabel} to ${destinationLabel}`);
 
     try {
       await Linking.openURL(
@@ -470,7 +475,10 @@ export default function DriverActiveRideScreen() {
       ? ride.destination_id
       : null;
   const routeCoordinates = sanitizeRouteGeometry(ride?.route_geometry);
-  const center = resolveSafeCenter(userLocation, ride?.current_location?.coordinates);
+  const center = resolveSafeCenter(
+    userLocation,
+    ride?.current_location?.coordinates,
+  );
   const checkedIn = bookings.filter(
     (b) => b.check_in_status === "checked_in",
   ).length;
@@ -494,7 +502,7 @@ export default function DriverActiveRideScreen() {
           <T>Ride details unavailable</T>
         </Text>
         <Text className="text-sm text-gray-400 text-center mb-6">
-          <T>We couldn't load this live ride right now.</T>
+          <T>We could not load this live ride right now.</T>
         </Text>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -550,7 +558,12 @@ export default function DriverActiveRideScreen() {
 
         {showMapCanvas ? (
           <View className="mx-5 mt-3 h-[280px] overflow-hidden rounded-[28px] bg-white">
-            <MapView style={{ flex: 1 }} mapType={mapType} showsCompass showsBuildings>
+            <MapView
+              style={{ flex: 1 }}
+              mapType={mapType}
+              showsCompass
+              showsBuildings
+            >
               <Camera
                 ref={cameraRef}
                 defaultSettings={{
@@ -567,27 +580,39 @@ export default function DriverActiveRideScreen() {
                   strokeWidth={4}
                 />
               )}
-              {Object.entries(passengerLocations).map(([userId, loc]) => (
-                <Marker
-                  key={`passenger-${userId}`}
-                  coordinate={{
-                    latitude: loc.latitude,
-                    longitude: loc.longitude,
-                  }}
-                  anchor={{ x: 0.5, y: 1 }}
-                >
-                  <View className="items-center">
-                    <View className="bg-accent rounded-full w-8 h-8 items-center justify-center border-2 border-white">
-                      <Ionicons name="person" size={14} color="#fff" />
+              {Object.entries(passengerLocations).map(([userId, loc]) => {
+                const passengerLabel =
+                  loc.name?.trim()?.split(" ")[0] || "Passenger";
+
+                return (
+                  <Marker
+                    key={`passenger-${userId}`}
+                    coordinate={{
+                      latitude: loc.latitude,
+                      longitude: loc.longitude,
+                    }}
+                    anchor={{ x: 0.5, y: 1 }}
+                  >
+                    <View className="items-center">
+                      <View className="h-9 w-9 overflow-hidden rounded-full border-2 border-white bg-accent items-center justify-center">
+                        {loc.profile_picture ? (
+                          <Image
+                            source={{ uri: loc.profile_picture }}
+                            className="h-full w-full"
+                          />
+                        ) : (
+                          <Ionicons name="person" size={14} color="#fff" />
+                        )}
+                      </View>
+                      <View className="mt-1 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1">
+                        <Text className="text-[10px] font-semibold text-slate-700">
+                          {passengerLabel}
+                        </Text>
+                      </View>
                     </View>
-                    <View className="bg-white rounded-md px-1.5 py-0.5 mt-0.5">
-                      <Text className="text-[8px] font-bold text-gray-700">
-                        {loc.name.split(" ")[0]}
-                      </Text>
-                    </View>
-                  </View>
-                </Marker>
-              ))}
+                  </Marker>
+                );
+              })}
             </MapView>
             <View className="absolute right-3 top-3 gap-2">
               <TouchableOpacity
@@ -633,7 +658,8 @@ export default function DriverActiveRideScreen() {
               Passenger tracking continues in the background
             </Text>
             <Text className="mt-2 text-sm leading-6 text-slate-600">
-              Check-ins, passenger payments, and ride completion actions remain fully available while the interactive map is disabled.
+              Check-ins, passenger payments, and ride completion actions remain
+              fully available while the interactive map is disabled.
             </Text>
             {safeMode ? (
               <TouchableOpacity
@@ -653,245 +679,259 @@ export default function DriverActiveRideScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 28 }}
         >
-        <View className="px-5 pb-2">
-          <View className="mb-4 rounded-[24px] bg-[#042F40] px-4 py-4">
-            <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
-              Driver Operations
-            </Text>
-            <Text className="mt-1 text-lg font-bold text-white">
-              <T>Ride In Progress</T>
-            </Text>
-            <Text className="mt-1 text-xs leading-5 text-slate-300">
-              <T>Monitor passenger progress, confirm transfers, and wrap up the trip from one sheet.</T>
-            </Text>
-          </View>
+          <View className="px-5 pb-2">
+            <View className="mb-4 rounded-[24px] bg-[#042F40] px-4 py-4">
+              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
+                Driver Operations
+              </Text>
+              <Text className="mt-1 text-lg font-bold text-white">
+                <T>Ride In Progress</T>
+              </Text>
+              <Text className="mt-1 text-xs leading-5 text-slate-300">
+                <T>
+                  Monitor passenger progress, confirm transfers, and wrap up the
+                  trip from one sheet.
+                </T>
+              </Text>
+            </View>
 
-          <View className="mb-3 flex-row gap-3">
-            <View className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Driver Live
-              </Text>
-              <Text className="mt-1 text-sm font-bold text-slate-900">
-                {userLocation ? "Broadcasting location" : "GPS waking up"}
-              </Text>
-              <Text className="mt-1 text-xs text-slate-500">
-                {userLocation ? "Visible to checked-in passengers" : "Waiting for current coordinates"}
-              </Text>
-              {userLocation ? (
-                <Text className="mt-1 text-[11px] text-slate-400">
-                  {userLocation.latitude.toFixed(5)},{" "}
-                  {userLocation.longitude.toFixed(5)}
+            <View className="mb-3 flex-row gap-3">
+              <View className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Driver Live
                 </Text>
-              ) : null}
-            </View>
-            <View className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Passenger live
-              </Text>
-              <Text className="mt-1 text-sm font-bold text-slate-900">
-                {Object.keys(passengerLocations).length} tracked passenger
-                {Object.keys(passengerLocations).length === 1 ? "" : "s"}
-              </Text>
-              <Text className="mt-1 text-xs text-slate-500">
-                {formatLiveStatus(lastPassengerUpdate)}
-              </Text>
-            </View>
-          </View>
-          {/* Route */}
-          <View className="flex-row items-center mb-3">
-            <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
-            <Text className="text-xs text-gray-500 flex-1" numberOfLines={1}>
-              {pickup?.short_name || "Pickup"}
-            </Text>
-            <Ionicons name="arrow-forward" size={12} color="#D1D5DB" />
-            <View className="w-2.5 h-2.5 rounded-full bg-red-500 mx-2" />
-            <Text
-              className="text-xs text-gray-500 flex-1 text-right"
-              numberOfLines={1}
-            >
-              {dest?.short_name || "Destination"}
-            </Text>
-          </View>
-
-          {/* Check-in Code */}
-          {ride?.check_in_code && (
-            <TouchableOpacity
-              onPress={handleShareCode}
-              className="bg-accent/10 rounded-xl p-3 mb-3 flex-row items-center border border-accent/20"
-            >
-              <Ionicons name="key" size={18} color="#D4A017" />
-              <Text className="text-lg font-bold text-accent tracking-[6px] mx-3 flex-1">
-                {ride.check_in_code}
-              </Text>
-              <Ionicons name="share-outline" size={16} color="#D4A017" />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            onPress={handleOpenInGoogleMaps}
-            className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 flex-row items-center"
-          >
-            <Ionicons name="navigate-outline" size={18} color="#042F40" />
-            <View className="ml-3 flex-1">
-              <Text className="text-xs font-semibold text-slate-900">
-                <T>Open in Google Maps</T>
-              </Text>
-              <Text className="text-[10px] text-slate-500 mt-0.5">
-                <T>Open the latest saved ride location</T>
-              </Text>
-            </View>
-            <Ionicons name="open-outline" size={16} color="#042F40" />
-          </TouchableOpacity>
-
-          {/* Passengers */}
-          {bookings.length > 0 && (
-            <View className="mb-3">
-              <Text className="text-xs text-gray-400 mb-2">
-                <T>Passengers</T>
-              </Text>
-              {bookings.map((bk) => {
-                const usr =
-                  bk.user_id && typeof bk.user_id === "object"
-                    ? bk.user_id
-                    : null;
-                const isTransfer = bk.payment_method === "transfer";
-                const paymentSent = isTransfer && bk.payment_status === "sent";
-                const paymentConfirmed =
-                  isTransfer && bk.payment_status === "paid";
-                const paymentPending =
-                  isTransfer && bk.payment_status === "pending";
-                return (
-                  <View key={bk._id} className="bg-gray-50 rounded-xl p-3 mb-2">
-                    <View className="flex-row items-center">
-                      {usr?.profile_picture ? (
-                        <Image
-                          source={{ uri: usr.profile_picture }}
-                          className="w-8 h-8 rounded-full mr-2"
-                        />
-                      ) : (
-                        <View className="w-8 h-8 rounded-full bg-gray-200 items-center justify-center mr-2">
-                          <Ionicons name="person" size={14} color="#042F40" />
-                        </View>
-                      )}
-                      <View className="flex-1">
-                        <Text className="text-xs font-semibold text-gray-800">
-                          {usr?.name || "Passenger"}
-                        </Text>
-                        <Text className="text-[10px] text-gray-400">
-                          {bk.seats_requested} seat
-                          {bk.seats_requested > 1 ? "s" : ""} ·{" "}
-                          {bk.payment_method}
-                        </Text>
-                        {usr?._id && passengerLocations[usr._id] ? (
-                          <Text className="mt-1 text-[10px] text-slate-500">
-                            {formatLiveStatus(
-                              passengerLocations[usr._id]?.timestamp,
-                            )}{" "}
-                            ·{" "}
-                            {passengerLocations[usr._id]?.latitude.toFixed(5)},{" "}
-                            {passengerLocations[usr._id]?.longitude.toFixed(5)}
-                          </Text>
-                        ) : (
-                          <Text className="mt-1 text-[10px] text-slate-400">
-                            Live location will appear once the rider shares it
-                          </Text>
-                        )}
-                      </View>
-                      <View className="flex-row items-center gap-1.5">
-                        {/* Payment badge */}
-                        {isTransfer && (
-                          <View
-                            className={`rounded-full px-2 py-0.5 ${
-                              paymentConfirmed
-                                ? "bg-green-100"
-                                : paymentSent
-                                  ? "bg-blue-100"
-                                  : "bg-amber-100"
-                            }`}
-                          >
-                            <Text
-                              className={`text-[10px] font-semibold ${
-                                paymentConfirmed
-                                  ? "text-green-700"
-                                  : paymentSent
-                                    ? "text-blue-700"
-                                    : "text-amber-700"
-                              }`}
-                            >
-                              {paymentConfirmed
-                                ? "Transfer confirmed"
-                                : paymentSent
-                                  ? "Transfer sent"
-                                  : "Transfer pending"}
-                            </Text>
-                          </View>
-                        )}
-                        {bk.check_in_status === "checked_in" ? (
-                          <View className="bg-green-100 rounded-full px-2 py-0.5">
-                            <Text className="text-[10px] text-green-700 font-semibold">
-                              ✓
-                            </Text>
-                          </View>
-                        ) : (
-                          <View className="bg-gray-100 rounded-full px-2 py-0.5">
-                            <Text className="text-[10px] text-gray-400">—</Text>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Confirm Transfer button — shown when passenger has marked as sent */}
-                    {paymentSent && (
-                      <TouchableOpacity
-                        onPress={() =>
-                          handleConfirmPayment(
-                            bk._id,
-                            usr?.name || "this passenger",
-                          )
-                        }
-                        disabled={actionId === bk._id}
-                        className="mt-2 bg-blue-50 rounded-xl py-2.5 flex-row items-center justify-center border border-blue-100"
-                      >
-                        {actionId === bk._id ? (
-                          <ActivityIndicator size="small" color="#2563EB" />
-                        ) : (
-                          <>
-                            <Ionicons
-                              name="checkmark-circle-outline"
-                              size={14}
-                              color="#2563EB"
-                            />
-                            <Text className="text-blue-600 font-semibold text-xs ml-1.5">
-                              <T>Confirm Transfer Received</T>
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* End Ride */}
-          <TouchableOpacity
-            onPress={handleEndRide}
-            disabled={ending}
-            className="bg-red-500 rounded-2xl py-4 items-center mb-2"
-          >
-            {ending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <View className="flex-row items-center">
-                <Ionicons name="stop-circle" size={18} color="#fff" />
-                <Text className="text-white font-bold text-base ml-2">
-                  <T>End Ride</T>
+                <Text className="mt-1 text-sm font-bold text-slate-900">
+                  {userLocation ? "Broadcasting location" : "GPS waking up"}
+                </Text>
+                <Text className="mt-1 text-xs text-slate-500">
+                  {userLocation
+                    ? "Visible to checked-in passengers"
+                    : "Waiting for current coordinates"}
+                </Text>
+                {userLocation ? (
+                  <Text className="mt-1 text-[11px] text-slate-400">
+                    {userLocation.latitude.toFixed(5)},{" "}
+                    {userLocation.longitude.toFixed(5)}
+                  </Text>
+                ) : null}
+              </View>
+              <View className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Passenger live
+                </Text>
+                <Text className="mt-1 text-sm font-bold text-slate-900">
+                  {Object.keys(passengerLocations).length} tracked passenger
+                  {Object.keys(passengerLocations).length === 1 ? "" : "s"}
+                </Text>
+                <Text className="mt-1 text-xs text-slate-500">
+                  {formatLiveStatus(lastPassengerUpdate)}
                 </Text>
               </View>
+            </View>
+            {/* Route */}
+            <View className="flex-row items-center mb-3">
+              <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
+              <Text className="text-xs text-gray-500 flex-1" numberOfLines={1}>
+                {pickup?.short_name || "Pickup"}
+              </Text>
+              <Ionicons name="arrow-forward" size={12} color="#D1D5DB" />
+              <View className="w-2.5 h-2.5 rounded-full bg-red-500 mx-2" />
+              <Text
+                className="text-xs text-gray-500 flex-1 text-right"
+                numberOfLines={1}
+              >
+                {dest?.short_name || "Destination"}
+              </Text>
+            </View>
+
+            {/* Check-in Code */}
+            {ride?.check_in_code && (
+              <TouchableOpacity
+                onPress={handleShareCode}
+                className="bg-accent/10 rounded-xl p-3 mb-3 flex-row items-center border border-accent/20"
+              >
+                <Ionicons name="key" size={18} color="#D4A017" />
+                <Text className="text-lg font-bold text-accent tracking-[6px] mx-3 flex-1">
+                  {ride.check_in_code}
+                </Text>
+                <Ionicons name="share-outline" size={16} color="#D4A017" />
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-        </View>
+
+            <TouchableOpacity
+              onPress={handleOpenInGoogleMaps}
+              className="mb-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 flex-row items-center"
+            >
+              <Ionicons name="navigate-outline" size={18} color="#042F40" />
+              <View className="ml-3 flex-1">
+                <Text className="text-xs font-semibold text-slate-900">
+                  <T>Open in Google Maps</T>
+                </Text>
+                <Text className="text-[10px] text-slate-500 mt-0.5">
+                  <T>Open the latest saved ride location</T>
+                </Text>
+              </View>
+              <Ionicons name="open-outline" size={16} color="#042F40" />
+            </TouchableOpacity>
+
+            {/* Passengers */}
+            {bookings.length > 0 && (
+              <View className="mb-3">
+                <Text className="text-xs text-gray-400 mb-2">
+                  <T>Passengers</T>
+                </Text>
+                {bookings.map((bk) => {
+                  const usr =
+                    bk.user_id && typeof bk.user_id === "object"
+                      ? bk.user_id
+                      : null;
+                  const isTransfer = bk.payment_method === "transfer";
+                  const paymentSent =
+                    isTransfer && bk.payment_status === "sent";
+                  const paymentConfirmed =
+                    isTransfer && bk.payment_status === "paid";
+                  const paymentPending =
+                    isTransfer && bk.payment_status === "pending";
+                  return (
+                    <View
+                      key={bk._id}
+                      className="bg-gray-50 rounded-xl p-3 mb-2"
+                    >
+                      <View className="flex-row items-center">
+                        {usr?.profile_picture ? (
+                          <Image
+                            source={{ uri: usr.profile_picture }}
+                            className="w-8 h-8 rounded-full mr-2"
+                          />
+                        ) : (
+                          <View className="w-8 h-8 rounded-full bg-gray-200 items-center justify-center mr-2">
+                            <Ionicons name="person" size={14} color="#042F40" />
+                          </View>
+                        )}
+                        <View className="flex-1">
+                          <Text className="text-xs font-semibold text-gray-800">
+                            {usr?.name || "Passenger"}
+                          </Text>
+                          <Text className="text-[10px] text-gray-400">
+                            {bk.seats_requested} seat
+                            {bk.seats_requested > 1 ? "s" : ""} ·{" "}
+                            {bk.payment_method}
+                          </Text>
+                          {usr?._id && passengerLocations[usr._id] ? (
+                            <Text className="mt-1 text-[10px] text-slate-500">
+                              {formatLiveStatus(
+                                passengerLocations[usr._id]?.timestamp,
+                              )}{" "}
+                              ·{" "}
+                              {passengerLocations[usr._id]?.latitude.toFixed(5)}
+                              ,{" "}
+                              {passengerLocations[usr._id]?.longitude.toFixed(
+                                5,
+                              )}
+                            </Text>
+                          ) : (
+                            <Text className="mt-1 text-[10px] text-slate-400">
+                              Live location will appear once the rider shares it
+                            </Text>
+                          )}
+                        </View>
+                        <View className="flex-row items-center gap-1.5">
+                          {/* Payment badge */}
+                          {isTransfer && (
+                            <View
+                              className={`rounded-full px-2 py-0.5 ${
+                                paymentConfirmed
+                                  ? "bg-green-100"
+                                  : paymentSent
+                                    ? "bg-blue-100"
+                                    : "bg-amber-100"
+                              }`}
+                            >
+                              <Text
+                                className={`text-[10px] font-semibold ${
+                                  paymentConfirmed
+                                    ? "text-green-700"
+                                    : paymentSent
+                                      ? "text-blue-700"
+                                      : "text-amber-700"
+                                }`}
+                              >
+                                {paymentConfirmed
+                                  ? "Transfer confirmed"
+                                  : paymentSent
+                                    ? "Transfer sent"
+                                    : "Transfer pending"}
+                              </Text>
+                            </View>
+                          )}
+                          {bk.check_in_status === "checked_in" ? (
+                            <View className="bg-green-100 rounded-full px-2 py-0.5">
+                              <Text className="text-[10px] text-green-700 font-semibold">
+                                ✓
+                              </Text>
+                            </View>
+                          ) : (
+                            <View className="bg-gray-100 rounded-full px-2 py-0.5">
+                              <Text className="text-[10px] text-gray-400">
+                                —
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Confirm Transfer button — shown when passenger has marked as sent */}
+                      {paymentSent && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleConfirmPayment(
+                              bk._id,
+                              usr?.name || "this passenger",
+                            )
+                          }
+                          disabled={actionId === bk._id}
+                          className="mt-2 bg-blue-50 rounded-xl py-2.5 flex-row items-center justify-center border border-blue-100"
+                        >
+                          {actionId === bk._id ? (
+                            <ActivityIndicator size="small" color="#2563EB" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="checkmark-circle-outline"
+                                size={14}
+                                color="#2563EB"
+                              />
+                              <Text className="text-blue-600 font-semibold text-xs ml-1.5">
+                                <T>Confirm Transfer Received</T>
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* End Ride */}
+            <TouchableOpacity
+              onPress={handleEndRide}
+              disabled={ending}
+              className="bg-red-500 rounded-2xl py-4 items-center mb-2"
+            >
+              {ending ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <View className="flex-row items-center">
+                  <Ionicons name="stop-circle" size={18} color="#fff" />
+                  <Text className="text-white font-bold text-base ml-2">
+                    <T>End Ride</T>
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </SafeAreaView>
 
