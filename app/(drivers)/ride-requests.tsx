@@ -73,11 +73,15 @@ export default function DriverRideRequestsScreen() {
 
   const renderRequest = ({ item, index }: { item: Ride; index: number }) => {
     const pickup =
-      typeof item.pickup_location_id === "object" ? item.pickup_location_id : null;
+      typeof item.pickup_location_id === "object"
+        ? item.pickup_location_id
+        : null;
     const destination =
       typeof item.destination_id === "object" ? item.destination_id : null;
     const requesterName = item.created_by?.name || "Passenger";
-    const requestedSeats = item.booked_seats || item.available_seats || 1;
+    const totalSeatsForRide = Math.max(item.available_seats || 0, 0);
+    const bookedSeats = Math.max(item.booked_seats || 0, 0);
+    const seatsLeft = Math.max(totalSeatsForRide - bookedSeats, 0);
 
     return (
       <Animated.View entering={FadeInDown.delay(index * 40).duration(220)}>
@@ -105,11 +109,13 @@ export default function DriverRideRequestsScreen() {
               <View>
                 <Text className="text-sm font-semibold text-slate-900">
                   {pickup?.short_name || pickup?.name || "Pickup"} {"→"}{" "}
-                  {destination?.short_name || destination?.name || "Destination"}
+                  {destination?.short_name ||
+                    destination?.name ||
+                    "Destination"}
                 </Text>
                 <Text className="mt-1 text-xs text-slate-500">
-                  Requested by {requesterName} · {requestedSeats} seat
-                  {requestedSeats === 1 ? "" : "s"}
+                  Requested by {requesterName} · {bookedSeats}/
+                  {totalSeatsForRide} seats booked
                 </Text>
               </View>
             </View>
@@ -131,18 +137,36 @@ export default function DriverRideRequestsScreen() {
             </View>
             <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
               <Text className="text-[11px] text-slate-500">
-                <T>Seats</T>
+                <T>Seats Booked</T>
               </Text>
               <Text className="mt-1 text-base font-bold text-slate-900">
-                {item.available_seats}
+                {bookedSeats}
               </Text>
             </View>
             <View className="flex-1 rounded-2xl bg-slate-50 px-3 py-3">
               <Text className="text-[11px] text-slate-500">
-                <T>Departure</T>
+                <T>Total Seats</T>
               </Text>
               <Text className="mt-1 text-base font-bold text-slate-900">
-                {formatTime(item.departure_time)}
+                {totalSeatsForRide}
+              </Text>
+            </View>
+          </View>
+
+          <View className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center">
+                <Ionicons name="time-outline" size={14} color="#64748B" />
+                <Text className="ml-1.5 text-xs text-slate-500">
+                  <T>Departure</T>
+                </Text>
+                <Text className="ml-2 text-sm font-semibold text-slate-900">
+                  {formatTime(item.departure_time)}
+                </Text>
+              </View>
+              <Text className="text-xs font-semibold text-emerald-700">
+                {seatsLeft} <T>seat</T>
+                {seatsLeft === 1 ? "" : "s"} <T>left</T>
               </Text>
             </View>
           </View>

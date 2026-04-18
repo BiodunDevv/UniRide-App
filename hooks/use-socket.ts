@@ -67,10 +67,13 @@ export function useSocket() {
           user_id: lastJoinedRooms.userId,
           role: lastJoinedRooms.role,
         });
+
+        // Keep personal feed joined for both user and driver roles.
+        socket.emit("join-user-feed", { user_id: lastJoinedRooms.userId });
+
         if (lastJoinedRooms.role === "driver") {
           socket.emit("join-driver-feed");
         } else {
-          socket.emit("join-user-feed", { user_id: lastJoinedRooms.userId });
           socket.emit("join-live-map");
         }
       }
@@ -107,6 +110,34 @@ export function useSocket() {
       eventBus.emit("driver-location-updated", data);
     });
 
+    // Ride-room location event alias (emitted by backend during active rides)
+    socket.on("driver-location-update", (data) => {
+      const latitude = data?.location?.latitude ?? data?.latitude;
+      const longitude = data?.location?.longitude ?? data?.longitude;
+
+      if (
+        data?.driver_id &&
+        typeof latitude === "number" &&
+        typeof longitude === "number"
+      ) {
+        updateDriverInList(
+          data.driver_id,
+          { latitude, longitude },
+          data.heading,
+        );
+      }
+
+      eventBus.emit("driver-location-updated", {
+        ...data,
+        location:
+          typeof latitude === "number" && typeof longitude === "number"
+            ? { latitude, longitude }
+            : data?.location,
+        latitude,
+        longitude,
+      });
+    });
+
     socket.on("driver-online", (data) => {
       addDriverToList({
         driver_id: data.driver_id,
@@ -140,12 +171,16 @@ export function useSocket() {
           availableRequests: [ride, ...store.availableRequests],
         });
       }
+
+      eventBus.emit("ride:new_request", ride);
     });
 
     socket.on("ride:created", (ride) => {
       // A new ride was created — refresh available rides for users
       const store = useRideStore.getState();
       store.fetchActiveRides();
+      store.fetchMyBookings();
+      eventBus.emit("ride:created", ride);
     });
 
     socket.on("ride:accepted", (data) => {
@@ -178,6 +213,24 @@ export function useSocket() {
 
     socket.on("ride:ended", (data) => {
       const store = useRideStore.getState();
+      if (data?.ride_id) {
+        useRideStore.setState({
+          myBookings: store.myBookings.map((b) => {
+            const bookingRideId =
+              typeof b.ride_id === "object" ? b.ride_id?._id : b.ride_id;
+            return bookingRideId === data.ride_id && b.status !== "cancelled"
+              ? { ...b, status: "completed" as const }
+              : b;
+          }),
+          driverBookings: store.driverBookings.map((b) => {
+            const bookingRideId =
+              typeof b.ride_id === "object" ? b.ride_id?._id : b.ride_id;
+            return bookingRideId === data.ride_id && b.status !== "cancelled"
+              ? { ...b, status: "completed" as const }
+              : b;
+          }),
+        });
+      }
       // Refresh all data to show completed status
       store.fetchMyBookings();
       store.fetchDriverBookings();
@@ -192,12 +245,62 @@ export function useSocket() {
 
     socket.on("ride:started", (data) => {
       const store = useRideStore.getState();
+      if (data?.ride_id) {
+        useRideStore.setState({
+          myBookings: store.myBookings.map((b) => {
+            const bookingRideId =
+              typeof b.ride_id === "object" ? b.ride_id?._id : b.ride_id;
+            return bookingRideId === data.ride_id && b.status === "accepted"
+              ? { ...b, status: "in_progress" as const }
+              : b;
+          }),
+          driverBookings: store.driverBookings.map((b) => {
+            const bookingRideId =
+              typeof b.ride_id === "object" ? b.ride_id?._id : b.ride_id;
+            return bookingRideId === data.ride_id && b.status === "accepted"
+              ? { ...b, status: "in_progress" as const }
+              : b;
+          }),
+        });
+      }
       // Refresh all data so UI reflects in_progress status
       store.fetchMyBookings();
       store.fetchDriverBookings();
       store.fetchDriverRides();
       store.fetchActiveRides();
       eventBus.emit("ride:started", data);
+    });
+
+    socket.on("ride:cancelled", (data) => {
+      const store = useRideStore.getState();
+      if (data?.ride_id) {
+        useRideStore.setState({
+          myBookings: store.myBookings.map((b) => {
+            const bookingRideId =
+              typeof b.ride_id === "object" ? b.ride_id?._id : b.ride_id;
+            return bookingRideId === data.ride_id
+              ? { ...b, status: "cancelled" as const }
+              : b;
+          }),
+          driverBookings: store.driverBookings.map((b) => {
+            const bookingRideId =
+              typeof b.ride_id === "object" ? b.ride_id?._id : b.ride_id;
+            return bookingRideId === data.ride_id
+              ? { ...b, status: "cancelled" as const }
+              : b;
+          }),
+        });
+      }
+
+      store.fetchMyBookings();
+      store.fetchDriverBookings();
+      store.fetchDriverRides();
+      store.fetchActiveRides();
+      store.fetchAvailableRequests();
+      if (store.activeRide?._id === data?.ride_id) {
+        useRideStore.setState({ activeRide: null });
+      }
+      eventBus.emit("ride:cancelled", data);
     });
 
     // ── Booking events (real-time) ─────────────────────────────────────
@@ -331,6 +434,7 @@ export function useSocket() {
 
   // Join user feed for real-time booking updates
   const joinUserFeed = useCallback((userId: string) => {
+    lastJoinedRooms.userId = userId;
     socketRef.current?.emit("join-user-feed", { user_id: userId });
   }, []);
 

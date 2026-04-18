@@ -76,6 +76,19 @@ function formatDurationLabel(durationSeconds: number): string {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
+function formatElapsedDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 export default function DriverActiveRideScreen() {
   const router = useRouter();
   const { rideId } = useLocalSearchParams<{ rideId: string }>();
@@ -91,6 +104,9 @@ export default function DriverActiveRideScreen() {
   const mapsFeatureEnabled = usePlatformSettingsStore(
     (state) =>
       state.settings.mobile_map_enabled ?? state.settings.expo_maps_enabled,
+  );
+  const farePerSeatEnabled = usePlatformSettingsStore((state) =>
+    Boolean(state.settings.fare_per_seat),
   );
   const navigationSdkEnabled = usePlatformSettingsStore((state) =>
     Boolean(state.settings.mobile_navigation_enabled),
@@ -129,6 +145,7 @@ export default function DriverActiveRideScreen() {
   const [lastPassengerUpdate, setLastPassengerUpdate] = useState<string | null>(
     null,
   );
+  const [elapsedClockMs, setElapsedClockMs] = useState(() => Date.now());
 
   const formatLiveStatus = useCallback((value?: string | null) => {
     if (!value) return "Waiting for live updates";
@@ -157,6 +174,8 @@ export default function DriverActiveRideScreen() {
             // Start the ride (transition to in_progress) only if it is not already completed
             try {
               await startRide(rideId);
+              const refreshedRide = await fetchRideDetails(rideId);
+              setRide(refreshedRide);
             } catch {}
           }
           const seededPassengerLocations = ((r as any)?.bookings || []).reduce(
@@ -352,11 +371,15 @@ export default function DriverActiveRideScreen() {
     const u2 = eventBus.on("booking:checkin", refresh);
     const u3 = eventBus.on("booking:cancelled", refresh);
     const u4 = eventBus.on("ride:ended", refresh);
+    const u5 = eventBus.on("ride:started", refresh);
+    const u6 = eventBus.on("ride:cancelled", refresh);
     return () => {
       u1();
       u2();
       u3();
       u4();
+      u5();
+      u6();
     };
   }, [rideId]);
 
@@ -549,6 +572,79 @@ export default function DriverActiveRideScreen() {
   const checkedIn = bookings.filter(
     (b) => b.check_in_status === "checked_in",
   ).length;
+  const completedModalBookings = useMemo(() => {
+    const rideBookings = Array.isArray((ride as any)?.bookings)
+      ? (((ride as any).bookings || []) as Booking[])
+      : [];
+
+    const rideParticipants = rideBookings.filter((booking) =>
+      ["accepted", "in_progress", "completed"].includes(booking.status),
+    );
+
+    return rideParticipants.length > 0 ? rideParticipants : bookings;
+  }, [bookings, ride]);
+
+  const completedModalPassengerCount = completedModalBookings.length;
+  const completedModalCheckedIn = completedModalBookings.filter(
+    (booking) => booking.check_in_status === "checked_in",
+  ).length;
+  const completedModalFare = useMemo(() => {
+    if (completedModalBookings.length === 0) {
+      return Number(ride?.fare || 0);
+    }
+
+    return completedModalBookings.reduce((sum, booking) => {
+      const bookingTotal = Number((booking as any)?.total_fare);
+      if (Number.isFinite(bookingTotal) && bookingTotal > 0) {
+        return sum + bookingTotal;
+      }
+
+      const seatsRequested = Number(booking?.seats_requested || 1);
+      const farePerSeat = Number(ride?.fare || 0);
+      return (
+        sum + (farePerSeatEnabled ? farePerSeat * seatsRequested : farePerSeat)
+      );
+    }, 0);
+  }, [completedModalBookings, farePerSeatEnabled, ride?.fare]);
+  const rideElapsedSeconds = useMemo(() => {
+    if (!ride?.started_at) {
+      return typeof ride?.elapsed_seconds === "number"
+        ? ride.elapsed_seconds
+        : null;
+    }
+
+    const startedAtMs = new Date(ride.started_at).getTime();
+    if (Number.isNaN(startedAtMs)) {
+      return typeof ride?.elapsed_seconds === "number"
+        ? ride.elapsed_seconds
+        : null;
+    }
+
+    const endMs =
+      ride.status === "in_progress"
+        ? elapsedClockMs
+        : ride.ended_at
+          ? new Date(ride.ended_at).getTime()
+          : elapsedClockMs;
+
+    if (Number.isNaN(endMs) || endMs < startedAtMs) {
+      return typeof ride?.elapsed_seconds === "number"
+        ? ride.elapsed_seconds
+        : null;
+    }
+
+    return Math.floor((endMs - startedAtMs) / 1000);
+  }, [
+    ride?.elapsed_seconds,
+    ride?.ended_at,
+    ride?.started_at,
+    ride?.status,
+    elapsedClockMs,
+  ]);
+  const rideTimerLabel =
+    typeof rideElapsedSeconds === "number"
+      ? formatElapsedDuration(rideElapsedSeconds)
+      : null;
   const showMapCanvas =
     mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
   const destinationTuple = useMemo(
@@ -690,6 +786,16 @@ export default function DriverActiveRideScreen() {
     }, 3200);
     return () => clearTimeout(timeout);
   }, [navigationNotice]);
+
+  useEffect(() => {
+    if (!ride?.started_at || ride.status !== "in_progress") return;
+
+    const timer = setInterval(() => {
+      setElapsedClockMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [ride?.started_at, ride?.status]);
 
   useEffect(() => {
     if (!isNavigating) return;
@@ -926,9 +1032,16 @@ export default function DriverActiveRideScreen() {
             }}
           >
             <View className="w-2.5 h-2.5 rounded-full bg-green-500 mr-2" />
-            <Text className="text-sm font-bold text-gray-900 flex-1">
-              <T>Ride In Progress</T>
-            </Text>
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-gray-900">
+                <T>Ride In Progress</T>
+              </Text>
+              {rideTimerLabel ? (
+                <Text className="text-[11px] text-slate-500 mt-0.5">
+                  <T>Timer</T>: {rideTimerLabel}
+                </Text>
+              ) : null}
+            </View>
             <Text className="text-xs text-gray-400">
               {checkedIn}/{bookings.length} <T>checked in</T>
             </Text>
@@ -1436,7 +1549,7 @@ export default function DriverActiveRideScreen() {
                 <View className="flex-row justify-between border-t border-slate-200 pt-4">
                   <View className="items-center flex-1">
                     <Text className="text-lg font-bold text-primary">
-                      {bookings.length}
+                      {completedModalPassengerCount}
                     </Text>
                     <Text className="text-[10px] text-gray-400">
                       <T>Passengers</T>
@@ -1444,15 +1557,15 @@ export default function DriverActiveRideScreen() {
                   </View>
                   <View className="items-center flex-1">
                     <Text className="text-lg font-bold text-primary">
-                      {ride?.fare ? `₦${ride.fare}` : "—"}
+                      ₦{completedModalFare.toLocaleString()}
                     </Text>
                     <Text className="text-[10px] text-gray-400">
-                      <T>Fare</T>
+                      <T>Earnings</T>
                     </Text>
                   </View>
                   <View className="items-center flex-1">
                     <Text className="text-lg font-bold text-green-600">
-                      {checkedIn}/{bookings.length}
+                      {completedModalCheckedIn}/{completedModalPassengerCount}
                     </Text>
                     <Text className="text-[10px] text-gray-400">
                       <T>Checked In</T>

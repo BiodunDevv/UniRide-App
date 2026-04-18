@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   RefreshControl,
@@ -12,7 +13,10 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
-import { useNotificationStore, type Notification } from "@/store/useNotificationStore";
+import {
+  useNotificationStore,
+  type Notification,
+} from "@/store/useNotificationStore";
 import { T } from "@/hooks/use-translation";
 import { getNotificationPresentation } from "@/lib/notificationPresentation";
 
@@ -30,6 +34,7 @@ export function NotificationListScreen({ routeBase }: Props) {
     fetchNotifications,
     markRead,
     markAllRead,
+    clearAll,
   } = useNotificationStore();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -59,6 +64,25 @@ export function NotificationListScreen({ routeBase }: Props) {
     [markRead, routeBase, router],
   );
 
+  const handleClearAll = useCallback(() => {
+    if (notifications.length === 0) return;
+
+    Alert.alert(
+      "Clear notifications",
+      "Delete all notifications from this device?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: async () => {
+            await clearAll();
+          },
+        },
+      ],
+    );
+  }, [clearAll, notifications.length]);
+
   return (
     <View className="flex-1 bg-white">
       <SafeAreaView edges={["top"]} className="flex-1">
@@ -76,16 +100,28 @@ export function NotificationListScreen({ routeBase }: Props) {
             <Text className="flex-1 text-xl font-bold text-gray-900">
               <T>Notifications</T>
             </Text>
-            {unreadCount > 0 && (
-              <TouchableOpacity
-                onPress={markAllRead}
-                className="rounded-full bg-primary/10 px-3 py-1.5"
-              >
-                <Text className="text-xs font-semibold text-primary">
-                  <T>Mark all read</T>
-                </Text>
-              </TouchableOpacity>
-            )}
+            <View className="flex-row items-center gap-2">
+              {unreadCount > 0 && (
+                <TouchableOpacity
+                  onPress={markAllRead}
+                  className="rounded-full bg-primary/10 px-3 py-1.5"
+                >
+                  <Text className="text-xs font-semibold text-primary">
+                    <T>Mark all read</T>
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {notifications.length > 0 && (
+                <TouchableOpacity
+                  onPress={handleClearAll}
+                  className="rounded-full bg-red-50 px-3 py-1.5"
+                >
+                  <Text className="text-xs font-semibold text-red-600">
+                    <T>Clear all</T>
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </Animated.View>
 
@@ -107,7 +143,7 @@ export function NotificationListScreen({ routeBase }: Props) {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-              onRefresh={onRefresh}
+                onRefresh={onRefresh}
                 tintColor="#042F40"
               />
             }
@@ -150,7 +186,11 @@ export function NotificationListScreen({ routeBase }: Props) {
                     <View
                       className={`mr-3 h-10 w-10 items-center justify-center rounded-full ${info.bgClassName}`}
                     >
-                      <Ionicons name={info.icon as any} size={18} color={info.color} />
+                      <Ionicons
+                        name={info.icon as any}
+                        size={18}
+                        color={info.color}
+                      />
                     </View>
                     <View className="flex-1">
                       <Text

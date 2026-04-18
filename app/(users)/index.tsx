@@ -235,12 +235,16 @@ export default function UserHomeScreen() {
     const u3 = eventBus.on("booking:checkin", refresh);
     const u4 = eventBus.on("ride:accepted", refresh);
     const u5 = eventBus.on("ride:ended", refresh);
+    const u6 = eventBus.on("ride:started", refresh);
+    const u7 = eventBus.on("ride:cancelled", refresh);
     return () => {
       u1();
       u2();
       u3();
       u4();
       u5();
+      u6();
+      u7();
     };
   }, []);
 
@@ -287,12 +291,15 @@ export default function UserHomeScreen() {
       b.status === "accepted" ||
       b.status === "in_progress",
   );
+  const totalBookings = myBookings.length;
   const currentPriorityBooking =
     activeBookings.find((b) => b.status === "in_progress") ||
     activeBookings.find((b) => b.status === "accepted") ||
     null;
   const quickAccessBooking =
     currentPriorityBooking || activeBookings[0] || null;
+  const showQuickDestinations = popularLocs.length > 0 && showTopOverlayCards;
+  const quickDestinationsCompact = activeBookings.length > 0;
 
   const firstName = user?.name?.split(" ")[0] || "User";
   const initials = user?.name
@@ -354,6 +361,13 @@ export default function UserHomeScreen() {
     ]);
     setRefreshing(false);
   }, []);
+
+  const openBrowseRides = useCallback(() => {
+    // Browsing should not inherit stale route selections from prior sessions.
+    setSelectedPickup(null);
+    setSelectedDestination(null);
+    router.push("/(users)/available-rides" as any);
+  }, [router, setSelectedDestination, setSelectedPickup]);
 
   const centerOnSelf = useCallback(() => {
     if (userLocation && cameraRef.current) {
@@ -799,15 +813,15 @@ export default function UserHomeScreen() {
             </View>
           </View>
 
-          {popularLocs.length > 0 &&
-          showTopOverlayCards &&
-          activeBookings.length === 0 ? (
+          {showQuickDestinations ? (
             <Animated.View
               entering={FadeInDown.duration(220)}
               exiting={FadeOutUp.duration(220)}
             >
               <View
-                className="mt-3 rounded-[24px] bg-white/95 px-3.5 py-3"
+                className={`mt-3 rounded-[24px] bg-white/95 px-3.5 ${
+                  quickDestinationsCompact ? "py-2.5" : "py-3"
+                }`}
                 style={{
                   shadowColor: "#000",
                   shadowOffset: { width: 0, height: 2 },
@@ -820,9 +834,15 @@ export default function UserHomeScreen() {
                     <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                       <T>Quick destinations</T>
                     </Text>
-                    <Text className="mt-1 text-sm font-semibold text-slate-900">
-                      <T>Pick a destination and continue</T>
-                    </Text>
+                    {quickDestinationsCompact ? (
+                      <Text className="mt-1 text-[12px] font-semibold text-slate-900">
+                        <T>Fast destination shortcuts</T>
+                      </Text>
+                    ) : (
+                      <Text className="mt-1 text-sm font-semibold text-slate-900">
+                        <T>Pick a destination and continue</T>
+                      </Text>
+                    )}
                   </View>
                   <TouchableOpacity
                     onPress={() => router.push("/(users)/search-ride" as any)}
@@ -840,44 +860,46 @@ export default function UserHomeScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={{ paddingRight: 6 }}
                 >
-                  {popularLocs.slice(0, 6).map((loc) => (
-                    <TouchableOpacity
-                      key={loc._id}
-                      onPress={() => {
-                        setSelectedDestination(loc);
-                        router.push("/(users)/search-ride" as any);
-                      }}
-                      className="mr-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
-                      activeOpacity={0.85}
-                    >
-                      <View className="flex-row items-center">
-                        <View className="h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-                          <Ionicons
-                            name={
-                              (CATEGORIES[loc.category]?.icon ||
-                                "location") as any
-                            }
-                            size={13}
-                            color="#042F40"
-                          />
+                  {popularLocs
+                    .slice(0, quickDestinationsCompact ? 5 : 6)
+                    .map((loc) => (
+                      <TouchableOpacity
+                        key={loc._id}
+                        onPress={() => {
+                          setSelectedDestination(loc);
+                          router.push("/(users)/search-ride" as any);
+                        }}
+                        className="mr-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                        activeOpacity={0.85}
+                      >
+                        <View className="flex-row items-center">
+                          <View className="h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+                            <Ionicons
+                              name={
+                                (CATEGORIES[loc.category]?.icon ||
+                                  "location") as any
+                              }
+                              size={13}
+                              color="#042F40"
+                            />
+                          </View>
+                          <View className="ml-2.5 max-w-[140px]">
+                            <Text
+                              className="text-xs font-semibold text-slate-800"
+                              numberOfLines={1}
+                            >
+                              {loc.short_name || loc.name}
+                            </Text>
+                            <Text
+                              className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-slate-400"
+                              numberOfLines={1}
+                            >
+                              {CATEGORIES[loc.category]?.label || "Stop"}
+                            </Text>
+                          </View>
                         </View>
-                        <View className="ml-2.5 max-w-[140px]">
-                          <Text
-                            className="text-xs font-semibold text-slate-800"
-                            numberOfLines={1}
-                          >
-                            {loc.short_name || loc.name}
-                          </Text>
-                          <Text
-                            className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-slate-400"
-                            numberOfLines={1}
-                          >
-                            {CATEGORIES[loc.category]?.label || "Stop"}
-                          </Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
+                      </TouchableOpacity>
+                    ))}
                 </ScrollView>
               </View>
             </Animated.View>
@@ -972,7 +994,7 @@ export default function UserHomeScreen() {
                     onPress={() =>
                       activeBookings.length > 0
                         ? router.push("/(users)/activity")
-                        : router.push("/(users)/available-rides" as any)
+                        : openBrowseRides()
                     }
                     className="rounded-full bg-[#042F40] px-4 py-2.5"
                     activeOpacity={0.9}
@@ -1085,7 +1107,7 @@ export default function UserHomeScreen() {
                   onPress={() =>
                     activeBookings.length > 0
                       ? router.push("/(users)/activity")
-                      : router.push("/(users)/available-rides" as any)
+                      : openBrowseRides()
                   }
                   className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3.5"
                   activeOpacity={0.9}
@@ -1119,21 +1141,22 @@ export default function UserHomeScreen() {
 
             <Animated.View entering={FadeInUp.delay(300).duration(400)}>
               <View className="mx-4 mb-4 rounded-[22px] border border-slate-200 bg-white px-4 py-3.5">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    <T>Trip dashboard</T>
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() =>
-                      router.push("/(users)/available-rides" as any)
-                    }
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
-                    activeOpacity={0.85}
-                  >
-                    <Text className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
-                      <T>Open rides</T>
+                <View className="flex-row items-start justify-between">
+                  <View className="flex-1 pr-3">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <T>Trip dashboard</T>
                     </Text>
-                  </TouchableOpacity>
+                    <Text className="mt-1 text-xs leading-5 text-slate-500">
+                      <T>Track your stats and jump into open rides quickly.</T>
+                    </Text>
+                  </View>
+                  <View className="h-9 w-9 items-center justify-center rounded-xl bg-[#042F40]">
+                    <Ionicons
+                      name="car-sport-outline"
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                  </View>
                 </View>
 
                 <View className="mt-3 flex-row gap-3">
@@ -1161,6 +1184,31 @@ export default function UserHomeScreen() {
                   </View>
                 </View>
 
+                <TouchableOpacity
+                  onPress={openBrowseRides}
+                  className="mt-3 rounded-2xl border border-[#042F40] bg-[#042F40] px-4 py-3.5"
+                  activeOpacity={0.9}
+                >
+                  <View className="flex-row items-center">
+                    <View className="h-9 w-9 items-center justify-center rounded-xl bg-white/15">
+                      <Ionicons
+                        name="compass-outline"
+                        size={16}
+                        color="#FFFFFF"
+                      />
+                    </View>
+                    <View className="ml-3 flex-1 pr-3">
+                      <Text className="text-sm font-semibold text-white">
+                        <T>Open rides</T>
+                      </Text>
+                      <Text className="mt-0.5 text-[11px] text-slate-300">
+                        <T>Browse all live rides and join faster.</T>
+                      </Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+
                 <View className="mt-3 flex-row gap-3">
                   <TouchableOpacity
                     onPress={() => router.push("/(users)/activity")}
@@ -1172,7 +1220,7 @@ export default function UserHomeScreen() {
                     </Text>
                     <View className="mt-1 flex-row items-center justify-between">
                       <Text className="text-base font-bold text-slate-900">
-                        {activeBookings.length > 0 ? activeBookings.length : 0}
+                        {totalBookings}
                       </Text>
                       <Ionicons
                         name="chevron-forward"

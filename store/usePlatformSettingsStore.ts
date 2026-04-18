@@ -21,6 +21,8 @@ export interface PlatformSettings {
   max_seats_per_booking: number;
   allow_ride_without_driver: boolean;
   auto_accept_bookings: boolean;
+  support_email: string;
+  support_phone: string;
   fare_policy: FarePolicyInfo | null;
 }
 
@@ -44,6 +46,8 @@ const DEFAULT_SETTINGS: PlatformSettings = {
   max_seats_per_booking: 4,
   allow_ride_without_driver: true,
   auto_accept_bookings: false,
+  support_email: "support@uniride.ng",
+  support_phone: "+234 (0) 800-UNIRIDE",
   fare_policy: null,
 };
 
@@ -65,6 +69,12 @@ function normalizeSettingsData(
     source.mobile_map_provider === "mapbox" ? "mapbox" : "native";
   merged.mobile_map_3d_enabled = Boolean(source.mobile_map_3d_enabled);
   merged.mobile_navigation_enabled = Boolean(source.mobile_navigation_enabled);
+  merged.support_email =
+    String(source.support_email || DEFAULT_SETTINGS.support_email).trim() ||
+    DEFAULT_SETTINGS.support_email;
+  merged.support_phone =
+    String(source.support_phone || DEFAULT_SETTINGS.support_phone).trim() ||
+    DEFAULT_SETTINGS.support_phone;
 
   return merged;
 }

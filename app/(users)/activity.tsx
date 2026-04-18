@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import { useRideStore, Booking } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { eventBus } from "@/lib/eventBus";
 import { T } from "@/hooks/use-translation";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useSocket } from "@/hooks/use-socket";
 
 const STATUS_INFO: Record<
   string,
@@ -67,12 +69,67 @@ const STATUS_INFO: Record<
 };
 
 type FilterKey = "all" | "active" | "completed" | "cancelled";
+type SpendPeriod = "week" | "month" | "year";
+
+const SPEND_PERIOD_OPTIONS: Array<{ key: SpendPeriod; label: string }> = [
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "year", label: "Year" },
+];
+
+function getPeriodStart(period: SpendPeriod): Date {
+  const now = new Date();
+
+  if (period === "week") {
+    const start = new Date(now);
+    const day = start.getDay();
+    const mondayOffset = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - mondayOffset);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }
+
+  if (period === "month") {
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  return new Date(now.getFullYear(), 0, 1);
+}
+
+function getCompletedBookingAmount(
+  booking: Booking,
+  farePerSeatEnabled: boolean,
+): number {
+  const explicitTotal = Number(booking.total_fare);
+  if (Number.isFinite(explicitTotal) && explicitTotal > 0) {
+    return explicitTotal;
+  }
+
+  const ride =
+    booking.ride_id && typeof booking.ride_id === "object"
+      ? booking.ride_id
+      : null;
+  const fare = Number((ride as any)?.fare || 0);
+  const seats = Number(booking.seats_requested || 1);
+  return farePerSeatEnabled ? fare * seats : fare;
+}
 
 export default function ActivityScreen() {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const { connect, joinUserFeed } = useSocket();
   const { myBookings, fetchMyBookings, isLoadingBookings } = useRideStore();
+  const { settings } = usePlatformSettingsStore();
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [spendPeriod, setSpendPeriod] = useState<SpendPeriod>("month");
+
+  useEffect(() => {
+    if (!user?.id) return;
+    connect()
+      .then(() => joinUserFeed(user.id))
+      .catch(() => {});
+  }, [connect, joinUserFeed, user?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -87,12 +144,16 @@ export default function ActivityScreen() {
     const u3 = eventBus.on("booking:checkin", () => fetchMyBookings());
     const u4 = eventBus.on("ride:ended", () => fetchMyBookings());
     const u5 = eventBus.on("ride:accepted", () => fetchMyBookings());
+    const u6 = eventBus.on("ride:started", () => fetchMyBookings());
+    const u7 = eventBus.on("ride:cancelled", () => fetchMyBookings());
     return () => {
       u1();
       u2();
       u3();
       u4();
       u5();
+      u6();
+      u7();
     };
   }, []);
 
@@ -111,6 +172,63 @@ export default function ActivityScreen() {
       return b.status === "cancelled" || b.status === "declined";
     return true;
   });
+
+  const completedBookings = useMemo(
+    () => myBookings.filter((booking) => booking.status === "completed"),
+    [myBookings],
+  );
+
+  const totalSpent = useMemo(
+    () =>
+      completedBookings.reduce(
+        (sum, booking) =>
+          sum + getCompletedBookingAmount(booking, settings.fare_per_seat),
+        0,
+      ),
+    [completedBookings, settings.fare_per_seat],
+  );
+
+  const spendPeriodStart = useMemo(
+    () => getPeriodStart(spendPeriod),
+    [spendPeriod],
+  );
+
+  const spentBookingsInPeriod = useMemo(
+    () =>
+      completedBookings.filter((booking) => {
+        const ride =
+          booking.ride_id && typeof booking.ride_id === "object"
+            ? booking.ride_id
+            : null;
+        const sourceDate =
+          (ride as any)?.ended_at ||
+          booking.updatedAt ||
+          booking.booking_time ||
+          booking.createdAt;
+        if (!sourceDate) return false;
+        const date = new Date(sourceDate);
+        if (Number.isNaN(date.getTime())) return false;
+        return date >= spendPeriodStart;
+      }),
+    [completedBookings, spendPeriodStart],
+  );
+
+  const periodSpent = useMemo(
+    () =>
+      spentBookingsInPeriod.reduce(
+        (sum, booking) =>
+          sum + getCompletedBookingAmount(booking, settings.fare_per_seat),
+        0,
+      ),
+    [settings.fare_per_seat, spentBookingsInPeriod],
+  );
+
+  const spendPeriodLabel =
+    spendPeriod === "week"
+      ? "This Week"
+      : spendPeriod === "month"
+        ? "This Month"
+        : "This Year";
 
   // ═════════════════════════════════════════════════════════════════════
   return (
@@ -151,6 +269,58 @@ export default function ActivityScreen() {
                 </TouchableOpacity>
               ),
             )}
+          </View>
+
+          <View className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                UniRide Spend
+              </Text>
+              <View className="rounded-full bg-emerald-100 px-2.5 py-1">
+                <Text className="text-[10px] font-semibold text-emerald-700">
+                  {completedBookings.length} <T>trips</T>
+                </Text>
+              </View>
+            </View>
+
+            <Text className="mt-2 text-2xl font-bold text-slate-900">
+              ₦{totalSpent.toLocaleString()}
+            </Text>
+            <Text className="mt-1 text-xs text-slate-500">
+              Lifetime spend on completed rides
+            </Text>
+
+            <View className="mt-3 flex-row gap-2">
+              {SPEND_PERIOD_OPTIONS.map((option) => {
+                const active = spendPeriod === option.key;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    onPress={() => setSpendPeriod(option.key)}
+                    className={`flex-1 rounded-full border px-3 py-2 items-center ${
+                      active
+                        ? "border-[#042F40] bg-[#042F40]"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <Text
+                      className={`text-[11px] font-semibold ${
+                        active ? "text-white" : "text-slate-600"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 flex-row items-center justify-between">
+              <Text className="text-xs text-slate-500">{spendPeriodLabel}</Text>
+              <Text className="text-sm font-bold text-slate-900">
+                ₦{periodSpent.toLocaleString()}
+              </Text>
+            </View>
           </View>
         </Animated.View>
 

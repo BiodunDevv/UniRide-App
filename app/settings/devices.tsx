@@ -41,7 +41,7 @@ export default function DevicesScreen() {
   const tDeviceSignedIn = useTranslation("device signed in");
   const tDevicesSignedIn = useTranslation("devices signed in");
   const tOther = useTranslation("other");
-  const tUnknownDevice = useTranslation("Unknown Device");
+  const tUnknownDevice = useTranslation("Unnamed Device");
   const tCurrentlyActive = useTranslation("Currently active");
   const tLastActive = useTranslation("Last active");
   const tJustNow = useTranslation("Just now");

@@ -206,6 +206,8 @@ export default function DriverHomeScreen() {
     const u4 = eventBus.on("ride:new_request", refresh);
     const u5 = eventBus.on("ride:accepted", refresh);
     const u6 = eventBus.on("ride:ended", refresh);
+    const u7 = eventBus.on("ride:started", refresh);
+    const u8 = eventBus.on("ride:cancelled", refresh);
     return () => {
       u1();
       u2();
@@ -213,6 +215,8 @@ export default function DriverHomeScreen() {
       u4();
       u5();
       u6();
+      u7();
+      u8();
     };
   }, []);
 
@@ -352,6 +356,7 @@ export default function DriverHomeScreen() {
   const idleRideCount = driverRides.filter(
     (r) => r.status === "available" || r.status === "scheduled",
   ).length;
+  const totalRideCount = driverRides.length;
   const currentPriorityRide =
     driverRides.find((r) => r.status === "in_progress") ||
     driverRides.find((r) => r.status === "accepted") ||
@@ -1032,7 +1037,7 @@ export default function DriverHomeScreen() {
                     </Text>
                     <View className="mt-1 flex-row items-center justify-between">
                       <Text className="text-base font-bold text-slate-900">
-                        <T>Open list</T>
+                        {totalRideCount}
                       </Text>
                       <Ionicons
                         name="chevron-forward"

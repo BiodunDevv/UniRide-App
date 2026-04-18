@@ -84,7 +84,9 @@ export function NotificationDetailScreen({ routeBase }: Props) {
 
   const meta = getNotificationPresentation(notif);
   const d = new Date(notif.createdAt);
-  const hasAction = Boolean(notif.metadata?.booking_id || notif.metadata?.ride_id);
+  const hasAction = Boolean(
+    notif.metadata?.booking_id || notif.metadata?.ride_id,
+  );
 
   return (
     <View className="flex-1 bg-white">
@@ -158,7 +160,7 @@ export function NotificationDetailScreen({ routeBase }: Props) {
               className="mx-5 mt-8"
             >
               <TouchableOpacity
-                onPress={() => router.push(routeTarget as any)}
+                onPress={() => router.replace(routeTarget as any)}
                 className="items-center rounded-2xl bg-primary py-4"
               >
                 <Text className="text-sm font-bold text-white">

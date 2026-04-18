@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import {
   View,
   Text,
@@ -12,6 +18,7 @@ import {
   Image,
   RefreshControl,
   Linking,
+  LayoutChangeEvent,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +29,9 @@ import Animated, { FadeInUp, FadeInDown } from "react-native-reanimated";
 import { useRideStore, Ride, Booking } from "@/store/useRideStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
+import { useSocket } from "@/hooks/use-socket";
+import { eventBus } from "@/lib/eventBus";
+import { locationApi } from "@/lib/rideApi";
 import { T } from "@/hooks/use-translation";
 
 const STATUS_BADGES: Record<
@@ -46,6 +56,35 @@ const STATUS_BADGES: Record<
   declined: { bg: "bg-red-50", text: "Declined", color: "text-red-500" },
 };
 
+function formatElapsedDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatAverageSpeed(
+  distanceMeters?: number | null,
+  durationSeconds?: number | null,
+): string | null {
+  if (!distanceMeters || !durationSeconds || durationSeconds <= 0) {
+    return null;
+  }
+
+  const speedKmh = distanceMeters / 1000 / (durationSeconds / 3600);
+  if (!Number.isFinite(speedKmh) || speedKmh <= 0) {
+    return null;
+  }
+
+  return `${speedKmh.toFixed(1)} km/h`;
+}
+
 export default function RideDetailsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -54,6 +93,8 @@ export default function RideDetailsScreen() {
   }>();
   const { user } = useAuthStore();
   const { settings } = usePlatformSettingsStore();
+  const { connect, joinRide, leaveRide, joinUserFeed } = useSocket();
+  const joinedRideRef = useRef<string | null>(null);
   const {
     fetchRideDetails,
     bookRide,
@@ -76,6 +117,14 @@ export default function RideDetailsScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [bottomActionHeight, setBottomActionHeight] = useState(0);
+  const [elapsedClockMs, setElapsedClockMs] = useState(() => Date.now());
+  const [driverProfileFallback, setDriverProfileFallback] = useState<{
+    phone?: string | null;
+    name?: string | null;
+    profile_picture?: string | null;
+  } | null>(null);
+  const autoNavigateRideRef = useRef<string | null>(null);
 
   const loadDetails = useCallback(async () => {
     // If we have a bookingId, find it from myBookings first
@@ -167,6 +216,86 @@ export default function RideDetailsScreen() {
     }
   }, [myBookings]);
 
+  const currentRideId = useMemo(() => {
+    if (ride?._id) return ride._id;
+    if (params.rideId) return params.rideId;
+    if (!booking?.ride_id) return null;
+    return typeof booking.ride_id === "object"
+      ? booking.ride_id._id
+      : booking.ride_id;
+  }, [booking?.ride_id, params.rideId, ride?._id]);
+
+  useEffect(() => {
+    if (!currentRideId) return;
+
+    let cancelled = false;
+
+    const connectAndJoin = async () => {
+      try {
+        await connect();
+        if (user?.id) {
+          joinUserFeed(user.id);
+        }
+      } catch {}
+
+      if (cancelled) return;
+      if (joinedRideRef.current === currentRideId) return;
+
+      if (joinedRideRef.current) {
+        leaveRide(joinedRideRef.current);
+      }
+
+      joinRide(currentRideId);
+      joinedRideRef.current = currentRideId;
+    };
+
+    void connectAndJoin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connect, currentRideId, joinRide, joinUserFeed, leaveRide, user?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (joinedRideRef.current) {
+        leaveRide(joinedRideRef.current);
+        joinedRideRef.current = null;
+      }
+    };
+  }, [leaveRide]);
+
+  useEffect(() => {
+    const refreshIfCurrentRide = (payload?: Record<string, any>) => {
+      const payloadRideId =
+        typeof payload?.ride_id === "string" ? payload.ride_id : null;
+
+      if (payloadRideId && currentRideId && payloadRideId !== currentRideId) {
+        return;
+      }
+
+      void loadDetails().catch(() => {});
+    };
+
+    const off1 = eventBus.on("booking:updated", refreshIfCurrentRide);
+    const off2 = eventBus.on("booking:cancelled", refreshIfCurrentRide);
+    const off3 = eventBus.on("booking:checkin", refreshIfCurrentRide);
+    const off4 = eventBus.on("ride:started", refreshIfCurrentRide);
+    const off5 = eventBus.on("ride:ended", refreshIfCurrentRide);
+    const off6 = eventBus.on("ride:accepted", refreshIfCurrentRide);
+    const off7 = eventBus.on("ride:cancelled", refreshIfCurrentRide);
+
+    return () => {
+      off1();
+      off2();
+      off3();
+      off4();
+      off5();
+      off6();
+      off7();
+    };
+  }, [currentRideId, loadDetails]);
+
   // ── Derived ───────────────────────────────────────────────────────
   const pickup =
     ride && typeof ride.pickup_location_id === "object"
@@ -180,23 +309,60 @@ export default function RideDetailsScreen() {
     booking?.ride_id && typeof booking.ride_id === "object"
       ? booking.ride_id
       : null;
+  const sharedBookings = useMemo(() => {
+    const all = ride?.bookings || [];
+    return all
+      .filter((item) =>
+        ["pending", "accepted", "in_progress"].includes(item.status),
+      )
+      .sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return aTime - bTime;
+      });
+  }, [ride?.bookings]);
+  const rideDriverValue = ride?.driver_id ?? null;
+  const bookingRideDriverValue = bookingRide?.driver_id ?? null;
   const rideDriverDoc =
-    ride?.driver_id && typeof ride.driver_id === "object"
-      ? ride.driver_id
+    rideDriverValue && typeof rideDriverValue === "object"
+      ? rideDriverValue
       : null;
   const bookingRideDriverDoc =
-    bookingRide?.driver_id && typeof bookingRide.driver_id === "object"
-      ? bookingRide.driver_id
+    bookingRideDriverValue && typeof bookingRideDriverValue === "object"
+      ? bookingRideDriverValue
       : null;
   const driverDoc = rideDriverDoc || bookingRideDriverDoc;
   const driverUser =
     driverDoc?.user_id && typeof driverDoc.user_id === "object"
       ? driverDoc.user_id
       : null;
-  const driverName = driverUser?.name || driverDoc?.name || "Driver";
+  const driverId =
+    driverDoc?._id ||
+    (typeof rideDriverValue === "string" ? rideDriverValue : null) ||
+    (typeof bookingRideDriverValue === "string"
+      ? bookingRideDriverValue
+      : null) ||
+    null;
+  const hasAssignedDriver = Boolean(driverDoc || driverId);
+  const driverNameRaw = driverUser?.name ?? driverDoc?.name ?? "";
+  const driverName = driverNameRaw.trim();
   const driverPhoto = driverUser?.profile_picture || null;
-  const driverPhone = driverUser?.phone || driverDoc?.phone || null;
-  const driverId = driverDoc?._id || null;
+  const driverPhoneRaw = driverUser?.phone ?? driverDoc?.phone ?? null;
+  const driverPhone =
+    driverPhoneRaw == null ? null : String(driverPhoneRaw).trim() || null;
+  const resolvedDriverPhone =
+    driverPhone ||
+    (driverProfileFallback?.phone
+      ? String(driverProfileFallback.phone).trim() || null
+      : null);
+  const resolvedDriverName =
+    driverName ||
+    (driverProfileFallback?.name
+      ? String(driverProfileFallback.name).trim() || ""
+      : "") ||
+    (hasAssignedDriver ? "Driver assigned" : "Driver");
+  const resolvedDriverPhoto =
+    driverPhoto || driverProfileFallback?.profile_picture || null;
   const driverBankName = driverDoc?.bank_name?.trim?.() || "Not added yet";
   const driverBankAccountNumber =
     driverDoc?.bank_account_number?.trim?.() || "Not added yet";
@@ -218,6 +384,41 @@ export default function RideDetailsScreen() {
   const dur = ride?.duration_seconds
     ? `${Math.round(ride.duration_seconds / 60)} min`
     : null;
+  const avgSpeed = formatAverageSpeed(
+    ride?.distance_meters,
+    ride?.duration_seconds,
+  );
+  const routeIntelligence = useMemo(
+    () => [
+      {
+        label: "Distance",
+        value: dist || "Not available",
+      },
+      {
+        label: "Duration",
+        value: dur || "Not available",
+      },
+      {
+        label: "Avg Speed",
+        value: avgSpeed || "Not available",
+      },
+      {
+        label: "Departure",
+        value: dep
+          ? dep.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "Flexible",
+      },
+      {
+        label: "Fare / Seat",
+        value: `₦${Number(ride?.fare || 0).toLocaleString()}`,
+      },
+      {
+        label: "Seats Left",
+        value: String(seatsLeft),
+      },
+    ],
+    [avgSpeed, dep, dist, dur, ride?.fare, seatsLeft],
+  );
   const canBook =
     ride &&
     !booking &&
@@ -225,11 +426,55 @@ export default function RideDetailsScreen() {
       ride.status === "scheduled" ||
       ride.status === "accepted") &&
     seatsLeft > 0;
+  const hasBottomActions = Boolean(
+    canBook ||
+    (booking &&
+      (booking.status === "pending" || booking.status === "accepted")),
+  );
   const hasBookingPhone = Boolean(user?.phone?.trim());
   const needsCheckIn =
     booking?.status === "accepted" && booking?.check_in_status !== "checked_in";
   const isCheckedIn = booking?.check_in_status === "checked_in";
   const inProgress = ride?.status === "in_progress";
+  const rideElapsedSeconds = useMemo(() => {
+    if (!ride?.started_at) {
+      return typeof ride?.elapsed_seconds === "number"
+        ? ride.elapsed_seconds
+        : null;
+    }
+
+    const startedAtMs = new Date(ride.started_at).getTime();
+    if (Number.isNaN(startedAtMs)) {
+      return typeof ride?.elapsed_seconds === "number"
+        ? ride.elapsed_seconds
+        : null;
+    }
+
+    const endMs =
+      ride.status === "in_progress"
+        ? elapsedClockMs
+        : ride.ended_at
+          ? new Date(ride.ended_at).getTime()
+          : elapsedClockMs;
+
+    if (Number.isNaN(endMs) || endMs < startedAtMs) {
+      return typeof ride?.elapsed_seconds === "number"
+        ? ride.elapsed_seconds
+        : null;
+    }
+
+    return Math.floor((endMs - startedAtMs) / 1000);
+  }, [
+    ride?.elapsed_seconds,
+    ride?.ended_at,
+    ride?.started_at,
+    ride?.status,
+    elapsedClockMs,
+  ]);
+  const rideTimerLabel =
+    typeof rideElapsedSeconds === "number"
+      ? formatElapsedDuration(rideElapsedSeconds)
+      : null;
   const isTransfer = booking?.payment_method === "transfer";
   const isTransferBookingFlow =
     booking?.status === "accepted" || booking?.status === "in_progress";
@@ -243,6 +488,209 @@ export default function RideDetailsScreen() {
   const transferAmount = Number(booking?.total_fare || ride?.fare || 0);
   const canMarkSent =
     isTransfer && isTransferBookingFlow && transferPaymentStatus === "pending";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!driverId) {
+      setDriverProfileFallback(null);
+      return;
+    }
+
+    if (driverPhone) {
+      setDriverProfileFallback((prev) => ({
+        ...prev,
+        phone: driverPhone,
+        name: driverName,
+        profile_picture: driverPhoto,
+      }));
+      return;
+    }
+
+    const fetchPublicDriverProfile = async () => {
+      try {
+        const response = await locationApi.getPublicDriverProfile(driverId);
+        if (cancelled) return;
+
+        const payload = response?.data || {};
+        setDriverProfileFallback({
+          phone: payload.phone || null,
+          name: payload.name || null,
+          profile_picture: payload.profile_picture || null,
+        });
+      } catch {
+        if (!cancelled) {
+          setDriverProfileFallback((prev) => prev || null);
+        }
+      }
+    };
+
+    void fetchPublicDriverProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [driverId, driverName, driverPhone, driverPhoto]);
+
+  useEffect(() => {
+    if (!currentRideId || !booking || !ride) return;
+    if (ride.status !== "in_progress") return;
+    if (!["accepted", "in_progress"].includes(booking.status)) return;
+    if (autoNavigateRideRef.current === currentRideId) return;
+
+    autoNavigateRideRef.current = currentRideId;
+    router.replace({
+      pathname: "/(users)/active-ride" as any,
+      params: { rideId: currentRideId },
+    });
+  }, [booking?.status, currentRideId, ride?.status, router]);
+
+  useEffect(() => {
+    if (!ride?.started_at || ride.status !== "in_progress") return;
+
+    const timer = setInterval(() => {
+      setElapsedClockMs(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [ride?.started_at, ride?.status]);
+
+  const timelineItems = useMemo(() => {
+    if (!ride) {
+      return [] as Array<{
+        id: string;
+        title: string;
+        detail?: string;
+        time?: string;
+        tone?: "default" | "success" | "danger";
+      }>;
+    }
+
+    const items: Array<{
+      id: string;
+      title: string;
+      detail?: string;
+      time?: string;
+      tone?: "default" | "success" | "danger";
+    }> = [
+      {
+        id: "ride-created",
+        title: "Ride session created",
+        detail: `${pickup?.short_name || pickup?.name || "Pickup"} → ${dest?.short_name || dest?.name || "Destination"}`,
+        time: ride.createdAt,
+        tone: "success",
+      },
+    ];
+
+    if (booking) {
+      items.push({
+        id: "booking-created",
+        title: "Booking submitted",
+        detail: `${booking.seats_requested || 1} seat${(booking.seats_requested || 1) > 1 ? "s" : ""} · ${booking.payment_method}`,
+        time: booking.booking_time || booking.createdAt,
+        tone: "success",
+      });
+    }
+
+    if (hasAssignedDriver) {
+      items.push({
+        id: "driver-assigned",
+        title: "Driver assigned",
+        detail: resolvedDriverName,
+        time: ride.updatedAt,
+        tone: "success",
+      });
+    }
+
+    if (sharedBookings.length > 0) {
+      items.push({
+        id: "shared-ride",
+        title: "Shared ride participants",
+        detail: `${sharedBookings.length} booking${sharedBookings.length === 1 ? "" : "s"} on this route`,
+        time: sharedBookings[0]?.createdAt || ride.updatedAt,
+      });
+    }
+
+    if (booking?.check_in_status === "checked_in") {
+      items.push({
+        id: "checked-in",
+        title: "Check-in completed",
+        detail: "Your boarding code was verified",
+        time: booking.updatedAt,
+        tone: "success",
+      });
+    }
+
+    if (["in_progress", "completed"].includes(ride.status)) {
+      items.push({
+        id: "started",
+        title: "Ride started",
+        detail: "Trip is in progress",
+        time: ride.started_at || ride.updatedAt,
+        tone: "success",
+      });
+    }
+
+    if (ride.status === "completed") {
+      items.push({
+        id: "completed",
+        title: "Ride completed",
+        detail: "Session ended successfully",
+        time: ride.ended_at || ride.updatedAt,
+        tone: "success",
+      });
+    }
+
+    if (ride.status === "cancelled") {
+      items.push({
+        id: "cancelled",
+        title: "Ride cancelled",
+        detail: ride.cancel_reason || "Cancellation reason not provided",
+        time: ride.cancelled_at || ride.updatedAt,
+        tone: "danger",
+      });
+    }
+
+    if (booking?.status === "declined") {
+      items.push({
+        id: "declined",
+        title: "Booking declined",
+        detail: booking.admin_note || "No additional note provided",
+        time: booking.updatedAt,
+        tone: "danger",
+      });
+    }
+
+    if (booking?.status === "cancelled" && ride.status !== "cancelled") {
+      items.push({
+        id: "booking-cancelled",
+        title: "Booking cancelled",
+        detail: booking.admin_note || "This booking was cancelled",
+        time: booking.updatedAt,
+        tone: "danger",
+      });
+    }
+
+    return items;
+  }, [
+    ride,
+    pickup,
+    dest,
+    booking,
+    hasAssignedDriver,
+    resolvedDriverName,
+    sharedBookings,
+  ]);
+
+  const scrollBottomPadding = useMemo(() => {
+    if (!hasBottomActions) return 120;
+    return Math.max(120, bottomActionHeight + 28);
+  }, [hasBottomActions, bottomActionHeight]);
+
+  const handleBottomActionsLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+    setBottomActionHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+  }, []);
 
   useEffect(() => {
     if (!__DEV__ || !booking || !isTransfer || !isTransferBookingFlow) return;
@@ -408,14 +856,14 @@ export default function RideDetailsScreen() {
   };
 
   const handleCallDriver = async () => {
-    if (!driverPhone) {
+    if (!resolvedDriverPhone) {
       Alert.alert(
         "Phone unavailable",
         "This driver has not added a phone number yet.",
       );
       return;
     }
-    const telUrl = `tel:${driverPhone}`;
+    const telUrl = `tel:${resolvedDriverPhone}`;
     const supported = await Linking.canOpenURL(telUrl);
     if (!supported) {
       Alert.alert(
@@ -527,7 +975,7 @@ export default function RideDetailsScreen() {
           <ScrollView
             showsVerticalScrollIndicator={false}
             className="flex-1"
-            contentContainerStyle={{ paddingBottom: 120 }}
+            contentContainerStyle={{ paddingBottom: scrollBottomPadding }}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -626,6 +1074,32 @@ export default function RideDetailsScreen() {
             </Animated.View>
 
             <Animated.View
+              entering={FadeInUp.delay(130).duration(300)}
+              className="mx-5 mt-3"
+            >
+              <View className="rounded-[22px] border border-slate-200 bg-white px-4 py-4">
+                <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Route Intelligence
+                </Text>
+                <View className="mt-3 flex-row flex-wrap gap-2">
+                  {routeIntelligence.map((item) => (
+                    <View
+                      key={item.label}
+                      className="min-w-[31%] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                    >
+                      <Text className="text-[10px] uppercase tracking-[0.12em] text-slate-500">
+                        {item.label}
+                      </Text>
+                      <Text className="mt-1 text-xs font-semibold text-slate-900">
+                        {item.value}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </Animated.View>
+
+            <Animated.View
               entering={FadeInUp.delay(180).duration(300)}
               className="mx-5 mt-3 rounded-[26px] bg-[#042F40] px-4 py-4"
             >
@@ -669,18 +1143,79 @@ export default function RideDetailsScreen() {
                   </Text>
                 </View>
               </View>
+              {rideTimerLabel && (
+                <View className="mt-3 rounded-2xl bg-white/10 px-4 py-3">
+                  <Text className="text-[11px] uppercase tracking-[0.16em] text-slate-300">
+                    <T>Ride Timer</T>
+                  </Text>
+                  <Text className="mt-1 text-2xl font-bold text-white">
+                    {rideTimerLabel}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+
+            <Animated.View
+              entering={FadeInUp.delay(190).duration(300)}
+              className="mx-5 mt-3"
+            >
+              <View className="rounded-[26px] border border-slate-200 bg-white p-4">
+                <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Session Timeline
+                </Text>
+                <View className="mt-3">
+                  {timelineItems.map((item, index) => (
+                    <View key={item.id} className="flex-row">
+                      <View className="mr-3 items-center">
+                        <View
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            item.tone === "danger"
+                              ? "bg-red-500"
+                              : item.tone === "success"
+                                ? "bg-emerald-500"
+                                : "bg-slate-400"
+                          }`}
+                        />
+                        {index < timelineItems.length - 1 && (
+                          <View className="mt-1 h-8 w-px bg-slate-200" />
+                        )}
+                      </View>
+                      <View className="flex-1 pb-2">
+                        <View className="flex-row items-center justify-between">
+                          <Text className="text-sm font-semibold text-slate-900">
+                            {item.title}
+                          </Text>
+                          {item.time ? (
+                            <Text className="text-[10px] text-slate-400">
+                              {new Date(item.time).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {item.detail ? (
+                          <Text className="mt-0.5 text-xs text-slate-500">
+                            {item.detail}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
             </Animated.View>
 
             {/* ── Driver Info ─────────────────────────────────────── */}
-            {driverDoc && (
+            {hasAssignedDriver && (
               <Animated.View
                 entering={FadeInUp.delay(200).duration(300)}
                 className="mx-5 mt-3 bg-gray-50 rounded-2xl p-4"
               >
                 <View className="flex-row items-center">
-                  {driverPhoto ? (
+                  {resolvedDriverPhoto ? (
                     <Image
-                      source={{ uri: driverPhoto }}
+                      source={{ uri: resolvedDriverPhoto }}
                       className="w-12 h-12 rounded-full mr-3"
                     />
                   ) : (
@@ -690,74 +1225,68 @@ export default function RideDetailsScreen() {
                   )}
                   <View className="flex-1">
                     <Text className="text-sm font-semibold text-gray-800">
-                      {driverName}
+                      {resolvedDriverName}
                     </Text>
-                    {(driverDoc.vehicle_model || driverDoc.vehicle_color) && (
+                    {(driverDoc?.vehicle_model || driverDoc?.vehicle_color) && (
                       <Text className="text-xs text-gray-400 mt-0.5">
-                        {[driverDoc.vehicle_model, driverDoc.vehicle_color]
+                        {[driverDoc?.vehicle_model, driverDoc?.vehicle_color]
                           .filter(Boolean)
                           .join(" · ")}
                       </Text>
                     )}
-                    {driverDoc.plate_number && (
+                    {driverDoc?.plate_number && (
                       <Text className="text-xs text-gray-400">
-                        {driverDoc.plate_number}
+                        {driverDoc?.plate_number}
                       </Text>
                     )}
                   </View>
-                  {driverDoc.rating != null && driverDoc.rating > 0 && (
+                  {driverDoc?.rating != null && driverDoc?.rating > 0 && (
                     <View className="flex-row items-center bg-accent/10 rounded-full px-2.5 py-1">
                       <Ionicons name="star" size={12} color="#D4A017" />
                       <Text className="text-xs font-bold text-accent ml-1">
-                        {typeof driverDoc.rating === "number"
+                        {typeof driverDoc?.rating === "number"
                           ? driverDoc.rating.toFixed(1)
-                          : driverDoc.rating}
+                          : driverDoc?.rating}
                       </Text>
                     </View>
                   )}
                 </View>
-                {(driverPhone ||
-                  booking?.status === "accepted" ||
-                  inProgress) && (
-                  <View className="mt-4 flex-row items-center gap-3">
-                    <TouchableOpacity
-                      onPress={handleOpenDriverProfile}
-                      activeOpacity={0.85}
-                      className="flex-1 rounded-2xl bg-white px-4 py-3 border border-slate-200"
-                    >
-                      <Text className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-                        Driver Contact
-                      </Text>
-                      <Text className="mt-1 text-sm font-semibold text-slate-800">
-                        {driverPhone || "Phone not added yet"}
-                      </Text>
-                      <Text className="mt-1 text-xs text-slate-500">
-                        View the full driver profile or call.
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleOpenDriverProfile}
-                      className="h-14 w-14 rounded-2xl items-center justify-center bg-[#042F40]"
-                    >
-                      <Ionicons
-                        name="person-outline"
-                        size={20}
-                        color="#FFFFFF"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleCallDriver}
-                      disabled={!driverPhone}
-                      className={`h-14 w-14 rounded-2xl items-center justify-center ${driverPhone ? "bg-primary" : "bg-slate-200"}`}
-                    >
-                      <Ionicons
-                        name="call"
-                        size={20}
-                        color={driverPhone ? "#FFFFFF" : "#94A3B8"}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                )}
+                <View className="mt-4 flex-row items-center gap-3">
+                  <TouchableOpacity
+                    onPress={handleOpenDriverProfile}
+                    activeOpacity={0.85}
+                    className="flex-1 rounded-2xl bg-white px-4 py-3 border border-slate-200"
+                  >
+                    <Text className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                      Driver Contact
+                    </Text>
+                    <Text className="mt-1 text-sm font-semibold text-slate-800">
+                      {resolvedDriverPhone || "Phone not added yet"}
+                    </Text>
+                    <Text className="mt-1 text-xs text-slate-500">
+                      {resolvedDriverPhone
+                        ? "View the full driver profile or call."
+                        : "Open profile to view full driver details."}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleOpenDriverProfile}
+                    className="h-14 w-14 rounded-2xl items-center justify-center bg-[#042F40]"
+                  >
+                    <Ionicons name="person-outline" size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleCallDriver}
+                    disabled={!resolvedDriverPhone}
+                    className={`h-14 w-14 rounded-2xl items-center justify-center ${resolvedDriverPhone ? "bg-primary" : "bg-slate-200"}`}
+                  >
+                    <Ionicons
+                      name="call"
+                      size={20}
+                      color={resolvedDriverPhone ? "#FFFFFF" : "#94A3B8"}
+                    />
+                  </TouchableOpacity>
+                </View>
               </Animated.View>
             )}
 
@@ -824,11 +1353,11 @@ export default function RideDetailsScreen() {
                 <View className="rounded-[26px] border border-slate-200 bg-white p-4">
                   <View className="mb-3 flex-row items-center justify-between">
                     <View className="flex-row items-center">
-                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-violet-50">
+                      <View className="mr-3 h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
                         <Ionicons
                           name="key-outline"
                           size={18}
-                          color="#7C3AED"
+                          color="#042F40"
                         />
                       </View>
                       <View>
@@ -839,11 +1368,6 @@ export default function RideDetailsScreen() {
                           <T>Enter the 4-digit code shared by your driver.</T>
                         </Text>
                       </View>
-                    </View>
-                    <View className="rounded-full bg-violet-50 px-3 py-1.5">
-                      <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700">
-                        Boarding
-                      </Text>
                     </View>
                   </View>
 
@@ -960,6 +1484,89 @@ export default function RideDetailsScreen() {
                       {booking.status}
                     </Text>
                   </View>
+                </View>
+              </Animated.View>
+            )}
+
+            {sharedBookings.length > 0 && (
+              <Animated.View
+                entering={FadeInUp.delay(365).duration(300)}
+                className="mx-5 mt-3 rounded-2xl border border-slate-200 bg-white p-4"
+              >
+                <Text className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  <T>Shared Ride</T>
+                </Text>
+                <Text className="mt-1 text-sm font-semibold text-slate-900">
+                  {sharedBookings.length} booking
+                  {sharedBookings.length === 1 ? "" : "s"} on this route
+                </Text>
+
+                <View className="mt-3">
+                  {sharedBookings.map((item, index) => {
+                    const passenger =
+                      item.user_id && typeof item.user_id === "object"
+                        ? item.user_id
+                        : null;
+                    const passengerId =
+                      passenger?._id ||
+                      (typeof item.user_id === "string" ? item.user_id : null);
+                    const isCurrentUser =
+                      item._id === booking?._id ||
+                      (!!user?.id && !!passengerId && passengerId === user.id);
+                    const rowBadge =
+                      STATUS_BADGES[item.status] || STATUS_BADGES.pending;
+                    const rowName = passenger?.name || "Passenger";
+                    const rowPhoto = passenger?.profile_picture || null;
+
+                    return (
+                      <View
+                        key={item._id}
+                        className={`flex-row items-center justify-between rounded-xl border px-3 py-3 ${index > 0 ? "mt-2" : ""} ${isCurrentUser ? "border-primary/20 bg-primary/5" : "border-slate-200 bg-slate-50"}`}
+                      >
+                        <View className="flex-row items-center flex-1 pr-3">
+                          {rowPhoto ? (
+                            <Image
+                              source={{ uri: rowPhoto }}
+                              className="h-9 w-9 rounded-full mr-2.5"
+                            />
+                          ) : (
+                            <View className="h-9 w-9 rounded-full items-center justify-center bg-white border border-slate-200 mr-2.5">
+                              <Ionicons
+                                name="person-outline"
+                                size={14}
+                                color="#334155"
+                              />
+                            </View>
+                          )}
+                          <View className="flex-1">
+                            <Text
+                              className="text-sm font-semibold text-slate-900"
+                              numberOfLines={1}
+                            >
+                              {isCurrentUser ? "You" : rowName}
+                            </Text>
+                            <Text className="text-[11px] text-slate-500">
+                              {item.seats_requested} seat
+                              {item.seats_requested === 1 ? "" : "s"}
+                              {item.check_in_status === "checked_in"
+                                ? " · Checked in"
+                                : ""}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View
+                          className={`rounded-full px-2.5 py-1 ${rowBadge.bg}`}
+                        >
+                          <Text
+                            className={`text-[10px] font-semibold ${rowBadge.color}`}
+                          >
+                            {rowBadge.text}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               </Animated.View>
             )}
@@ -1171,12 +1778,10 @@ export default function RideDetailsScreen() {
         </KeyboardAvoidingView>
 
         {/* ── Bottom Actions ──────────────────────────────────────── */}
-        {(canBook ||
-          (booking &&
-            (booking.status === "pending" ||
-              booking.status === "accepted"))) && (
+        {hasBottomActions && (
           <SafeAreaView
             edges={["bottom"]}
+            onLayout={handleBottomActionsLayout}
             className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-5 pt-3 pb-4"
           >
             {canBook ? (

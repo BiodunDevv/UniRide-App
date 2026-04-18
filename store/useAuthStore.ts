@@ -124,7 +124,7 @@ async function getDeviceId(): Promise<string> {
 
 function getDeviceName(): string {
   // Prefer the actual model (e.g. "iPhone 15 Pro"), fall back to user-customized name
-  const model = Device.modelName || Device.deviceName || "Unknown Device";
+  const model = Device.modelName || Device.deviceName || "Unnamed Device";
   const os = Device.osName || "";
   const ver = Device.osVersion || "";
   return os && ver ? `${model} (${os} ${ver})` : model;

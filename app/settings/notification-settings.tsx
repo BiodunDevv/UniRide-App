@@ -193,15 +193,11 @@ export default function NotificationSettingsScreen() {
     ride_requests: useTranslation(
       "Updates when a ride request needs your attention.",
     ),
-    ride_accepted: useTranslation(
-      "Alerts when a driver accepts your booking.",
-    ),
+    ride_accepted: useTranslation("Alerts when a driver accepts your booking."),
     ride_started: useTranslation(
       "Lets you know when the trip has officially started.",
     ),
-    ride_completed: useTranslation(
-      "Confirms the ride has ended successfully.",
-    ),
+    ride_completed: useTranslation("Confirms the ride has ended successfully."),
     ride_cancelled: useTranslation(
       "Important changes when a trip is cancelled.",
     ),
@@ -220,9 +216,7 @@ export default function NotificationSettingsScreen() {
     rider_messages: useTranslation(
       "Important passenger-side trip communication.",
     ),
-    earnings_updates: useTranslation(
-      "Ride income and payout-related updates.",
-    ),
+    earnings_updates: useTranslation("Ride income and payout-related updates."),
     application_updates: useTranslation(
       "Changes to your driver application or status.",
     ),
@@ -255,18 +249,21 @@ export default function NotificationSettingsScreen() {
     [visiblePreferences],
   );
 
-  const loadSettings = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
-    try {
-      const res = await settingsApi.getNotificationSettings();
-      setSettings(normalizeSettings(res.data));
-    } catch (error: any) {
-      Alert.alert(tError, error?.message || tFailedLoadSettings);
-    } finally {
-      if (showLoader) setLoading(false);
-      setRefreshing(false);
-    }
-  }, [tError, tFailedLoadSettings]);
+  const loadSettings = useCallback(
+    async (showLoader = true) => {
+      if (showLoader) setLoading(true);
+      try {
+        const res = await settingsApi.getNotificationSettings();
+        setSettings(normalizeSettings(res.data));
+      } catch (error: any) {
+        Alert.alert(tError, error?.message || tFailedLoadSettings);
+      } finally {
+        if (showLoader) setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [tError, tFailedLoadSettings],
+  );
 
   useEffect(() => {
     loadSettings();
@@ -348,7 +345,10 @@ export default function NotificationSettingsScreen() {
     Boolean(backendHealth?.push_notifications_enabled) &&
     Boolean(backendHealth?.current_push_token_registered);
 
-  const toggleMaster = (key: "push_notifications_enabled" | "email_notifications_enabled", value: boolean) => {
+  const toggleMaster = (
+    key: "push_notifications_enabled" | "email_notifications_enabled",
+    value: boolean,
+  ) => {
     savePatch({ [key]: value }, tFailedUpdateSetting, key);
   };
 
@@ -416,7 +416,8 @@ export default function NotificationSettingsScreen() {
                     Delivery Summary
                   </Text>
                   <Text className="mt-2 text-2xl font-bold text-white">
-                    {enabledCount} category{enabledCount === 1 ? "" : "ies"} active
+                    {enabledCount} category{enabledCount === 1 ? "" : "ies"}{" "}
+                    active
                   </Text>
                   <Text className="mt-2 text-sm leading-6 text-slate-300">
                     <T>
@@ -501,7 +502,7 @@ export default function NotificationSettingsScreen() {
                 <View className="min-w-[47%] flex-1 rounded-2xl bg-slate-50 px-4 py-3">
                   <Text className="text-xs text-slate-500">Permission</Text>
                   <Text className="mt-1 text-sm font-bold text-slate-900">
-                    {permissionStatus || "Unknown"}
+                    {permissionStatus || "Not Available"}
                   </Text>
                 </View>
                 <View className="min-w-[47%] flex-1 rounded-2xl bg-slate-50 px-4 py-3">
@@ -522,7 +523,8 @@ export default function NotificationSettingsScreen() {
 
               {lastRegistrationAt ? (
                 <Text className="mt-3 text-[11px] text-slate-400">
-                  Push synced {new Date(lastRegistrationAt).toLocaleTimeString()}
+                  Push synced{" "}
+                  {new Date(lastRegistrationAt).toLocaleTimeString()}
                 </Text>
               ) : null}
             </View>
@@ -578,11 +580,7 @@ export default function NotificationSettingsScreen() {
                   className={`flex-row items-center justify-between px-4 py-4 ${index === 0 ? "border-b border-slate-100" : ""}`}
                 >
                   <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-[#042F40]/6">
-                    <Ionicons
-                      name={channel.icon}
-                      size={18}
-                      color="#042F40"
-                    />
+                    <Ionicons name={channel.icon} size={18} color="#042F40" />
                   </View>
                   <View className="flex-1 pr-4">
                     <Text className="text-sm font-semibold text-slate-900">
@@ -597,7 +595,9 @@ export default function NotificationSettingsScreen() {
                   ) : (
                     <Switch
                       value={settings[channel.key]}
-                      onValueChange={(value) => toggleMaster(channel.key, value)}
+                      onValueChange={(value) =>
+                        toggleMaster(channel.key, value)
+                      }
                       trackColor={{ false: "#E2E8F0", true: "#042F40" }}
                       thumbColor="#FFFFFF"
                     />
@@ -621,18 +621,15 @@ export default function NotificationSettingsScreen() {
                   className={`flex-row items-center justify-between px-4 py-4 ${index < visiblePreferences.length - 1 ? "border-b border-slate-100" : ""}`}
                 >
                   <View className="mr-3 h-11 w-11 items-center justify-center rounded-2xl bg-slate-100">
-                    <Ionicons
-                      name={item.meta.icon}
-                      size={18}
-                      color="#042F40"
-                    />
+                    <Ionicons name={item.meta.icon} size={18} color="#042F40" />
                   </View>
                   <View className="flex-1 pr-4">
                     <Text className="text-sm font-semibold text-slate-900">
                       {translatedLabels[item.key] || item.meta.label}
                     </Text>
                     <Text className="mt-1 text-xs leading-5 text-slate-500">
-                      {translatedDescriptions[item.key] || item.meta.description}
+                      {translatedDescriptions[item.key] ||
+                        item.meta.description}
                     </Text>
                   </View>
                   {pendingKey === item.key ? (
@@ -659,8 +656,9 @@ export default function NotificationSettingsScreen() {
               </Text>
               <Text className="mt-2 text-sm leading-6 text-slate-500">
                 <T>
-                  Channel switches control where messages are delivered. Category
-                  switches control which events UniRide is allowed to send you.
+                  Channel switches control where messages are delivered.
+                  Category switches control which events UniRide is allowed to
+                  send you.
                 </T>
               </Text>
             </View>

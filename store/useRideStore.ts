@@ -57,12 +57,19 @@ export interface Ride {
   distance_meters: number;
   duration_seconds: number;
   check_in_code: string;
+  bookings?: Booking[];
   current_location?: {
     type: string;
     coordinates: [number, number];
   };
+  started_at?: string;
   ended_at?: string;
+  elapsed_seconds?: number;
+  cancelled_at?: string;
+  cancel_reason?: string;
+  cancelled_by?: string | { _id?: string; name?: string } | null;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Booking {
@@ -88,6 +95,7 @@ export interface Booking {
   feedback?: string;
   admin_note?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface RideState {
@@ -154,6 +162,7 @@ interface RideState {
   // Actions - Driver ride requests
   fetchAvailableRequests: () => Promise<void>;
   acceptRideRequest: (rideId: string) => Promise<void>;
+  cancelRideByDriver: (rideId: string, reason: string) => Promise<void>;
 
   // Actions - Bookings
   bookRide: (
@@ -429,5 +438,35 @@ export const useRideStore = create<RideState>((set, get) => ({
     } catch (error) {
       throw error;
     }
+  },
+
+  cancelRideByDriver: async (rideId, reason) => {
+    await rideApi.cancelRide(rideId, reason);
+    set((state) => ({
+      activeRide:
+        state.activeRide && state.activeRide._id === rideId
+          ? {
+              ...state.activeRide,
+              status: "cancelled" as const,
+              cancel_reason: reason,
+              cancelled_at: new Date().toISOString(),
+            }
+          : state.activeRide,
+      driverRides: state.driverRides.map((ride) =>
+        ride._id === rideId
+          ? {
+              ...ride,
+              status: "cancelled" as const,
+              cancel_reason: reason,
+              cancelled_at: new Date().toISOString(),
+            }
+          : ride,
+      ),
+    }));
+
+    await Promise.all([
+      get().fetchDriverRides(),
+      get().fetchAvailableRequests(),
+    ]);
   },
 }));

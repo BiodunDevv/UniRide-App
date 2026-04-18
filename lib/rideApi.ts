@@ -61,6 +61,14 @@ export const rideApi = {
     return request(`/api/rides/${rideId}/accept`, { method: "POST" });
   },
 
+  // Driver/Admin: cancel a ride with context
+  cancelRide(rideId: string, reason: string) {
+    return request(`/api/rides/${rideId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+  },
+
   // Start a ride (driver — transitions to in_progress)
   startRide(rideId: string) {
     return request(`/api/rides/${rideId}/start`, { method: "POST" });
@@ -164,8 +172,11 @@ export const bookingApi = {
   },
 
   // Driver: Get earnings summary
-  getDriverEarnings() {
-    return request("/api/booking/driver-earnings");
+  getDriverEarnings(period?: "all" | "week" | "month" | "year") {
+    const qs = new URLSearchParams();
+    if (period && period !== "all") qs.set("period", period);
+    const query = qs.toString();
+    return request(`/api/booking/driver-earnings${query ? `?${query}` : ""}`);
   },
 };
 

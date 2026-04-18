@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import { useRideStore } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { T } from "@/hooks/use-translation";
-import { rideApi } from "@/lib/rideApi";
+import { locationApi, rideApi } from "@/lib/rideApi";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RequestRideScreen() {
@@ -38,6 +38,8 @@ export default function RequestRideScreen() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [onlineDriversCount, setOnlineDriversCount] = useState(0);
+  const [checkingOnlineDrivers, setCheckingOnlineDrivers] = useState(true);
   const [matchingRidesCount, setMatchingRidesCount] = useState(0);
   const [checkingMatchingRides, setCheckingMatchingRides] = useState(false);
 
@@ -46,12 +48,31 @@ export default function RequestRideScreen() {
   const farePerSeat = farePolicy?.minimum_fare ?? farePolicy?.base_fare ?? 0;
   const totalFare = settings.fare_per_seat ? farePerSeat * seats : farePerSeat;
   const hasBookingPhone = Boolean(user?.phone?.trim());
+  const hasOnlineDrivers = onlineDriversCount > 0;
   const canSubmit = !!(
     selectedPickup &&
     selectedDestination &&
     hasBookingPhone &&
+    hasOnlineDrivers &&
+    !checkingOnlineDrivers &&
     !isCreatingRide
   );
+
+  const refreshOnlineDrivers = useCallback(async () => {
+    setCheckingOnlineDrivers(true);
+    try {
+      const res = await locationApi.getOnlineDrivers();
+      setOnlineDriversCount(Array.isArray(res?.data) ? res.data.length : 0);
+    } catch {
+      setOnlineDriversCount(0);
+    } finally {
+      setCheckingOnlineDrivers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshOnlineDrivers();
+  }, [refreshOnlineDrivers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +152,19 @@ export default function RequestRideScreen() {
   const handleSubmit = async (bypassMatchPrompt = false) => {
     if (!validateRequest()) return;
 
+    if (checkingOnlineDrivers) {
+      Alert.alert("Please wait", "Checking driver availability...");
+      return;
+    }
+
+    if (!hasOnlineDrivers) {
+      Alert.alert(
+        "No drivers online",
+        "No drivers are currently online. Please join an existing ride or try again shortly.",
+      );
+      return;
+    }
+
     if (!bypassMatchPrompt && matchingRidesCount > 0) {
       Alert.alert(
         "Matching rides available",
@@ -187,16 +221,66 @@ export default function RequestRideScreen() {
       <View className="flex-1 items-center justify-center bg-white px-8">
         <Ionicons name="location-outline" size={64} color="#9CA3AF" />
         <Text className="text-gray-400 text-center mt-4">
-          <T>Please select a pickup and destination first.</T>
+          <T>
+            Select pickup and destination to create a ride request when no
+            driver is available.
+          </T>
         </Text>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="mt-6 bg-primary rounded-xl px-6 py-3"
-        >
-          <Text className="text-white font-semibold">
-            <T>Go Back</T>
-          </Text>
-        </TouchableOpacity>
+        <View className="mt-6 w-full gap-3">
+          <TouchableOpacity
+            onPress={() => router.push("/(users)/search-ride" as any)}
+            className="bg-primary rounded-xl px-6 py-3 items-center"
+          >
+            <Text className="text-white font-semibold">
+              <T>Select Route</T>
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.replace("/(users)/available-rides" as any)}
+            className="rounded-xl border border-slate-200 bg-white px-6 py-3 items-center"
+          >
+            <Text className="text-slate-600 font-semibold">
+              <T>Browse Available Rides</T>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  if (!checkingOnlineDrivers && !hasOnlineDrivers) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white px-8">
+        <Ionicons name="cloud-offline-outline" size={64} color="#EF4444" />
+        <Text className="text-slate-900 text-center mt-4 text-lg font-bold">
+          <T>No drivers online right now</T>
+        </Text>
+        <Text className="text-gray-500 text-center mt-2 leading-6">
+          <T>
+            New ride requests are paused until at least one driver is online.
+            You can still browse and join existing rides.
+          </T>
+        </Text>
+        <View className="mt-6 w-full gap-3">
+          <TouchableOpacity
+            onPress={() => router.replace("/(users)/available-rides" as any)}
+            className="bg-primary rounded-xl px-6 py-3 items-center"
+          >
+            <Text className="text-white font-semibold">
+              <T>Browse Available Rides</T>
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              void refreshOnlineDrivers();
+            }}
+            className="rounded-xl border border-slate-200 bg-white px-6 py-3 items-center"
+          >
+            <Text className="text-slate-600 font-semibold">
+              <T>Check Again</T>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -591,7 +675,9 @@ export default function RequestRideScreen() {
         >
           <Animated.View entering={FadeInDown.duration(300)}>
             <TouchableOpacity
-              onPress={handleSubmit}
+              onPress={() => {
+                void handleSubmit();
+              }}
               disabled={!canSubmit}
               className={`rounded-2xl py-4 items-center mb-2 ${
                 canSubmit ? "bg-primary" : "bg-gray-200"

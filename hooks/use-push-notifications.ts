@@ -87,7 +87,7 @@ export function usePushNotifications(enabled = true) {
         useNotificationIntentStore.getState().markResponseHandled(responseKey);
       }
 
-      router.push(target as any);
+      router.replace(target as any);
     },
     [commitNotificationIntent, rootSegment, routeBase, router],
   );
@@ -306,7 +306,7 @@ export function usePushNotifications(enabled = true) {
           rootSegment === "maintenance";
 
         if (hasSession && !shouldDeferUntilUnlocked) {
-          router.push(`/${routeBase}/notifications` as any);
+          router.replace(`/${routeBase}/notifications` as any);
         } else {
           useNotificationIntentStore
             .getState()

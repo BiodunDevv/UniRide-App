@@ -17,6 +17,7 @@ import { useRideStore, Ride } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { T } from "@/hooks/use-translation";
+import { locationApi } from "@/lib/rideApi";
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: "#7C3AED",
@@ -39,24 +40,52 @@ export default function AvailableRidesScreen() {
   const hasBookingPhone = Boolean(user?.phone?.trim());
 
   const [refreshing, setRefreshing] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [checkingOnlineDrivers, setCheckingOnlineDrivers] = useState(false);
+  const [onlineDriversCount, setOnlineDriversCount] = useState(0);
   const [filter, setFilter] = useState<"all" | "scheduled" | "available">(
     "all",
   );
 
+  const routeFilterReady = Boolean(selectedPickup && selectedDestination);
+  const hasOnlineDrivers = onlineDriversCount > 0;
+
   const canCreateOwnRide = Boolean(
-    settings.allow_ride_without_driver && selectedPickup && selectedDestination,
+    settings.allow_ride_without_driver && routeFilterReady && hasOnlineDrivers,
   );
 
   // Fetch with optional route filter
   const doFetch = useCallback(async () => {
-    await fetchActiveRides({
-      pickup: selectedPickup?._id,
-      destination: selectedDestination?._id,
-    });
-  }, [selectedPickup, selectedDestination]);
+    setCheckingOnlineDrivers(true);
+    try {
+      await fetchActiveRides(
+        routeFilterReady
+          ? {
+              pickup: selectedPickup?._id,
+              destination: selectedDestination?._id,
+            }
+          : undefined,
+      );
+      try {
+        const res = await locationApi.getOnlineDrivers();
+        setOnlineDriversCount(Array.isArray(res?.data) ? res.data.length : 0);
+      } catch {
+        setOnlineDriversCount(0);
+      }
+    } finally {
+      setCheckingOnlineDrivers(false);
+      setInitialLoadDone(true);
+    }
+  }, [
+    fetchActiveRides,
+    routeFilterReady,
+    selectedDestination?._id,
+    selectedPickup?._id,
+  ]);
 
   useEffect(() => {
-    doFetch();
+    setInitialLoadDone(false);
+    void doFetch();
   }, [doFetch]);
 
   useEffect(() => {
@@ -121,13 +150,18 @@ export default function AvailableRidesScreen() {
   }, [bestMatchRide, router]);
 
   const routeLabel = useMemo(() => {
+    if (!routeFilterReady) return null;
+
     const parts = [];
     if (selectedPickup)
       parts.push(selectedPickup.short_name || selectedPickup.name);
     if (selectedDestination)
       parts.push(selectedDestination.short_name || selectedDestination.name);
     return parts.join(" → ") || null;
-  }, [selectedPickup, selectedDestination]);
+  }, [routeFilterReady, selectedPickup, selectedDestination]);
+
+  const showLoadingState =
+    !initialLoadDone || (isLoadingRides && rides.length === 0);
 
   // ═════════════════════════════════════════════════════════════════════
   return (
@@ -183,9 +217,40 @@ export default function AvailableRidesScreen() {
               </TouchableOpacity>
             ))}
           </View>
+
+          <View className="mt-2 self-start flex-row items-center rounded-full bg-slate-100 px-3 py-1.5">
+            {checkingOnlineDrivers ? (
+              <ActivityIndicator size="small" color="#64748B" />
+            ) : (
+              <Ionicons
+                name={
+                  hasOnlineDrivers ? "radio-outline" : "cloud-offline-outline"
+                }
+                size={13}
+                color={hasOnlineDrivers ? "#059669" : "#EF4444"}
+              />
+            )}
+            <Text
+              className={`ml-1.5 text-[11px] font-semibold ${hasOnlineDrivers ? "text-emerald-700" : "text-rose-600"}`}
+            >
+              {checkingOnlineDrivers ? (
+                <T>Checking driver availability...</T>
+              ) : hasOnlineDrivers ? (
+                <>
+                  {onlineDriversCount} <T>driver</T>
+                  {onlineDriversCount === 1 ? " " : "s "}
+                  <T>online</T>
+                </>
+              ) : (
+                <T>No drivers online right now</T>
+              )}
+            </Text>
+          </View>
         </Animated.View>
 
-        {canCreateOwnRide && rides.length > 0 ? (
+        {settings.allow_ride_without_driver &&
+        routeFilterReady &&
+        rides.length > 0 ? (
           <Animated.View
             entering={FadeInUp.delay(80).duration(280)}
             className="mx-5 mt-1 mb-2 rounded-[22px] border border-slate-200 bg-white px-4 py-4"
@@ -194,7 +259,11 @@ export default function AvailableRidesScreen() {
               <T>Smart choice</T>
             </Text>
             <Text className="mt-1 text-base font-semibold text-[#042F40]">
-              <T>Join an existing ride or create your own</T>
+              {canCreateOwnRide ? (
+                <T>Join an existing ride or create your own</T>
+              ) : (
+                <T>Join an existing ride while drivers come online</T>
+              )}
             </Text>
             <Text className="mt-1 text-xs leading-5 text-slate-500">
               {rides.length} <T>ride</T>
@@ -216,32 +285,43 @@ export default function AvailableRidesScreen() {
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleCreateOwnRide}
-                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3"
-                activeOpacity={0.88}
-              >
-                <View className="flex-row items-center justify-center">
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={15}
-                    color="#042F40"
-                  />
-                  <Text className="ml-1.5 text-xs font-semibold text-[#042F40]">
-                    {hasBookingPhone ? (
-                      <T>Create my request</T>
-                    ) : (
-                      <T>Add phone first</T>
-                    )}
-                  </Text>
+              {canCreateOwnRide ? (
+                <TouchableOpacity
+                  onPress={handleCreateOwnRide}
+                  className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3"
+                  activeOpacity={0.88}
+                >
+                  <View className="flex-row items-center justify-center">
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={15}
+                      color="#042F40"
+                    />
+                    <Text className="ml-1.5 text-xs font-semibold text-[#042F40]">
+                      {hasBookingPhone ? (
+                        <T>Create my request</T>
+                      ) : (
+                        <T>Add phone first</T>
+                      )}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View className="flex-1 rounded-xl border border-rose-100 bg-rose-50 px-3.5 py-3">
+                  <View className="flex-row items-center justify-center">
+                    <Ionicons name="time-outline" size={15} color="#DC2626" />
+                    <Text className="ml-1.5 text-xs font-semibold text-rose-600">
+                      <T>Create request unavailable</T>
+                    </Text>
+                  </View>
                 </View>
-              </TouchableOpacity>
+              )}
             </View>
           </Animated.View>
         ) : null}
 
         {/* ── Ride List ──────────────────────────────────────────── */}
-        {isLoadingRides && rides.length === 0 ? (
+        {showLoadingState ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#042F40" />
           </View>
@@ -271,32 +351,69 @@ export default function AvailableRidesScreen() {
                 <Text className="text-sm text-gray-300 mt-1 text-center">
                   <T>Pull down to refresh</T>
                 </Text>
-                {settings.allow_ride_without_driver &&
-                  selectedPickup &&
-                  selectedDestination && (
+                {settings.allow_ride_without_driver ? (
+                  routeFilterReady ? (
+                    checkingOnlineDrivers ? (
+                      <View className="mt-6 flex-row items-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3">
+                        <ActivityIndicator size="small" color="#64748B" />
+                        <Text className="ml-2 text-xs font-semibold text-slate-600">
+                          <T>Checking if drivers are online...</T>
+                        </Text>
+                      </View>
+                    ) : hasOnlineDrivers ? (
+                      <TouchableOpacity
+                        onPress={() =>
+                          hasBookingPhone
+                            ? router.push("/(users)/request-ride" as any)
+                            : router.push("/settings/edit-profile" as any)
+                        }
+                        className="mt-6 bg-accent rounded-2xl px-6 py-3.5 flex-row items-center mb-3"
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name="hand-right-outline"
+                          size={18}
+                          color="#fff"
+                        />
+                        <Text className="text-white font-bold text-sm ml-2">
+                          {hasBookingPhone ? (
+                            <T>Request a Ride</T>
+                          ) : (
+                            <T>Add Phone to Request</T>
+                          )}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View className="mt-6 rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4">
+                        <Text className="text-center text-sm font-semibold text-rose-700">
+                          <T>No drivers are online right now</T>
+                        </Text>
+                        <Text className="mt-1 text-center text-xs text-rose-600">
+                          <T>
+                            You can join existing rides when available, but new
+                            ride requests are paused until a driver comes
+                            online.
+                          </T>
+                        </Text>
+                      </View>
+                    )
+                  ) : (
                     <TouchableOpacity
-                      onPress={() =>
-                        hasBookingPhone
-                          ? router.push("/(users)/request-ride" as any)
-                          : router.push("/settings/edit-profile" as any)
-                      }
-                      className="mt-6 bg-accent rounded-2xl px-6 py-3.5 flex-row items-center mb-3"
-                      activeOpacity={0.8}
+                      onPress={() => router.push("/(users)/search-ride" as any)}
+                      className="mt-6 rounded-2xl border border-[#042F40] bg-[#042F40] px-6 py-3.5 flex-row items-center mb-3"
+                      activeOpacity={0.85}
                     >
                       <Ionicons
-                        name="hand-right-outline"
+                        name="navigate-outline"
                         size={18}
                         color="#fff"
                       />
                       <Text className="text-white font-bold text-sm ml-2">
-                        {hasBookingPhone ? (
-                          <T>Request a Ride</T>
-                        ) : (
-                          <T>Add Phone to Request</T>
-                        )}
+                        <T>Select Route to Request Ride</T>
                       </Text>
                     </TouchableOpacity>
-                  )}
+                  )
+                ) : null}
               </View>
             }
             renderItem={({ item, index }) => (

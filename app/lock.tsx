@@ -278,7 +278,7 @@ export default function CurrentUserScreen() {
       intentState.clearPendingIntent();
       router.replace("/bootstrap");
       setTimeout(() => {
-        router.push(target as any);
+        router.replace(target as any);
       }, 80);
       return;
     }

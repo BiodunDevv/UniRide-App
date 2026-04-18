@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -13,7 +19,7 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   MapView,
@@ -71,8 +77,23 @@ function formatDurationLabel(durationSeconds: number): string {
   return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 }
 
+function getBookingRideId(booking: Booking | null | undefined): string | null {
+  if (!booking) return null;
+  const value = booking.ride_id;
+  if (!value) return null;
+  if (typeof value === "object") {
+    return value._id || null;
+  }
+
+  return value;
+}
+
 export default function UserActiveRideScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    rideId?: string | string[];
+    routeId?: string | string[];
+  }>();
   const { user } = useAuthStore();
   const {
     myBookings,
@@ -99,7 +120,13 @@ export default function UserActiveRideScreen() {
     runtimeFailure,
   } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
-  const { connect, joinRide, leaveRide, streamPassengerLocation } = useSocket();
+  const {
+    connect,
+    joinRide,
+    leaveRide,
+    streamPassengerLocation,
+    joinUserFeed,
+  } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
   const { requestPermission, startWatching } = useLocation();
 
@@ -130,6 +157,11 @@ export default function UserActiveRideScreen() {
   >(null);
   const rerouteInFlightRef = useRef(false);
   const lastRerouteAtRef = useRef(0);
+  const preferredRideId = useMemo(() => {
+    const value = params.rideId ?? params.routeId;
+    if (Array.isArray(value)) return value[0] || null;
+    return value || null;
+  }, [params.rideId, params.routeId]);
 
   const formatLiveStatus = useCallback((value?: string | null) => {
     if (!value) return "Waiting for live updates";
@@ -179,8 +211,22 @@ export default function UserActiveRideScreen() {
     (async () => {
       setLoading(true);
       await connect();
+      if (user?.id) {
+        joinUserFeed(user.id);
+      }
       await fetchMyBookings();
       const bks = useRideStore.getState().myBookings;
+      const preferredBooking = preferredRideId
+        ? bks.find((b) => {
+            const bookingRideId = getBookingRideId(b);
+            return (
+              bookingRideId === preferredRideId &&
+              ["in_progress", "accepted", "pending", "completed"].includes(
+                b.status,
+              )
+            );
+          }) || null
+        : null;
       const active = bks.find(
         (b) =>
           b.status === "in_progress" ||
@@ -188,17 +234,14 @@ export default function UserActiveRideScreen() {
           b.status === "pending",
       );
       const completed = bks.find((b) => b.status === "completed") || null;
-      const targetBooking = active || completed;
+      const targetBooking = preferredBooking || active || completed;
 
       if (targetBooking) {
         setBooking(targetBooking);
         if (targetBooking.status === "completed") {
           setRideCompleted(true);
         }
-        const rideId =
-          typeof targetBooking.ride_id === "object"
-            ? targetBooking.ride_id._id
-            : targetBooking.ride_id;
+        const rideId = getBookingRideId(targetBooking);
         if (rideId) {
           rideIdRef.current = rideId;
           joinRide(rideId);
@@ -223,7 +266,16 @@ export default function UserActiveRideScreen() {
     return () => {
       if (rideIdRef.current) leaveRide(rideIdRef.current);
     };
-  }, [connect]);
+  }, [
+    connect,
+    fetchMyBookings,
+    fetchRideDetails,
+    joinRide,
+    joinUserFeed,
+    leaveRide,
+    preferredRideId,
+    user?.id,
+  ]);
 
   // ── Socket: driver location ───────────────────────────────────────
   useEffect(() => {
@@ -287,15 +339,32 @@ export default function UserActiveRideScreen() {
       }
       await fetchMyBookings();
       const bks = useRideStore.getState().myBookings;
-      if (booking) {
-        const updated = bks.find((b) => b._id === booking._id);
-        if (updated) {
-          setBooking(updated);
-          if (updated.status === "completed") {
-            setRideCompleted(true);
-          } else if (updated.status === "cancelled") {
-            router.back();
+      const pinnedByRideId = preferredRideId
+        ? bks.find((b) => getBookingRideId(b) === preferredRideId) || null
+        : null;
+      const updated =
+        pinnedByRideId ||
+        (booking ? bks.find((b) => b._id === booking._id) || null : null);
+
+      if (updated) {
+        setBooking(updated);
+        const updatedRideId = getBookingRideId(updated);
+        if (updatedRideId && updatedRideId !== rideIdRef.current) {
+          if (rideIdRef.current) {
+            leaveRide(rideIdRef.current);
           }
+          rideIdRef.current = updatedRideId;
+          joinRide(updatedRideId);
+          try {
+            const freshRide = await fetchRideDetails(updatedRideId);
+            setRide(freshRide);
+          } catch {}
+        }
+
+        if (updated.status === "completed") {
+          setRideCompleted(true);
+        } else if (updated.status === "cancelled") {
+          router.back();
         }
       }
     };
@@ -304,14 +373,26 @@ export default function UserActiveRideScreen() {
     const u3 = eventBus.on("booking:checkin", refresh);
     const u4 = eventBus.on("ride:accepted", refresh);
     const u5 = eventBus.on("ride:ended", refresh);
+    const u6 = eventBus.on("ride:started", refresh);
+    const u7 = eventBus.on("ride:cancelled", refresh);
     return () => {
       u1();
       u2();
       u3();
       u4();
       u5();
+      u6();
+      u7();
     };
-  }, [booking]);
+  }, [
+    booking,
+    fetchMyBookings,
+    fetchRideDetails,
+    joinRide,
+    leaveRide,
+    preferredRideId,
+    router,
+  ]);
 
   useEffect(() => {
     const s = BackHandler.addEventListener("hardwareBackPress", () => {

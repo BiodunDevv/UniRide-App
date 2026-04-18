@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { T } from "@/hooks/use-translation";
+import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 
 function Section({
   number,
@@ -53,6 +54,14 @@ function Divider() {
 
 export default function PrivacyScreen() {
   const router = useRouter();
+  const supportEmail = usePlatformSettingsStore((state) => {
+    const email = String(state.settings.support_email || "").trim();
+    return email || "support@uniride.ng";
+  });
+  const supportPhone = usePlatformSettingsStore((state) => {
+    const phone = String(state.settings.support_phone || "").trim();
+    return phone || "+234 (0) 800-UNIRIDE";
+  });
 
   return (
     <SafeAreaView className="flex-1 bg-white" edges={["top"]}>
@@ -69,7 +78,7 @@ export default function PrivacyScreen() {
             <T>Privacy Policy</T>
           </Text>
           <Text className="text-gray-300 text-[11px]">
-            <T>Last updated November 27, 2025</T>
+            <T>Last updated April 18, 2026</T>
           </Text>
         </View>
         <View className="w-8 h-8 rounded-lg bg-accent/10 items-center justify-center">
@@ -86,120 +95,149 @@ export default function PrivacyScreen() {
         <View className="bg-accent/5 rounded-xl p-4 mb-6 border-l-[3px] border-accent">
           <P>
             <T>
-              At UniRide, we take your privacy seriously. This Privacy Policy
-              explains how we collect, use, disclose, and safeguard your
-              information when you use our platform. Please read this carefully.
+              This Privacy Policy explains how UniRide collects, uses, stores,
+              and shares personal information when you use our mobile app,
+              website, and related services. By using UniRide, you acknowledge
+              this Policy.
             </T>
           </P>
         </View>
 
-        <Section number={1} title={<T>Information We Collect</T>}>
+        <Section number={1} title={<T>Data We Collect</T>}>
           <Text className="text-primary text-[13px] font-semibold mb-2">
-            <T>Personal Information</T>
+            <T>Account & Profile Data</T>
           </Text>
           <Bullet>
-            <T>Full name and date of birth</T>
+            <T>Name, email address, phone number, and profile photo</T>
           </Bullet>
           <Bullet>
-            <T>Email address and phone number</T>
+            <T>University or campus-related profile details you provide</T>
           </Bullet>
           <Bullet>
-            <T>University affiliation and student ID</T>
-          </Bullet>
-          <Bullet>
-            <T>Profile photo</T>
-          </Bullet>
-          <Bullet>
-            <T>Payment and banking information</T>
+            <T>Authentication and account security settings</T>
           </Bullet>
 
           <Text className="text-primary text-[13px] font-semibold mt-3 mb-2">
-            <T>Driver-Specific Information</T>
+            <T>Ride & Transaction Data</T>
           </Text>
           <Bullet>
-            <T>Driver's license details and photos</T>
+            <T>
+              Pickup and destination details, ride history, and booking events
+            </T>
           </Bullet>
           <Bullet>
-            <T>Vehicle registration and insurance documents</T>
+            <T>Payment method metadata and fare records</T>
           </Bullet>
           <Bullet>
-            <T>Background check authorization</T>
+            <T>Support requests, in-app reports, and communication records</T>
           </Bullet>
 
           <Text className="text-primary text-[13px] font-semibold mt-3 mb-2">
-            <T>Automatically Collected</T>
+            <T>Driver Verification Data</T>
           </Text>
           <Bullet>
-            <T>Device information (model, OS, unique identifiers)</T>
+            <T>
+              Driver license details, vehicle documents, and verification media
+            </T>
           </Bullet>
           <Bullet>
-            <T>Location data during active rides</T>
+            <T>Insurance and compliance information</T>
           </Bullet>
           <Bullet>
-            <T>App usage patterns and ride history</T>
+            <T>Driver performance and safety-related account events</T>
+          </Bullet>
+
+          <Text className="text-primary text-[13px] font-semibold mt-3 mb-2">
+            <T>Technical & Device Data</T>
+          </Text>
+          <Bullet>
+            <T>Device type, operating system, app version, and identifiers</T>
           </Bullet>
           <Bullet>
-            <T>IP address and browser information</T>
+            <T>IP address, log data, and basic diagnostics</T>
+          </Bullet>
+          <Bullet>
+            <T>Location signals required for matching, trip flow, and safety</T>
           </Bullet>
         </Section>
 
         <Divider />
 
-        <Section number={2} title={<T>How We Use Your Information</T>}>
+        <Section number={2} title={<T>How We Use Your Data</T>}>
           <P>
-            <T>We use collected information to:</T>
+            <T>We process data to operate and improve UniRide, including to:</T>
           </P>
           <Bullet>
-            <T>Provide and maintain our ridesharing services</T>
+            <T>Provide ride matching, booking, trip tracking, and support</T>
           </Bullet>
           <Bullet>
-            <T>Match riders with available drivers</T>
+            <T>Verify identity, eligibility, and account trust signals</T>
           </Bullet>
           <Bullet>
-            <T>Process payments and driver earnings</T>
+            <T>Process payments, earnings, refunds, and platform records</T>
           </Bullet>
           <Bullet>
-            <T>Verify identity and driver eligibility</T>
+            <T>Send service, security, and transactional notifications</T>
           </Bullet>
           <Bullet>
-            <T>Ensure safety through real-time ride tracking</T>
+            <T>Detect fraud, enforce policy, and protect user safety</T>
           </Bullet>
           <Bullet>
-            <T>Send service notifications and updates</T>
-          </Bullet>
-          <Bullet>
-            <T>Improve our platform and user experience</T>
-          </Bullet>
-          <Bullet>
-            <T>Comply with legal obligations</T>
-          </Bullet>
-          <Bullet>
-            <T>Prevent fraud and enforce our Terms</T>
+            <T>Comply with legal and regulatory requirements</T>
           </Bullet>
         </Section>
 
         <Divider />
 
-        <Section number={3} title={<T>Information Sharing</T>}>
+        <Section number={3} title={<T>Lawful Bases & Consent</T>}>
           <P>
-            <T>We may share your information with:</T>
+            <T>
+              Depending on where you are located, we rely on one or more of
+              these legal bases: contract performance, legitimate interest,
+              legal obligation, and consent where required.
+            </T>
           </P>
           <Bullet>
             <T>
-              Ride partners — limited profile info is shared between riders and
-              drivers during active rides
+              You may withdraw optional permissions at any time in your device
+              or account settings.
             </T>
           </Bullet>
           <Bullet>
             <T>
-              Service providers — payment processors, background check
-              providers, cloud hosting services
+              Some features may not work correctly if required permissions are
+              disabled.
+            </T>
+          </Bullet>
+        </Section>
+
+        <Divider />
+
+        <Section number={4} title={<T>How We Share Data</T>}>
+          <P>
+            <T>We may share relevant data with:</T>
+          </P>
+          <Bullet>
+            <T>
+              Ride participants, so trips can be completed safely and reliably
             </T>
           </Bullet>
           <Bullet>
             <T>
-              Legal authorities — when required by law, court order, or to
-              protect rights and safety
+              Service providers such as hosting, payments, analytics,
+              communications, and verification vendors
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>
+              Authorities or regulators when required by law, legal process, or
+              safety obligations
+            </T>
+          </Bullet>
+          <Bullet>
+            <T>
+              Corporate advisers in connection with audits, financing, mergers,
+              or asset transfers, where permitted by law
             </T>
           </Bullet>
           <View className="bg-green-50 rounded-lg p-3 mt-2 mb-1">
@@ -214,66 +252,58 @@ export default function PrivacyScreen() {
 
         <Divider />
 
-        <Section number={4} title={<T>Data Security</T>}>
+        <Section
+          number={5}
+          title={<T>Location, Permissions & Notifications</T>}
+        >
           <P>
             <T>
-              We implement industry-standard security measures to protect your
-              data:
+              UniRide uses location and device permissions to power matching,
+              live trip state, support workflows, and safety tooling.
             </T>
           </P>
           <Bullet>
-            <T>End-to-end encryption for sensitive data</T>
+            <T>
+              Location may be processed before and during active trips depending
+              on your role and app state.
+            </T>
           </Bullet>
           <Bullet>
-            <T>Secure token-based authentication (JWT)</T>
+            <T>
+              Push notifications are used for trip updates, alerts, and account
+              communications.
+            </T>
           </Bullet>
           <Bullet>
-            <T>Regular security audits and monitoring</T>
+            <T>
+              If required permissions are denied, certain ride or safety
+              features may be unavailable.
+            </T>
           </Bullet>
-          <Bullet>
-            <T>Encrypted data storage and transmission</T>
-          </Bullet>
-          <Bullet>
-            <T>Device management with maximum 3 active devices</T>
-          </Bullet>
+        </Section>
+
+        <Divider />
+
+        <Section number={6} title={<T>Security Safeguards</T>}>
           <P>
             <T>
-              While we strive to protect your information, no method of
-              transmission over the internet is 100% secure. We cannot guarantee
-              absolute security.
+              We apply technical and organizational safeguards designed to
+              protect personal information, including access controls,
+              authenticated sessions, monitoring, and encrypted transport where
+              appropriate.
+            </T>
+          </P>
+          <P>
+            <T>
+              No internet or mobile system can be guaranteed fully secure, but
+              we continuously improve controls and incident response procedures.
             </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={5} title={<T>Location Data</T>}>
-          <P>
-            <T>
-              We collect location data to provide core ride services. Location
-              is collected:
-            </T>
-          </P>
-          <Bullet>
-            <T>When you request or offer a ride</T>
-          </Bullet>
-          <Bullet>
-            <T>During an active ride for real-time tracking</T>
-          </Bullet>
-          <Bullet>
-            <T>To calculate fares and optimize routes</T>
-          </Bullet>
-          <P>
-            <T>
-              You can disable location services in your device settings, but
-              this will prevent the app from functioning properly.
-            </T>
-          </P>
-        </Section>
-
-        <Divider />
-
-        <Section number={6} title={<T>Biometric Data</T>}>
+        <Section number={7} title={<T>Biometric Data</T>}>
           <P>
             <T>
               If you enable biometric login (fingerprint or Face ID), biometric
@@ -286,60 +316,59 @@ export default function PrivacyScreen() {
 
         <Divider />
 
-        <Section number={7} title={<T>Data Retention</T>}>
+        <Section number={8} title={<T>Data Retention</T>}>
           <P>
-            <T>We retain your data for as long as:</T>
+            <T>We retain personal data for as long as needed to:</T>
           </P>
           <Bullet>
-            <T>Your account is active</T>
+            <T>Maintain your account and provide core services</T>
           </Bullet>
           <Bullet>
-            <T>Necessary to provide services and process transactions</T>
+            <T>Complete payments, support requests, and dispute handling</T>
           </Bullet>
           <Bullet>
-            <T>Required by applicable laws and regulations</T>
+            <T>Meet legal, tax, audit, and compliance requirements</T>
           </Bullet>
           <P>
             <T>
-              After account deletion, we may retain anonymized data for
-              analytics. Certain data may be retained as required by law for up
-              to 7 years.
+              After account closure, some data may be deleted, anonymized, or
+              retained where required by law or to prevent fraud and abuse.
             </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={8} title={<T>Your Rights</T>}>
+        <Section number={9} title={<T>Your Rights & Choices</T>}>
           <P>
-            <T>You have the right to:</T>
+            <T>Subject to applicable law, you may request to:</T>
           </P>
           <Bullet>
-            <T>Access your personal data we hold</T>
+            <T>Access, review, or correct your personal data</T>
           </Bullet>
           <Bullet>
-            <T>Correct inaccurate information</T>
+            <T>Request deletion or restriction of certain processing</T>
           </Bullet>
           <Bullet>
-            <T>Request deletion of your account and data</T>
+            <T>Request a copy or export of eligible account data</T>
           </Bullet>
           <Bullet>
-            <T>Opt out of non-essential communications</T>
+            <T>Manage marketing and non-essential communication preferences</T>
           </Bullet>
           <Bullet>
-            <T>Export your data in a portable format</T>
-          </Bullet>
-          <Bullet>
-            <T>Withdraw consent for data processing (where applicable)</T>
+            <T>Withdraw consent where processing depends on consent</T>
           </Bullet>
           <P>
-            <T>To exercise these rights, contact us at privacy@uniride.ng.</T>
+            <T>
+              To exercise these rights, contact us at privacy@uniride.ng.
+              Identity verification may be required for security.
+            </T>
           </P>
         </Section>
 
         <Divider />
 
-        <Section number={9} title={<T>Children's Privacy</T>}>
+        <Section number={10} title={<T>Children's Privacy</T>}>
           <P>
             <T>
               UniRide is not intended for users under 18 years of age. We do not
@@ -351,7 +380,7 @@ export default function PrivacyScreen() {
 
         <Divider />
 
-        <Section number={10} title={<T>Policy Updates</T>}>
+        <Section number={11} title={<T>Policy Updates</T>}>
           <P>
             <T>
               We may update this Privacy Policy from time to time. We will
@@ -364,7 +393,7 @@ export default function PrivacyScreen() {
 
         <Divider />
 
-        <Section number={11} title={<T>Contact Us</T>}>
+        <Section number={12} title={<T>Contact Us</T>}>
           <View className="bg-gray-50 rounded-xl p-4 gap-2">
             <View className="flex-row items-center gap-2">
               <Ionicons name="mail-outline" size={14} color="#9CA3AF" />
@@ -374,9 +403,11 @@ export default function PrivacyScreen() {
             </View>
             <View className="flex-row items-center gap-2">
               <Ionicons name="headset-outline" size={14} color="#9CA3AF" />
-              <Text className="text-gray-500 text-[13px]">
-                <T>support@uniride.ng</T>
-              </Text>
+              <Text className="text-gray-500 text-[13px]">{supportEmail}</Text>
+            </View>
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="call-outline" size={14} color="#9CA3AF" />
+              <Text className="text-gray-500 text-[13px]">{supportPhone}</Text>
             </View>
             <View className="flex-row items-center gap-2">
               <Ionicons name="location-outline" size={14} color="#9CA3AF" />
