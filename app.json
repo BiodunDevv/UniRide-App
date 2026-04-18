@@ -2,7 +2,7 @@
   "expo": {
     "name": "UniRide",
     "slug": "uniride",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "uniride",
@@ -23,11 +23,8 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.biodun42.uniride",
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
-      ],
-      "versionCode": 4
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+      "versionCode": 6
     },
     "web": {
       "output": "static",
