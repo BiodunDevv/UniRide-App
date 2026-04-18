@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { useRideStore } from "@/store/useRideStore";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { T } from "@/hooks/use-translation";
+import { rideApi } from "@/lib/rideApi";
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function RequestRideScreen() {
@@ -37,6 +38,8 @@ export default function RequestRideScreen() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [matchingRidesCount, setMatchingRidesCount] = useState(0);
+  const [checkingMatchingRides, setCheckingMatchingRides] = useState(false);
 
   const maxSeats = settings.max_seats_per_booking || 4;
   const farePolicy = settings.fare_policy;
@@ -50,12 +53,62 @@ export default function RequestRideScreen() {
     !isCreatingRide
   );
 
-  // ── Submit ──────────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkMatchingRides = async () => {
+      if (!selectedPickup?._id || !selectedDestination?._id) {
+        if (!cancelled) setMatchingRidesCount(0);
+        return;
+      }
+
+      setCheckingMatchingRides(true);
+      try {
+        const res = await rideApi.getActiveRides({
+          pickup: selectedPickup._id,
+          destination: selectedDestination._id,
+        });
+
+        if (!cancelled) {
+          setMatchingRidesCount(Array.isArray(res?.data) ? res.data.length : 0);
+        }
+      } catch {
+        if (!cancelled) setMatchingRidesCount(0);
+      } finally {
+        if (!cancelled) setCheckingMatchingRides(false);
+      }
+    };
+
+    checkMatchingRides();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPickup?._id, selectedDestination?._id]);
+
+  const submitRideRequest = async () => {
+    const body: any = {
+      pickup_location_id: selectedPickup!._id,
+      destination_id: selectedDestination!._id,
+      departure_time: departure.toISOString(),
+      available_seats: maxSeats,
+      seats_requested: seats,
+      payment_method: payMethod,
+    };
+
+    await createRide(body);
+    Alert.alert(
+      "Ride Requested!",
+      "Your ride request has been created. A driver will pick it up soon.",
+      [{ text: "OK", onPress: () => router.replace("/(users)/activity") }],
+    );
+  };
+
+  const validateRequest = () => {
     if (!selectedPickup || !selectedDestination) {
       Alert.alert("Missing Info", "Please select pickup and destination.");
-      return;
+      return false;
     }
+
     if (!hasBookingPhone) {
       Alert.alert(
         "Phone number required",
@@ -68,24 +121,38 @@ export default function RequestRideScreen() {
           },
         ],
       );
+      return false;
+    }
+
+    return true;
+  };
+
+  // ── Submit ──────────────────────────────────────────────────────
+  const handleSubmit = async (bypassMatchPrompt = false) => {
+    if (!validateRequest()) return;
+
+    if (!bypassMatchPrompt && matchingRidesCount > 0) {
+      Alert.alert(
+        "Matching rides available",
+        `We found ${matchingRidesCount} ride${matchingRidesCount === 1 ? "" : "s"} for this route. You can join an existing ride or create your own request.`,
+        [
+          {
+            text: "Join available",
+            onPress: () => router.push("/(users)/available-rides" as any),
+          },
+          {
+            text: "Create my own",
+            onPress: () => {
+              void handleSubmit(true);
+            },
+          },
+        ],
+      );
       return;
     }
+
     try {
-      const body: any = {
-        pickup_location_id: selectedPickup._id,
-        destination_id: selectedDestination._id,
-        departure_time: departure.toISOString(),
-        available_seats: maxSeats,
-        seats_requested: seats,
-        payment_method: payMethod,
-      };
-      // Fare is determined by admin fare policy on the backend
-      const res = await createRide(body);
-      Alert.alert(
-        "Ride Requested!",
-        "Your ride request has been created. A driver will pick it up soon.",
-        [{ text: "OK", onPress: () => router.replace("/(users)/activity") }],
-      );
+      await submitRideRequest();
     } catch (e: any) {
       Alert.alert(
         "Error",
@@ -291,6 +358,78 @@ export default function RequestRideScreen() {
                 </View>
               )}
             </Animated.View>
+
+            {(checkingMatchingRides || matchingRidesCount > 0) && (
+              <Animated.View
+                entering={FadeInUp.delay(140).duration(300)}
+                className="mx-5 mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4"
+              >
+                <View className="flex-row items-start">
+                  <View className="mr-3 mt-0.5 h-9 w-9 items-center justify-center rounded-xl bg-emerald-100">
+                    {checkingMatchingRides ? (
+                      <ActivityIndicator size="small" color="#047857" />
+                    ) : (
+                      <Ionicons
+                        name="sparkles-outline"
+                        size={16}
+                        color="#047857"
+                      />
+                    )}
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                      <T>Smart match</T>
+                    </Text>
+                    <Text className="mt-1 text-sm font-semibold text-[#042F40]">
+                      {checkingMatchingRides ? (
+                        <T>Checking available rides on this route...</T>
+                      ) : (
+                        <>
+                          {matchingRidesCount} <T>ride</T>
+                          {matchingRidesCount === 1 ? " " : "s "}
+                          <T>already match this trip.</T>
+                        </>
+                      )}
+                    </Text>
+                    {!checkingMatchingRides && matchingRidesCount > 0 ? (
+                      <>
+                        <Text className="mt-1 text-xs leading-5 text-emerald-700">
+                          <T>
+                            Join an existing ride, or continue and create your
+                            own request.
+                          </T>
+                        </Text>
+                        <View className="mt-3 flex-row gap-2.5">
+                          <TouchableOpacity
+                            onPress={() =>
+                              router.push("/(users)/available-rides" as any)
+                            }
+                            className="flex-1 rounded-xl bg-[#042F40] px-3 py-3"
+                            activeOpacity={0.88}
+                          >
+                            <Text className="text-center text-xs font-semibold text-white">
+                              <T>Join available rides</T>
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => {
+                              void handleSubmit(true);
+                            }}
+                            disabled={isCreatingRide}
+                            className="flex-1 rounded-xl border border-emerald-200 bg-white px-3 py-3"
+                            activeOpacity={0.88}
+                          >
+                            <Text className="text-center text-xs font-semibold text-emerald-700">
+                              <T>Create my own</T>
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : null}
+                  </View>
+                </View>
+              </Animated.View>
+            )}
 
             {/* ── Departure Time ──────────────────────────────────── */}
             <Animated.View

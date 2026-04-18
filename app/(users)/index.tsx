@@ -64,6 +64,8 @@ const CATEGORIES: Record<string, { label: string; icon: string }> = {
   other: { label: "Other", icon: "location" },
 };
 
+const HOME_AUTO_LOCATION_ZOOM_LEVEL = 16.4;
+
 export default function UserHomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -88,9 +90,19 @@ export default function UserHomeScreen() {
   } = useRideStore();
   const { unreadCount, fetchNotifications } = useNotificationStore();
   const mapsFeatureEnabled = usePlatformSettingsStore(
-    (state) => state.settings.expo_maps_enabled,
+    (state) =>
+      state.settings.mobile_map_enabled ?? state.settings.expo_maps_enabled,
   );
-  const { canRenderMaps } = useMapProvider();
+  const {
+    canRenderMaps,
+    provider,
+    map3dEnabled,
+    nativeModuleAvailable,
+    mapboxExpoGoRuntime,
+    mapboxTokenConfigured,
+    requestedProviderAvailable,
+    runtimeFailure,
+  } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
@@ -279,6 +291,8 @@ export default function UserHomeScreen() {
     activeBookings.find((b) => b.status === "in_progress") ||
     activeBookings.find((b) => b.status === "accepted") ||
     null;
+  const quickAccessBooking =
+    currentPriorityBooking || activeBookings[0] || null;
 
   const firstName = user?.name?.split(" ")[0] || "User";
   const initials = user?.name
@@ -345,7 +359,7 @@ export default function UserHomeScreen() {
     if (userLocation && cameraRef.current) {
       cameraRef.current.setCamera({
         centerCoordinate: [userLocation.longitude, userLocation.latitude],
-        zoomLevel: 15,
+        zoomLevel: HOME_AUTO_LOCATION_ZOOM_LEVEL,
         animationDuration: 800,
       });
     }
@@ -357,21 +371,119 @@ export default function UserHomeScreen() {
       hasCentered.current = true;
       cameraRef.current.setCamera({
         centerCoordinate: [userLocation.longitude, userLocation.latitude],
-        zoomLevel: 14,
-        pitch: 45,
+        zoomLevel: HOME_AUTO_LOCATION_ZOOM_LEVEL,
+        pitch: map3dEnabled ? 45 : 0,
         animationDuration: 1200,
       });
     }
-  }, [userLocation]);
+  }, [map3dEnabled, userLocation]);
 
   const mapsOperational =
     mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
   const showMapCanvas = mapsOperational;
+
+  const mapFallbackInfo = (() => {
+    if (safeMode) {
+      return {
+        icon: "shield-checkmark-outline" as const,
+        title: "Safe mode is active",
+        description:
+          "Map rendering is paused while UniRide runs in safe mode. You can still browse rides and bookings below.",
+      };
+    }
+
+    if (!mapsFeatureEnabled) {
+      return {
+        icon: "toggle-outline" as const,
+        title: "Map canvas is disabled",
+        description:
+          "Interactive maps are disabled from platform settings. Contact an administrator to enable them.",
+      };
+    }
+
+    if (!allowMapCanvas && canRenderMaps) {
+      return {
+        icon: "time-outline" as const,
+        title: "Preparing map canvas",
+        description:
+          "UniRide is initializing the map view. It should appear shortly.",
+      };
+    }
+
+    if (provider === "mapbox") {
+      if (mapboxExpoGoRuntime) {
+        return {
+          icon: "phone-portrait-outline" as const,
+          title: "Mapbox is not available in Expo Go",
+          description:
+            "Use a development build or production binary to render Mapbox maps.",
+        };
+      }
+
+      if (!mapboxTokenConfigured) {
+        return {
+          icon: "key-outline" as const,
+          title: "Mapbox token is missing",
+          description:
+            "EXPO_PUBLIC_MAPBOX_TOKEN is missing. Add it to environment variables and rebuild the app.",
+        };
+      }
+
+      if (!requestedProviderAvailable) {
+        return {
+          icon: "layers-outline" as const,
+          title: "Mapbox is unavailable in this build",
+          description:
+            "The selected Mapbox provider is not available in the current runtime. Rebuild the app with Mapbox native support.",
+        };
+      }
+
+      if (runtimeFailure) {
+        return {
+          icon: "alert-circle-outline" as const,
+          title: "Mapbox failed to initialize",
+          description: `Mapbox runtime error: ${runtimeFailure}`,
+        };
+      }
+
+      return {
+        icon: "layers-outline" as const,
+        title: "Mapbox is temporarily unavailable",
+        description:
+          "The selected Mapbox provider could not render right now. Try again shortly.",
+      };
+    }
+
+    if (!nativeModuleAvailable || !requestedProviderAvailable) {
+      return {
+        icon: "map-outline" as const,
+        title: "Native map is not available",
+        description:
+          "This build does not have a configured native map provider. Verify Google Maps setup and rebuild.",
+      };
+    }
+
+    if (runtimeFailure) {
+      return {
+        icon: "alert-circle-outline" as const,
+        title: "Native map failed to initialize",
+        description: `Native map runtime error: ${runtimeFailure}`,
+      };
+    }
+
+    return {
+      icon: "map-outline" as const,
+      title: "Map is not available",
+      description:
+        "Interactive maps are currently unavailable, but ride operations continue below.",
+    };
+  })();
+
   const sheetSnapPoints = React.useMemo(
-    () => (showMapCanvas ? ["18%", "46%", "82%"] : ["36%", "64%", "90%"]),
+    () => (showMapCanvas ? ["50%", "84%"] : ["50%", "90%"]),
     [showMapCanvas],
   );
-  const initialSheetIndex = showMapCanvas ? 0 : 1;
+  const initialSheetIndex = 0;
   const driverMarkers = onlineDrivers
     .map((driver) => {
       const coordinate = sanitizeLatLng(driver.location);
@@ -388,8 +500,8 @@ export default function UserHomeScreen() {
 
   useEffect(() => {
     setSheetIndex(initialSheetIndex);
-    setShowTopOverlayCards(initialSheetIndex <= 1);
-  }, [initialSheetIndex]);
+    setShowTopOverlayCards(initialSheetIndex < sheetSnapPoints.length - 1);
+  }, [initialSheetIndex, sheetSnapPoints.length]);
 
   const handleSheetChange = useCallback((index: number) => {
     setSheetHidden(index === -1);
@@ -398,17 +510,31 @@ export default function UserHomeScreen() {
 
   const handleSheetAnimate = useCallback(
     (_fromIndex: number, toIndex: number) => {
-      setShowTopOverlayCards(toIndex <= 1);
+      setShowTopOverlayCards(
+        toIndex === -1 || toIndex < sheetSnapPoints.length - 1,
+      );
     },
-    [],
+    [sheetSnapPoints.length],
   );
 
   const openSheet = useCallback(() => {
     setSheetHidden(false);
-    bottomSheetRef.current?.snapToIndex(
-      Math.min(1, sheetSnapPoints.length - 1),
-    );
-  }, [sheetSnapPoints.length]);
+    bottomSheetRef.current?.snapToIndex(initialSheetIndex);
+  }, [initialSheetIndex]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setSheetHidden(false);
+      setSheetIndex(initialSheetIndex);
+      setShowTopOverlayCards(initialSheetIndex < sheetSnapPoints.length - 1);
+
+      const frame = requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(initialSheetIndex);
+      });
+
+      return () => cancelAnimationFrame(frame);
+    }, [initialSheetIndex, sheetSnapPoints.length]),
+  );
 
   // ═══════════════════════════════════════════════════════════════════════
   return (
@@ -458,69 +584,20 @@ export default function UserHomeScreen() {
             <View className="w-full max-w-[360px] rounded-[30px] border border-white/60 bg-white/92 px-6 py-6">
               <View className="items-center">
                 <View className="h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-                  {mapsOperational && isPreparingLocation ? (
-                    <ActivityIndicator color="#042F40" />
-                  ) : (
-                    <Ionicons
-                      name={
-                        mapsOperational && !locationPermissionGranted
-                          ? "locate-outline"
-                          : "map-outline"
-                      }
-                      size={26}
-                      color="#042F40"
-                    />
-                  )}
+                  <Ionicons
+                    name={mapFallbackInfo.icon}
+                    size={26}
+                    color="#042F40"
+                  />
                 </View>
                 <Text className="mt-4 text-center text-xl font-bold text-slate-900">
-                  {mapsOperational && isPreparingLocation ? (
-                    <T>Finding your location</T>
-                  ) : mapsOperational && !locationPermissionGranted ? (
-                    <T>Location access needed</T>
-                  ) : (
-                    <T>Map is not available</T>
-                  )}
+                  {mapFallbackInfo.title}
                 </Text>
                 <Text className="mt-2 text-center text-sm leading-6 text-slate-600">
-                  {mapsOperational && isPreparingLocation ? (
-                    <T>
-                      We are waiting for a live GPS fix before we show the map.
-                    </T>
-                  ) : mapsOperational && !locationPermissionGranted ? (
-                    <T>
-                      Turn on location access so UniRide can center the map on
-                      your live position and show nearby drivers.
-                    </T>
-                  ) : (
-                    <T>
-                      You can still browse rides, manage bookings, and keep your
-                      trip moving from the panel below while maps are
-                      unavailable.
-                    </T>
-                  )}
+                  {mapFallbackInfo.description}
                 </Text>
               </View>
-              {mapsOperational ? (
-                <TouchableOpacity
-                  onPress={async () => {
-                    setIsPreparingLocation(true);
-                    const ok = await requestPermission();
-                    if (ok) {
-                      const currentLocation = await getCurrentLocation();
-                      if (!currentLocation) {
-                        startWatching();
-                      }
-                    } else {
-                      setIsPreparingLocation(false);
-                    }
-                  }}
-                  className="mt-5 rounded-2xl bg-primary px-4 py-3 items-center"
-                >
-                  <Text className="text-sm font-semibold text-white">
-                    <T>Try Location Again</T>
-                  </Text>
-                </TouchableOpacity>
-              ) : safeMode ? (
+              {safeMode ? (
                 <TouchableOpacity
                   onPress={() => router.push("/bootstrap")}
                   className="mt-5 rounded-2xl bg-primary px-4 py-3 items-center"
@@ -722,7 +799,91 @@ export default function UserHomeScreen() {
             </View>
           </View>
 
-          {currentPriorityBooking && showTopOverlayCards ? (
+          {popularLocs.length > 0 &&
+          showTopOverlayCards &&
+          activeBookings.length === 0 ? (
+            <Animated.View
+              entering={FadeInDown.duration(220)}
+              exiting={FadeOutUp.duration(220)}
+            >
+              <View
+                className="mt-3 rounded-[24px] bg-white/95 px-3.5 py-3"
+                style={{
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                }}
+              >
+                <View className="mb-2.5 flex-row items-center justify-between">
+                  <View className="flex-1 pr-3">
+                    <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      <T>Quick destinations</T>
+                    </Text>
+                    <Text className="mt-1 text-sm font-semibold text-slate-900">
+                      <T>Pick a destination and continue</T>
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push("/(users)/search-ride" as any)}
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5"
+                    activeOpacity={0.85}
+                  >
+                    <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                      <T>Search all</T>
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingRight: 6 }}
+                >
+                  {popularLocs.slice(0, 6).map((loc) => (
+                    <TouchableOpacity
+                      key={loc._id}
+                      onPress={() => {
+                        setSelectedDestination(loc);
+                        router.push("/(users)/search-ride" as any);
+                      }}
+                      className="mr-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2.5"
+                      activeOpacity={0.85}
+                    >
+                      <View className="flex-row items-center">
+                        <View className="h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+                          <Ionicons
+                            name={
+                              (CATEGORIES[loc.category]?.icon ||
+                                "location") as any
+                            }
+                            size={13}
+                            color="#042F40"
+                          />
+                        </View>
+                        <View className="ml-2.5 max-w-[140px]">
+                          <Text
+                            className="text-xs font-semibold text-slate-800"
+                            numberOfLines={1}
+                          >
+                            {loc.short_name || loc.name}
+                          </Text>
+                          <Text
+                            className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-slate-400"
+                            numberOfLines={1}
+                          >
+                            {CATEGORIES[loc.category]?.label || "Stop"}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </Animated.View>
+          ) : null}
+
+          {quickAccessBooking && showTopOverlayCards ? (
             <Animated.View
               entering={FadeInDown.duration(220)}
               exiting={FadeOutUp.duration(220)}
@@ -730,11 +891,11 @@ export default function UserHomeScreen() {
               <TouchableOpacity
                 onPress={() =>
                   router.push(
-                    (currentPriorityBooking.status === "in_progress"
+                    (quickAccessBooking.status === "in_progress"
                       ? "/(users)/active-ride"
                       : {
                           pathname: "/(users)/ride-details",
-                          params: { bookingId: currentPriorityBooking._id },
+                          params: { bookingId: quickAccessBooking._id },
                         }) as any,
                   )
                 }
@@ -750,9 +911,11 @@ export default function UserHomeScreen() {
                 <View className="w-10 h-10 rounded-full bg-white/15 items-center justify-center mr-3">
                   <Ionicons
                     name={
-                      currentPriorityBooking.status === "in_progress"
+                      quickAccessBooking.status === "in_progress"
                         ? "navigate"
-                        : "ticket-outline"
+                        : quickAccessBooking.status === "accepted"
+                          ? "ticket-outline"
+                          : "time-outline"
                     }
                     size={18}
                     color="#fff"
@@ -763,10 +926,12 @@ export default function UserHomeScreen() {
                     <T>Current booking</T>
                   </Text>
                   <Text className="mt-1 text-sm font-bold text-white">
-                    {currentPriorityBooking.status === "in_progress" ? (
+                    {quickAccessBooking.status === "in_progress" ? (
                       <T>Open live ride</T>
-                    ) : (
+                    ) : quickAccessBooking.status === "accepted" ? (
                       <T>Open accepted booking</T>
+                    ) : (
+                      <T>View pending booking</T>
                     )}
                   </Text>
                 </View>
@@ -860,144 +1025,259 @@ export default function UserHomeScreen() {
           <SafeAreaView edges={["bottom"]} className="pb-1">
             <Animated.View
               entering={FadeInUp.delay(220).duration(400)}
-              className="mx-4 mb-3 rounded-[22px] bg-[#042F40] px-4 py-3.5"
+              className="mx-4 mb-3 rounded-[24px] border border-slate-200 bg-white px-4 py-4"
             >
-              <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
-                Rider Console
-              </Text>
-              <Text className="mt-1 text-base font-bold text-white">
-                {activeBookings.length > 0 ? (
-                  <T>Your next ride is within reach</T>
-                ) : (
-                  <T>Ready to request your next trip</T>
-                )}
-              </Text>
-              <Text className="mt-1 text-[11px] leading-5 text-slate-300">
-                {activeBookings.length > 0 ? (
-                  <T>
-                    Track active bookings, check in quickly, and keep your trip
-                    details close.
-                  </T>
-                ) : (
-                  <T>
-                    Search routes, browse live rides, and get picked up faster
-                    from your most-used stops.
-                  </T>
-                )}
-              </Text>
-              <TouchableOpacity
-                onPress={() => router.push("/(users)/search-ride" as any)}
-                className="mt-3 flex-row items-center rounded-xl bg-[#D4A017] px-3.5 py-2.5"
-                activeOpacity={0.9}
-              >
-                <View className="h-9 w-9 rounded-full bg-white/20 items-center justify-center mr-3">
-                  <Ionicons name="search" size={16} color="#fff" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-bold text-white">
-                    <T>Plan a ride</T>
+              <View className="flex-row items-start justify-between">
+                <View className="flex-1 pr-3">
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <T>Where to</T>
                   </Text>
-                  <Text className="text-[11px] text-white/80">
-                    <T>
-                      Search pickup and destination locations across campus.
-                    </T>
+                  <Text className="mt-1 text-lg font-bold text-slate-900">
+                    {activeBookings.length > 0 ? (
+                      <T>You have rides in progress</T>
+                    ) : (
+                      <T>Book your next trip</T>
+                    )}
+                  </Text>
+                  <Text className="mt-1 text-[12px] leading-5 text-slate-500">
+                    {activeBookings.length > 0 ? (
+                      <T>
+                        Open bookings, check in quickly, and jump into live
+                        tracking.
+                      </T>
+                    ) : (
+                      <T>
+                        Choose pickup and destination to find available campus
+                        rides fast.
+                      </T>
+                    )}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#fff" />
-              </TouchableOpacity>
+                <View className="h-11 w-11 rounded-2xl bg-[#042F40] items-center justify-center">
+                  <Ionicons
+                    name={activeBookings.length > 0 ? "car-sport" : "navigate"}
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                </View>
+              </View>
+
+              <View className="mt-4 flex-row gap-2.5">
+                <TouchableOpacity
+                  onPress={() => router.push("/(users)/search-ride" as any)}
+                  className="flex-1 rounded-2xl bg-[#042F40] px-3.5 py-3.5"
+                  activeOpacity={0.9}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1 pr-2">
+                      <Text className="text-sm font-semibold text-white">
+                        <T>Request ride</T>
+                      </Text>
+                      <Text className="mt-1 text-[11px] text-slate-300">
+                        <T>Pick route and see available drivers</T>
+                      </Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+                  </View>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    activeBookings.length > 0
+                      ? router.push("/(users)/activity")
+                      : router.push("/(users)/available-rides" as any)
+                  }
+                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3.5"
+                  activeOpacity={0.9}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1 pr-2">
+                      <Text className="text-sm font-semibold text-slate-900">
+                        {activeBookings.length > 0 ? (
+                          <T>My activity</T>
+                        ) : (
+                          <T>Browse rides</T>
+                        )}
+                      </Text>
+                      <Text className="mt-1 text-[11px] text-slate-500">
+                        {activeBookings.length > 0 ? (
+                          <T>Open booking timeline and updates</T>
+                        ) : (
+                          <T>Explore live rides near your stops</T>
+                        )}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color="#0F172A"
+                    />
+                  </View>
+                </TouchableOpacity>
+              </View>
             </Animated.View>
 
             <Animated.View entering={FadeInUp.delay(300).duration(400)}>
               <View className="mx-4 mb-4 rounded-[22px] border border-slate-200 bg-white px-4 py-3.5">
-                <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  <T>Live snapshot</T>
-                </Text>
-                <View className="mt-3 flex-row gap-3">
-                  <View className="flex-1 rounded-xl bg-slate-50 px-3.5 py-3">
-                    <Text className="text-[11px] text-slate-500">
-                      <T>Drivers online</T>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <T>Trip dashboard</T>
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      router.push("/(users)/available-rides" as any)
+                    }
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
+                    activeOpacity={0.85}
+                  >
+                    <Text className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-600">
+                      <T>Open rides</T>
                     </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View className="mt-3 flex-row gap-3">
+                  <View className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <View className="flex-row items-center">
+                      <Ionicons name="radio" size={13} color="#0F172A" />
+                      <Text className="ml-1.5 text-[11px] text-slate-500">
+                        <T>Drivers online</T>
+                      </Text>
+                    </View>
                     <Text className="mt-1 text-xl font-bold text-slate-900">
                       {onlineDrivers.length}
                     </Text>
                   </View>
-                  <View className="flex-1 rounded-xl bg-slate-50 px-3.5 py-3">
-                    <Text className="text-[11px] text-slate-500">
-                      <T>Open rides</T>
-                    </Text>
+                  <View className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <View className="flex-row items-center">
+                      <Ionicons name="car" size={13} color="#0F172A" />
+                      <Text className="ml-1.5 text-[11px] text-slate-500">
+                        <T>Open rides</T>
+                      </Text>
+                    </View>
                     <Text className="mt-1 text-xl font-bold text-slate-900">
                       {availableRides.length}
                     </Text>
                   </View>
                 </View>
+
                 <View className="mt-3 flex-row gap-3">
                   <TouchableOpacity
                     onPress={() => router.push("/(users)/activity")}
-                    className="flex-1 rounded-xl border border-amber-100 bg-amber-50 px-3.5 py-3"
-                    activeOpacity={0.8}
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-3"
+                    activeOpacity={0.85}
                   >
-                    <Text className="text-[11px] text-amber-700">
+                    <Text className="text-[11px] text-slate-500">
                       <T>My bookings</T>
                     </Text>
-                    <Text className="mt-1 text-base font-bold text-amber-800">
-                      {activeBookings.length > 0 ? activeBookings.length : 0}
-                    </Text>
+                    <View className="mt-1 flex-row items-center justify-between">
+                      <Text className="text-base font-bold text-slate-900">
+                        {activeBookings.length > 0 ? activeBookings.length : 0}
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={15}
+                        color="#64748B"
+                      />
+                    </View>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() =>
-                      router.push("/(users)/available-rides" as any)
-                    }
-                    className="flex-1 rounded-xl border border-primary/10 bg-primary/5 px-3.5 py-3"
-                    activeOpacity={0.8}
+                    onPress={() => router.push("/(users)/profile")}
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-3"
+                    activeOpacity={0.85}
                   >
-                    <Text className="text-[11px] text-primary">
-                      <T>Browse rides</T>
+                    <Text className="text-[11px] text-slate-500">
+                      <T>Profile</T>
                     </Text>
-                    <Text className="mt-1 text-base font-bold text-primary">
-                      <T>View now</T>
-                    </Text>
+                    <View className="mt-1 flex-row items-center justify-between">
+                      <Text className="text-base font-bold text-slate-900">
+                        <T>View account</T>
+                      </Text>
+                      <Ionicons
+                        name="person-outline"
+                        size={15}
+                        color="#64748B"
+                      />
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
             </Animated.View>
 
-            {popularLocs.length > 0 && (
-              <Animated.View entering={FadeInUp.delay(380).duration(400)}>
-                <Text className="mx-4 mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  <T>Quick destinations</T>
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  className="px-4 mb-3"
-                >
-                  {popularLocs.slice(0, 8).map((loc) => (
-                    <TouchableOpacity
-                      key={loc._id}
-                      onPress={() => {
-                        setSelectedDestination(loc);
-                        router.push("/(users)/search-ride" as any);
-                      }}
-                      className="mr-2 rounded-xl border border-primary/10 bg-primary/5 px-3 py-2.5 flex-row items-center"
-                    >
-                      <Ionicons
-                        name={
-                          (CATEGORIES[loc.category]?.icon || "location") as any
+            {popularLocs.length > 0 &&
+              !showTopOverlayCards &&
+              activeBookings.length === 0 && (
+                <Animated.View entering={FadeInUp.delay(380).duration(400)}>
+                  <View className="mx-4 mb-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3.5">
+                    <View className="mb-3 flex-row items-center justify-between">
+                      <View className="flex-1 pr-3">
+                        <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                          <T>Quick destinations</T>
+                        </Text>
+                        <Text className="mt-1 text-sm font-semibold text-slate-900">
+                          <T>Popular stops for faster booking</T>
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() =>
+                          router.push("/(users)/search-ride" as any)
                         }
-                        size={13}
-                        color="#042F40"
-                      />
-                      <Text
-                        className="text-xs font-medium text-gray-700 ml-2"
-                        numberOfLines={1}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5"
+                        activeOpacity={0.85}
                       >
-                        {loc.short_name || loc.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </Animated.View>
-            )}
+                        <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600">
+                          <T>Search all</T>
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingRight: 6 }}
+                    >
+                      {popularLocs.slice(0, 8).map((loc) => (
+                        <TouchableOpacity
+                          key={loc._id}
+                          onPress={() => {
+                            setSelectedDestination(loc);
+                            router.push("/(users)/search-ride" as any);
+                          }}
+                          className="mr-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                          activeOpacity={0.85}
+                        >
+                          <View className="flex-row items-center">
+                            <View className="h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+                              <Ionicons
+                                name={
+                                  (CATEGORIES[loc.category]?.icon ||
+                                    "location") as any
+                                }
+                                size={13}
+                                color="#042F40"
+                              />
+                            </View>
+                            <View className="ml-2.5 max-w-[140px]">
+                              <Text
+                                className="text-xs font-semibold text-slate-800"
+                                numberOfLines={1}
+                              >
+                                {loc.short_name || loc.name}
+                              </Text>
+                              <Text
+                                className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-slate-400"
+                                numberOfLines={1}
+                              >
+                                {CATEGORIES[loc.category]?.label || "Stop"}
+                              </Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </Animated.View>
+              )}
 
             {/* Active Booking */}
             {activeBookings.slice(0, 1).map((bk) => {

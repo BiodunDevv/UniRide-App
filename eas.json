@@ -7,17 +7,29 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "3c513454-4153-46ea-9605-4420f5cf4abc",
+        "GOOGLE_SERVICES_JSON": "./google-services.json"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "3c513454-4153-46ea-9605-4420f5cf4abc",
+        "GOOGLE_SERVICES_JSON": "./google-services.json"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "3c513454-4153-46ea-9605-4420f5cf4abc",
+        "GOOGLE_SERVICES_JSON": "./google-services.json"
+      },
       "android": {
         "buildType": "app-bundle"
       },

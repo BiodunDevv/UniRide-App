@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Logo from "@/components/Logo";
 import AuthInput from "@/components/auth/AuthInput";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useNotificationIntentStore } from "@/store/useNotificationIntentStore";
 import { T, useTranslation } from "@/hooks/use-translation";
 import useTranslatorStore from "@/store/useTranslatorStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
@@ -97,7 +98,10 @@ export default function LoginScreen() {
         "login:success",
         `role=${res.data?.user?.role || "unknown"}`,
       );
-      router.replace("/bootstrap");
+
+      const pendingIntent =
+        useNotificationIntentStore.getState().pendingPayload;
+      router.replace(pendingIntent ? "/lock" : "/bootstrap");
     } catch (err: any) {
       if (err.data?.email_verification_required) {
         router.push({
@@ -268,7 +272,7 @@ export default function LoginScreen() {
             {/* Register link */}
             <View className="flex-row justify-center mt-6">
               <Text className="text-gray-400 text-sm">
-                <T>Don't have an account?</T>{" "}
+                <T>Don&apos;t have an account?</T>{" "}
               </Text>
               <Pressable
                 onPress={() =>

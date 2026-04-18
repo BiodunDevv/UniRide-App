@@ -43,6 +43,8 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { recordBootstrapTrace } from "@/lib/post-auth";
 import { resolveSafeCenter } from "@/lib/mapSafety";
 
+const HOME_AUTO_LOCATION_ZOOM_LEVEL = 16.4;
+
 export default function DriverHomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -67,9 +69,19 @@ export default function DriverHomeScreen() {
   } = useRideStore();
   const { unreadCount, fetchNotifications } = useNotificationStore();
   const mapsFeatureEnabled = usePlatformSettingsStore(
-    (state) => state.settings.expo_maps_enabled,
+    (state) =>
+      state.settings.mobile_map_enabled ?? state.settings.expo_maps_enabled,
   );
-  const { canRenderMaps } = useMapProvider();
+  const {
+    canRenderMaps,
+    provider,
+    map3dEnabled,
+    nativeModuleAvailable,
+    mapboxExpoGoRuntime,
+    mapboxTokenConfigured,
+    requestedProviderAvailable,
+    runtimeFailure,
+  } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { requestPermission, startWatching, getCurrentLocation } =
     useLocation();
@@ -303,7 +315,7 @@ export default function DriverHomeScreen() {
     if (userLocation && cameraRef.current) {
       cameraRef.current.setCamera({
         centerCoordinate: [userLocation.longitude, userLocation.latitude],
-        zoomLevel: 15,
+        zoomLevel: HOME_AUTO_LOCATION_ZOOM_LEVEL,
         animationDuration: 800,
       });
     }
@@ -315,12 +327,12 @@ export default function DriverHomeScreen() {
       hasCentered.current = true;
       cameraRef.current.setCamera({
         centerCoordinate: [userLocation.longitude, userLocation.latitude],
-        zoomLevel: 14,
-        pitch: 45,
+        zoomLevel: HOME_AUTO_LOCATION_ZOOM_LEVEL,
+        pitch: map3dEnabled ? 45 : 0,
         animationDuration: 1200,
       });
     }
-  }, [userLocation]);
+  }, [map3dEnabled, userLocation]);
 
   // ── Derived ───────────────────────────────────────────────────────
   const activeRides = driverRides.filter(
@@ -346,16 +358,114 @@ export default function DriverHomeScreen() {
     null;
   const showMapCanvas =
     mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
+
+  const mapFallbackInfo = (() => {
+    if (safeMode) {
+      return {
+        icon: "shield-checkmark-outline" as const,
+        title: "Safe mode is active",
+        description:
+          "Map rendering is paused while UniRide runs in safe mode. Ride operations still work from this panel.",
+      };
+    }
+
+    if (!mapsFeatureEnabled) {
+      return {
+        icon: "toggle-outline" as const,
+        title: "Map canvas is disabled",
+        description:
+          "Interactive maps are turned off from platform settings. Contact an administrator to enable them.",
+      };
+    }
+
+    if (!allowMapCanvas && canRenderMaps) {
+      return {
+        icon: "time-outline" as const,
+        title: "Preparing map canvas",
+        description:
+          "UniRide is initializing the map view. It should appear in a moment.",
+      };
+    }
+
+    if (provider === "mapbox") {
+      if (mapboxExpoGoRuntime) {
+        return {
+          icon: "phone-portrait-outline" as const,
+          title: "Mapbox is not available in Expo Go",
+          description:
+            "Use a development build or production binary to render Mapbox maps.",
+        };
+      }
+
+      if (!mapboxTokenConfigured) {
+        return {
+          icon: "key-outline" as const,
+          title: "Mapbox token is missing",
+          description:
+            "EXPO_PUBLIC_MAPBOX_TOKEN is missing. Add it to environment variables and rebuild the app.",
+        };
+      }
+
+      if (!requestedProviderAvailable) {
+        return {
+          icon: "layers-outline" as const,
+          title: "Mapbox is unavailable in this build",
+          description:
+            "The selected Mapbox provider is not available in the current runtime. Rebuild the app with Mapbox native support.",
+        };
+      }
+
+      if (runtimeFailure) {
+        return {
+          icon: "alert-circle-outline" as const,
+          title: "Mapbox failed to initialize",
+          description: `Mapbox runtime error: ${runtimeFailure}`,
+        };
+      }
+
+      return {
+        icon: "layers-outline" as const,
+        title: "Mapbox is temporarily unavailable",
+        description:
+          "The selected Mapbox provider could not render right now. Try again shortly.",
+      };
+    }
+
+    if (!nativeModuleAvailable || !requestedProviderAvailable) {
+      return {
+        icon: "map-outline" as const,
+        title: "Native map is not available",
+        description:
+          "This build does not have a configured native map provider. Verify Google Maps setup and rebuild.",
+      };
+    }
+
+    if (runtimeFailure) {
+      return {
+        icon: "alert-circle-outline" as const,
+        title: "Native map failed to initialize",
+        description: `Native map runtime error: ${runtimeFailure}`,
+      };
+    }
+
+    return {
+      icon: "map-outline" as const,
+      title: "Map is not available",
+      description:
+        "Interactive maps are currently unavailable, but ride operations continue below.",
+    };
+  })();
+
   const sheetSnapPoints = React.useMemo(
-    () => (showMapCanvas ? ["20%", "50%", "84%"] : ["40%", "68%", "92%"]),
+    () => (showMapCanvas ? ["50%", "84%"] : ["50%", "92%"]),
     [showMapCanvas],
   );
-  const initialSheetIndex = showMapCanvas ? 0 : 1;
+  const initialSheetIndex = 0;
 
   useEffect(() => {
     setSheetIndex(initialSheetIndex);
-    setShowTopOverlayCards(initialSheetIndex <= 1);
-  }, [initialSheetIndex]);
+    setShowTopOverlayCards(initialSheetIndex < sheetSnapPoints.length - 1);
+  }, [initialSheetIndex, sheetSnapPoints.length]);
 
   const handleSheetChange = useCallback((index: number) => {
     setSheetHidden(index === -1);
@@ -364,17 +474,31 @@ export default function DriverHomeScreen() {
 
   const handleSheetAnimate = useCallback(
     (_fromIndex: number, toIndex: number) => {
-      setShowTopOverlayCards(toIndex <= 1);
+      setShowTopOverlayCards(
+        toIndex === -1 || toIndex < sheetSnapPoints.length - 1,
+      );
     },
-    [],
+    [sheetSnapPoints.length],
   );
 
   const openSheet = useCallback(() => {
     setSheetHidden(false);
-    bottomSheetRef.current?.snapToIndex(
-      Math.min(1, sheetSnapPoints.length - 1),
-    );
-  }, [sheetSnapPoints.length]);
+    bottomSheetRef.current?.snapToIndex(initialSheetIndex);
+  }, [initialSheetIndex]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setSheetHidden(false);
+      setSheetIndex(initialSheetIndex);
+      setShowTopOverlayCards(initialSheetIndex < sheetSnapPoints.length - 1);
+
+      const frame = requestAnimationFrame(() => {
+        bottomSheetRef.current?.snapToIndex(initialSheetIndex);
+      });
+
+      return () => cancelAnimationFrame(frame);
+    }, [initialSheetIndex, sheetSnapPoints.length]),
+  );
 
   const expandSheet = useCallback(() => {
     setSheetHidden(false);
@@ -414,7 +538,7 @@ export default function DriverHomeScreen() {
                 userLocation,
                 lastDriverPresenceLocation,
               ),
-              zoomLevel: 14,
+              zoomLevel: HOME_AUTO_LOCATION_ZOOM_LEVEL,
             }}
             animationDuration={1500}
           />
@@ -427,16 +551,17 @@ export default function DriverHomeScreen() {
             <View className="w-full max-w-[360px] rounded-[30px] border border-white/60 bg-white/92 px-6 py-6">
               <View className="items-center">
                 <View className="h-14 w-14 items-center justify-center rounded-full bg-slate-100">
-                  <Ionicons name="map-outline" size={26} color="#042F40" />
+                  <Ionicons
+                    name={mapFallbackInfo.icon}
+                    size={26}
+                    color="#042F40"
+                  />
                 </View>
                 <Text className="mt-4 text-center text-xl font-bold text-slate-900">
-                  <T>Map is not available</T>
+                  {mapFallbackInfo.title}
                 </Text>
                 <Text className="mt-2 text-center text-sm leading-6 text-slate-600">
-                  <T>
-                    You can still manage rides, bookings, and live operations
-                    from the panel below while interactive maps are unavailable.
-                  </T>
+                  {mapFallbackInfo.description}
                 </Text>
               </View>
               {safeMode ? (
@@ -723,151 +848,217 @@ export default function DriverHomeScreen() {
           <SafeAreaView edges={["bottom"]} className="-pb-2">
             <Animated.View
               entering={FadeInUp.delay(220).duration(400)}
-              className="mx-5 mb-4 rounded-[26px] bg-[#042F40] px-4 py-4"
+              className="mx-5 mb-4 rounded-[26px] border border-slate-200 bg-white px-4 py-4"
             >
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 pr-3">
-                  <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
-                    Driver Mode
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    <T>Driver mode</T>
                   </Text>
-                  <Text className="mt-1 text-lg font-bold text-white">
+                  <Text className="mt-1 text-lg font-bold text-slate-900">
                     {isOnline ? (
-                      <T>Ready for new passengers</T>
+                      <T>You are ready for passengers</T>
                     ) : (
-                      <T>Offline and resting</T>
+                      <T>Start driving when ready</T>
                     )}
                   </Text>
-                  <Text className="mt-1 text-xs leading-5 text-slate-300">
+                  <Text className="mt-1 text-xs leading-5 text-slate-500">
                     {isOnline ? (
                       <T>
-                        Live requests, passenger bookings, and active rides are
-                        flowing into this panel.
+                        New requests, active bookings, and live trips will
+                        appear instantly in this panel.
                       </T>
                     ) : (
                       <T>
-                        Go live when you are ready to accept ride requests and
-                        appear on the map.
+                        Go online to appear on the map and start accepting
+                        campus ride requests.
                       </T>
                     )}
                   </Text>
                 </View>
-                <View className="rounded-2xl bg-white/10 px-3 py-2 items-center">
-                  <Text className="text-[10px] uppercase tracking-[0.16em] text-slate-300">
-                    Status
+                <View
+                  className={`rounded-2xl px-3 py-2 items-center ${isOnline ? "bg-emerald-50" : "bg-slate-100"}`}
+                >
+                  <Text className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                    <T>Status</T>
                   </Text>
-                  <Text className="mt-1 text-sm font-bold text-white">
+                  <Text
+                    className={`mt-1 text-sm font-bold ${isOnline ? "text-emerald-700" : "text-slate-700"}`}
+                  >
                     {isOnline ? <T>Online</T> : <T>Offline</T>}
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity
-                onPress={handleToggle}
-                disabled={toggling}
-                activeOpacity={0.9}
-                className={`mt-4 rounded-2xl px-4 py-3 flex-row items-center justify-between ${isOnline ? "bg-emerald-500" : "bg-[#D4A017]"}`}
-              >
-                <View className="flex-row items-center flex-1">
-                  <View className="w-10 h-10 rounded-full items-center justify-center bg-white/20 mr-3">
-                    {toggling ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Ionicons
-                        name={isOnline ? "radio" : "radio-outline"}
-                        size={20}
-                        color="#fff"
-                      />
-                    )}
+
+              <View className="mt-4 flex-row gap-2.5">
+                <TouchableOpacity
+                  onPress={handleToggle}
+                  disabled={toggling}
+                  activeOpacity={0.9}
+                  className={`flex-1 rounded-2xl px-3.5 py-3.5 ${isOnline ? "bg-emerald-600" : "bg-[#042F40]"}`}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center flex-1 pr-2">
+                      <View className="h-8 w-8 rounded-full items-center justify-center bg-white/20 mr-2.5">
+                        {toggling ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Ionicons
+                            name={isOnline ? "radio" : "radio-outline"}
+                            size={16}
+                            color="#fff"
+                          />
+                        )}
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-sm font-semibold text-white">
+                          {isOnline ? <T>Go offline</T> : <T>Go online</T>}
+                        </Text>
+                        <Text className="text-[11px] text-white/80">
+                          {isOnline ? (
+                            <T>Pause incoming requests</T>
+                          ) : (
+                            <T>Start receiving requests</T>
+                          )}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#fff" />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-sm font-bold text-white">
-                      {isOnline ? <T>Tap to go offline</T> : <T>Go live now</T>}
-                    </Text>
-                    <Text className="text-[11px] text-white/80">
-                      {isOnline ? (
-                        <T>
-                          Passengers can currently discover and book your rides.
-                        </T>
-                      ) : (
-                        <T>
-                          Start receiving ride requests from nearby passengers.
-                        </T>
-                      )}
-                    </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => router.push("/(drivers)/ride-requests")}
+                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3.5"
+                  activeOpacity={0.9}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1 pr-2">
+                      <Text className="text-sm font-semibold text-slate-900">
+                        <T>Ride requests</T>
+                      </Text>
+                      <Text className="mt-1 text-[11px] text-slate-500">
+                        <T>Review and respond quickly</T>
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="mail-unread-outline"
+                      size={16}
+                      color="#0F172A"
+                    />
                   </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#fff" />
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             </Animated.View>
 
             <Animated.View
               entering={FadeInUp.delay(320).duration(400)}
               className="mx-5 mb-5"
             >
-              <Text className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                <T>Operations Snapshot</T>
-              </Text>
-              <View className="flex-row gap-3">
-                <View className="flex-1 rounded-2xl bg-slate-50 px-4 py-4">
-                  <Text className="text-[11px] text-slate-500">
-                    <T>Live rides</T>
+              <View className="rounded-[22px] border border-slate-200 bg-white px-4 py-3.5">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    <T>Operations snapshot</T>
                   </Text>
-                  <Text className="mt-1 text-2xl font-bold text-slate-900">
-                    {liveRideCount}
-                  </Text>
+                  <TouchableOpacity
+                    onPress={() => router.push("/(drivers)/earnings" as any)}
+                    className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2"
+                    activeOpacity={0.85}
+                  >
+                    <View className="flex-row items-center">
+                      <View className="h-7 w-7 items-center justify-center rounded-full bg-emerald-100 mr-2">
+                        <Ionicons
+                          name="wallet-outline"
+                          size={13}
+                          color="#047857"
+                        />
+                      </View>
+                      <View>
+                        <Text className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700">
+                          <T>Earnings</T>
+                        </Text>
+                        <Text className="text-[11px] font-semibold text-emerald-700">
+                          <T>Open summary</T>
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
                 </View>
-                <View className="flex-1 rounded-2xl bg-slate-50 px-4 py-4">
-                  <Text className="text-[11px] text-slate-500">
-                    <T>Queued requests</T>
-                  </Text>
-                  <Text className="mt-1 text-2xl font-bold text-slate-900">
-                    {availableRequests.length}
-                  </Text>
-                </View>
-              </View>
-              <View className="mt-3 flex-row gap-3">
-                <View className="flex-1 rounded-2xl bg-slate-50 px-4 py-4">
-                  <Text className="text-[11px] text-slate-500">
-                    <T>Pending bookings</T>
-                  </Text>
-                  <Text className="mt-1 text-2xl font-bold text-slate-900">
-                    {pendingBookings.length}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/(drivers)/earnings" as any)}
-                  className="flex-1 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-4"
-                  activeOpacity={0.8}
-                >
-                  <Text className="text-[11px] text-emerald-700">
-                    <T>Earnings</T>
-                  </Text>
-                  <View className="mt-1 flex-row items-center justify-between">
-                    <Text className="text-base font-bold text-emerald-800">
-                      <T>View summary</T>
+
+                <View className="mt-3 flex-row gap-3">
+                  <View className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <View className="flex-row items-center">
+                      <Ionicons name="navigate" size={13} color="#0F172A" />
+                      <Text className="ml-1.5 text-[11px] text-slate-500">
+                        <T>Live rides</T>
+                      </Text>
+                    </View>
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
+                      {liveRideCount}
                     </Text>
-                    <Ionicons name="wallet-outline" size={18} color="#047857" />
                   </View>
-                </TouchableOpacity>
-              </View>
-              <View className="mt-3 rounded-2xl bg-slate-50 px-4 py-4">
-                <Text className="text-[11px] text-slate-500">
-                  <T>Scheduled and completed</T>
-                </Text>
-                <View className="mt-2 flex-row items-center">
-                  <View className="mr-6">
-                    <Text className="text-xl font-bold text-slate-900">
-                      {idleRideCount}
+                  <View className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <View className="flex-row items-center">
+                      <Ionicons name="mail" size={13} color="#0F172A" />
+                      <Text className="ml-1.5 text-[11px] text-slate-500">
+                        <T>Queued requests</T>
+                      </Text>
+                    </View>
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
+                      {availableRequests.length}
                     </Text>
+                  </View>
+                </View>
+
+                <View className="mt-3 flex-row gap-3">
+                  <View className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                    <View className="flex-row items-center">
+                      <Ionicons name="time-outline" size={13} color="#0F172A" />
+                      <Text className="ml-1.5 text-[11px] text-slate-500">
+                        <T>Pending bookings</T>
+                      </Text>
+                    </View>
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
+                      {pendingBookings.length}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => router.push("/(drivers)/rides")}
+                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-3"
+                    activeOpacity={0.85}
+                  >
+                    <Text className="text-[11px] text-slate-500">
+                      <T>All rides</T>
+                    </Text>
+                    <View className="mt-1 flex-row items-center justify-between">
+                      <Text className="text-base font-bold text-slate-900">
+                        <T>Open list</T>
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={15}
+                        color="#64748B"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <View className="mt-3 flex-row items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                  <View>
                     <Text className="text-[11px] text-slate-500">
                       <T>Waiting</T>
                     </Text>
-                  </View>
-                  <View>
-                    <Text className="text-xl font-bold text-slate-900">
-                      {completedCount}
+                    <Text className="mt-1 text-base font-bold text-slate-900">
+                      {idleRideCount}
                     </Text>
+                  </View>
+                  <View className="h-9 w-[1px] bg-slate-200" />
+                  <View>
                     <Text className="text-[11px] text-slate-500">
                       <T>Completed</T>
+                    </Text>
+                    <Text className="mt-1 text-base font-bold text-slate-900">
+                      {completedCount}
                     </Text>
                   </View>
                 </View>

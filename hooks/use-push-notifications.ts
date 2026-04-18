@@ -1,8 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { Platform, AppState } from "react-native";
-import { useRouter } from "expo-router";
-import { useAuthStore } from "@/store/useAuthStore";
-import { registerPreLogoutHook } from "@/store/useAuthStore";
+import { useRouter, useSegments } from "expo-router";
+import { registerPreLogoutHook, useAuthStore } from "@/store/useAuthStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { authApi } from "@/lib/api";
 import { usePushDebugStore } from "@/store/usePushDebugStore";
@@ -12,28 +11,70 @@ import {
   loadNotificationsModule,
 } from "@/lib/pushNotifications";
 import { getNotificationRoute } from "@/lib/notificationPresentation";
+import { useNotificationIntentStore } from "@/store/useNotificationIntentStore";
+
+const MIN_PUSH_SYNC_INTERVAL_MS = 60 * 1000;
 
 // ─── Hook ────────────────────────────────────────────────────────────────────
 export function usePushNotifications(enabled = true) {
   const token = useAuthStore((s) => s.token);
   const user = useAuthStore((s) => s.user);
   const router = useRouter();
+  const segments = useSegments();
   const pushTokenRef = useRef<string | null>(null);
+  const lastSyncAtRef = useRef(0);
   const registeredRef = useRef(false);
   const handledResponseRef = useRef<string | null>(null);
-  const notificationsRef =
-    useRef<typeof import("expo-notifications") | null>(null);
+  const notificationsRef = useRef<typeof import("expo-notifications") | null>(
+    null,
+  );
 
   const routeBase: "(users)" | "(drivers)" =
     user?.role === "driver" ? "(drivers)" : "(users)";
+  const rootSegment = segments[0] || null;
+
+  const commitNotificationIntent = useCallback(
+    (payload?: Record<string, any> | null, responseKey?: string | null) => {
+      if (!payload || typeof payload !== "object") return;
+      useNotificationIntentStore
+        .getState()
+        .setPendingIntent(payload as Record<string, any>, responseKey || null);
+    },
+    [],
+  );
 
   const navigateFromNotification = useCallback(
     (payload?: Record<string, any> | null, responseKey?: string | null) => {
-      if (!useAuthStore.getState().token) return;
+      if (!payload || typeof payload !== "object") return;
+
+      const authState = useAuthStore.getState();
+      const hasSession = Boolean(authState.token && authState.user);
+      const shouldDeferUntilUnlocked =
+        !hasSession ||
+        !rootSegment ||
+        rootSegment === "index" ||
+        rootSegment === "lock" ||
+        rootSegment === "bootstrap" ||
+        rootSegment === "auth" ||
+        rootSegment === "welcome" ||
+        rootSegment === "maintenance";
+
+      if (!hasSession) {
+        commitNotificationIntent(payload, responseKey || null);
+        return;
+      }
+
       if (responseKey && handledResponseRef.current === responseKey) return;
       if (responseKey) {
         handledResponseRef.current = responseKey;
       }
+
+      commitNotificationIntent(payload, responseKey || null);
+
+      if (shouldDeferUntilUnlocked) {
+        return;
+      }
+
       const target = getNotificationRoute(
         {
           type: String(payload?.category || payload?.type || "system") as any,
@@ -41,15 +82,18 @@ export function usePushNotifications(enabled = true) {
         },
         routeBase,
       );
+
+      if (responseKey) {
+        useNotificationIntentStore.getState().markResponseHandled(responseKey);
+      }
+
       router.push(target as any);
     },
-    [routeBase, router],
+    [commitNotificationIntent, rootSegment, routeBase, router],
   );
 
   useEffect(() => {
-    usePushDebugStore
-      .getState()
-      .setNativePushAvailable(canUseNativePush());
+    usePushDebugStore.getState().setNativePushAvailable(canUseNativePush());
     const Notifications = loadNotificationsModule();
     notificationsRef.current = Notifications;
 
@@ -129,10 +173,12 @@ export function usePushNotifications(enabled = true) {
       return;
     }
 
-    if (
-      registeredRef.current &&
-      pushTokenRef.current === registration.currentPushToken
-    ) {
+    const now = Date.now();
+    const hasSameToken = pushTokenRef.current === registration.currentPushToken;
+    const syncedRecently =
+      now - lastSyncAtRef.current < MIN_PUSH_SYNC_INTERVAL_MS;
+
+    if (registeredRef.current && hasSameToken && syncedRecently) {
       return;
     }
 
@@ -143,6 +189,7 @@ export function usePushNotifications(enabled = true) {
         platform: registration.platform,
       });
       pushTokenRef.current = registration.currentPushToken;
+      lastSyncAtRef.current = now;
       usePushDebugStore.getState().setBackendHealth(res.data || null);
       registeredRef.current = true;
       console.log("[Push] Token synced with backend");
@@ -151,7 +198,7 @@ export function usePushNotifications(enabled = true) {
       registeredRef.current = false;
       console.warn("[Push] Failed to sync token:", err.message);
     }
-  }, [token]);
+  }, []);
 
   // Unregister token (on logout) — must be called BEFORE auth token is cleared
   const unregisterToken = useCallback(async () => {
@@ -169,6 +216,7 @@ export function usePushNotifications(enabled = true) {
     if (!enabled) return;
     if (!token) {
       pushTokenRef.current = null;
+      lastSyncAtRef.current = 0;
       registeredRef.current = false;
       usePushDebugStore.getState().clear();
       return;
@@ -186,6 +234,7 @@ export function usePushNotifications(enabled = true) {
         console.log("[Push] Token unregistered on logout");
       } catch {}
       pushTokenRef.current = null;
+      lastSyncAtRef.current = 0;
       registeredRef.current = false;
       usePushDebugStore.getState().clear();
     });
@@ -197,7 +246,7 @@ export function usePushNotifications(enabled = true) {
     if (!enabled) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active" && useAuthStore.getState().token) {
-        if (!registeredRef.current) registerToken();
+        registerToken();
         useNotificationStore.getState().fetchNotifications();
       }
     });
@@ -217,9 +266,8 @@ export function usePushNotifications(enabled = true) {
     return () => sub.remove();
   }, [enabled]);
 
-  // ── Notification tap — navigate to notifications screen ───────────────────
+  // ── Notification tap — capture intent and navigate only after lock/auth ───
   useEffect(() => {
-    if (!enabled) return;
     const Notifications = notificationsRef.current || loadNotificationsModule();
     if (!Notifications) return;
 
@@ -245,13 +293,29 @@ export function usePushNotifications(enabled = true) {
           navigateFromNotification(data as Record<string, any>, responseKey);
           return;
         }
-        if (useAuthStore.getState().token) {
+        const authState = useAuthStore.getState();
+        const hasSession = Boolean(authState.token && authState.user);
+        const shouldDeferUntilUnlocked =
+          !hasSession ||
+          !rootSegment ||
+          rootSegment === "index" ||
+          rootSegment === "lock" ||
+          rootSegment === "bootstrap" ||
+          rootSegment === "auth" ||
+          rootSegment === "welcome" ||
+          rootSegment === "maintenance";
+
+        if (hasSession && !shouldDeferUntilUnlocked) {
           router.push(`/${routeBase}/notifications` as any);
+        } else {
+          useNotificationIntentStore
+            .getState()
+            .setPendingIntent({ route: "notifications" }, responseKey || null);
         }
       },
     );
     return () => sub.remove();
-  }, [enabled, navigateFromNotification, routeBase, router]);
+  }, [navigateFromNotification, rootSegment, routeBase, router]);
 
   return { registerToken, unregisterToken, routeBase };
 }

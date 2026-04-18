@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 import * as SecureStore from "expo-secure-store";
 import { useLocationStore } from "@/store/useLocationStore";
 import { useRideStore } from "@/store/useRideStore";
+import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { eventBus } from "@/lib/eventBus";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000";
@@ -50,6 +51,11 @@ export function useSocket() {
 
     socket.on("connect", () => {
       console.log("🔌 Socket connected:", socket.id);
+      // Ensure settings are fresh in case updates happened while disconnected.
+      usePlatformSettingsStore
+        .getState()
+        .fetchSettings()
+        .catch(() => {});
     });
 
     // On reconnect, re-join previously joined rooms
@@ -71,6 +77,27 @@ export function useSocket() {
       if (lastJoinedRooms.rideId) {
         socket.emit("join-ride", { ride_id: lastJoinedRooms.rideId });
       }
+
+      usePlatformSettingsStore
+        .getState()
+        .fetchSettings()
+        .catch(() => {});
+    });
+
+    // ── Platform settings sync events ─────────────────────────────────
+    socket.on("platform-settings:updated", (payload) => {
+      const incoming = payload?.settings;
+
+      if (incoming && typeof incoming === "object") {
+        usePlatformSettingsStore.getState().applySettings(incoming);
+      } else {
+        usePlatformSettingsStore
+          .getState()
+          .fetchSettings()
+          .catch(() => {});
+      }
+
+      eventBus.emit("platform-settings:updated", payload);
     });
 
     // ── Driver location events ─────────────────────────────────────────

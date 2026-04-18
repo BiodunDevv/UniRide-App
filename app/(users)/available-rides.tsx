@@ -43,6 +43,10 @@ export default function AvailableRidesScreen() {
     "all",
   );
 
+  const canCreateOwnRide = Boolean(
+    settings.allow_ride_without_driver && selectedPickup && selectedDestination,
+  );
+
   // Fetch with optional route filter
   const doFetch = useCallback(async () => {
     await fetchActiveRides({
@@ -77,6 +81,44 @@ export default function AvailableRidesScreen() {
       list = list.filter((r) => r.status === "available");
     return list;
   }, [availableRides, filter]);
+
+  const bestMatchRide = useMemo(() => {
+    if (!rides.length) return null;
+
+    const statusRank = (status: Ride["status"]) => {
+      if (status === "available") return 0;
+      if (status === "scheduled") return 1;
+      if (status === "accepted") return 2;
+      return 3;
+    };
+
+    return [...rides].sort((a, b) => {
+      const byStatus = statusRank(a.status) - statusRank(b.status);
+      if (byStatus !== 0) return byStatus;
+
+      const aTime = a.departure_time ? new Date(a.departure_time).getTime() : 0;
+      const bTime = b.departure_time ? new Date(b.departure_time).getTime() : 0;
+      return aTime - bTime;
+    })[0];
+  }, [rides]);
+
+  const handleCreateOwnRide = useCallback(() => {
+    if (hasBookingPhone) {
+      router.push("/(users)/request-ride" as any);
+      return;
+    }
+
+    router.push("/settings/edit-profile" as any);
+  }, [hasBookingPhone, router]);
+
+  const handleOpenBestMatch = useCallback(() => {
+    if (!bestMatchRide) return;
+
+    router.push({
+      pathname: "/(users)/ride-details" as any,
+      params: { rideId: bestMatchRide._id },
+    });
+  }, [bestMatchRide, router]);
 
   const routeLabel = useMemo(() => {
     const parts = [];
@@ -142,6 +184,61 @@ export default function AvailableRidesScreen() {
             ))}
           </View>
         </Animated.View>
+
+        {canCreateOwnRide && rides.length > 0 ? (
+          <Animated.View
+            entering={FadeInUp.delay(80).duration(280)}
+            className="mx-5 mt-1 mb-2 rounded-[22px] border border-slate-200 bg-white px-4 py-4"
+          >
+            <Text className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              <T>Smart choice</T>
+            </Text>
+            <Text className="mt-1 text-base font-semibold text-[#042F40]">
+              <T>Join an existing ride or create your own</T>
+            </Text>
+            <Text className="mt-1 text-xs leading-5 text-slate-500">
+              {rides.length} <T>ride</T>
+              {rides.length === 1 ? " " : "s "}
+              <T>already match this route.</T>
+            </Text>
+
+            <View className="mt-3 flex-row gap-2.5">
+              <TouchableOpacity
+                onPress={handleOpenBestMatch}
+                className="flex-1 rounded-xl bg-[#042F40] px-3.5 py-3"
+                activeOpacity={0.88}
+              >
+                <View className="flex-row items-center justify-center">
+                  <Ionicons name="car-outline" size={15} color="#FFFFFF" />
+                  <Text className="ml-1.5 text-xs font-semibold text-white">
+                    <T>Join best match</T>
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleCreateOwnRide}
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3"
+                activeOpacity={0.88}
+              >
+                <View className="flex-row items-center justify-center">
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={15}
+                    color="#042F40"
+                  />
+                  <Text className="ml-1.5 text-xs font-semibold text-[#042F40]">
+                    {hasBookingPhone ? (
+                      <T>Create my request</T>
+                    ) : (
+                      <T>Add phone first</T>
+                    )}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        ) : null}
 
         {/* ── Ride List ──────────────────────────────────────────── */}
         {isLoadingRides && rides.length === 0 ? (

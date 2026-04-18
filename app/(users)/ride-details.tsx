@@ -58,6 +58,9 @@ export default function RideDetailsScreen() {
     fetchRideDetails,
     bookRide,
     cancelBooking,
+    fetchActiveRides,
+    setSelectedPickup,
+    setSelectedDestination,
     updatePaymentStatus,
     myBookings,
     fetchMyBookings,
@@ -218,7 +221,9 @@ export default function RideDetailsScreen() {
   const canBook =
     ride &&
     !booking &&
-    (ride.status === "available" || ride.status === "scheduled") &&
+    (ride.status === "available" ||
+      ride.status === "scheduled" ||
+      ride.status === "accepted") &&
     seatsLeft > 0;
   const hasBookingPhone = Boolean(user?.phone?.trim());
   const needsCheckIn =
@@ -289,6 +294,29 @@ export default function RideDetailsScreen() {
     ride?.driver_id,
   ]);
 
+  const syncRouteAndOpenAvailableRides = useCallback(async () => {
+    if (pickup && typeof pickup === "object") {
+      setSelectedPickup(pickup as any);
+    }
+    if (dest && typeof dest === "object") {
+      setSelectedDestination(dest as any);
+    }
+
+    await fetchActiveRides({
+      pickup: pickup?._id,
+      destination: dest?._id,
+    });
+
+    router.replace("/(users)/available-rides" as any);
+  }, [
+    pickup,
+    dest,
+    setSelectedPickup,
+    setSelectedDestination,
+    fetchActiveRides,
+    router,
+  ]);
+
   // ── Book ──────────────────────────────────────────────────────────
   const handleBook = async () => {
     if (!ride) return;
@@ -336,7 +364,10 @@ export default function RideDetailsScreen() {
           try {
             await cancelBooking(booking._id);
             setBooking({ ...booking, status: "cancelled" });
-            fetchMyBookings();
+            await fetchMyBookings();
+            setCancelling(false);
+            await syncRouteAndOpenAvailableRides();
+            return;
           } catch (e: any) {
             Alert.alert("Error", e?.message || "Failed");
           }
@@ -1095,6 +1126,47 @@ export default function RideDetailsScreen() {
                 </View>
               </Animated.View>
             )}
+
+            {booking &&
+              (booking.status === "cancelled" ||
+                booking.status === "declined") && (
+                <Animated.View
+                  entering={FadeInUp.delay(390).duration(300)}
+                  className="mx-5 mt-3 rounded-2xl border border-slate-200 bg-white p-4"
+                >
+                  <View className="flex-row items-start">
+                    <View className="mr-3 mt-0.5 h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100">
+                      <Ionicons
+                        name="car-sport-outline"
+                        size={18}
+                        color="#047857"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-sm font-semibold text-slate-900">
+                        <T>Find another ride now</T>
+                      </Text>
+                      <Text className="mt-1 text-xs leading-5 text-slate-500">
+                        <T>
+                          We can show available rides on this same route so you
+                          can quickly join another trip.
+                        </T>
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          void syncRouteAndOpenAvailableRides();
+                        }}
+                        className="mt-3 self-start rounded-xl bg-[#042F40] px-4 py-2.5"
+                        activeOpacity={0.88}
+                      >
+                        <Text className="text-xs font-semibold text-white">
+                          <T>Browse Available Rides</T>
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </Animated.View>
+              )}
           </ScrollView>
         </KeyboardAvoidingView>
 

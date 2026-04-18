@@ -20,6 +20,15 @@ export type ExpoPushRegistration = {
 
 let notificationsModule: typeof import("expo-notifications") | null = null;
 
+function resolveExpoProjectId(): string | null {
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    Constants.easConfig?.projectId ??
+    process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+
+  return projectId ? String(projectId).trim() : null;
+}
+
 export function getPushDeviceId(): string {
   return `${Device.modelName ?? "unknown"}-${Device.osVersion ?? "0"}`;
 }
@@ -71,9 +80,7 @@ export async function getExpoPushToken(): Promise<string | null> {
       return null;
     }
 
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ??
-      Constants.easConfig?.projectId;
+    const projectId = resolveExpoProjectId();
 
     if (!projectId) {
       console.warn("[Push] No EAS project ID found");
@@ -136,9 +143,7 @@ export async function getExpoPushRegistration(): Promise<ExpoPushRegistration> {
       };
     }
 
-    const projectId =
-      Constants.expoConfig?.extra?.eas?.projectId ??
-      Constants.easConfig?.projectId;
+    const projectId = resolveExpoProjectId();
 
     if (!projectId) {
       return {
@@ -161,10 +166,19 @@ export async function getExpoPushRegistration(): Promise<ExpoPushRegistration> {
       platform,
     };
   } catch (error: any) {
-    const message = error?.message || "Failed to initialize Expo push notifications.";
+    const message =
+      error?.message || "Failed to initialize Expo push notifications.";
+    const normalizedMessage = String(message).toLowerCase();
     const unsupportedInExpoGo =
       message.includes("removed from Expo Go") ||
       message.includes("development build");
+    const missingAndroidPushCredentials =
+      platform === "android" &&
+      (normalizedMessage.includes("default firebaseapp") ||
+        normalizedMessage.includes("firebase") ||
+        normalizedMessage.includes("fcm") ||
+        normalizedMessage.includes("messaging"));
+    const missingProjectId = normalizedMessage.includes("projectid");
 
     return {
       nativePushAvailable: false,
@@ -174,7 +188,11 @@ export async function getExpoPushRegistration(): Promise<ExpoPushRegistration> {
       platform,
       reason: unsupportedInExpoGo
         ? "Expo Go cannot provide remote Android push for this SDK/runtime. Use a development build or standalone app."
-        : message,
+        : missingAndroidPushCredentials
+          ? "Android push is not fully configured for this build. Add google-services.json, upload FCM credentials to EAS, and rebuild the Play Store binary."
+          : missingProjectId
+            ? "Expo EAS projectId is missing in app config for push registration."
+            : message,
     };
   }
 }

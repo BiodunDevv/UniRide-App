@@ -356,6 +356,10 @@ export const useRideStore = create<RideState>((set, get) => ({
       activeBooking:
         state.activeBooking?._id === bookingId ? null : state.activeBooking,
     }));
+
+    const pickup = get().selectedPickup?._id;
+    const destination = get().selectedDestination?._id;
+    await get().fetchActiveRides({ pickup, destination });
   },
 
   updatePaymentStatus: async (bookingId, status) => {

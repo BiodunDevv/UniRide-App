@@ -10,7 +10,8 @@ import { usePushNotifications } from "@/hooks/use-push-notifications";
 import {
   MapProviderProvider,
   useMapProvider,
-  isExpoMapsAvailable,
+  isMapboxAvailable,
+  isNativeMapsAvailable,
 } from "@/components/map/ExpoMap";
 import { usePlatformSettingsStore } from "@/store/usePlatformSettingsStore";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -39,12 +40,20 @@ const modalTransition = Platform.select({
 });
 
 function PlatformSettingsLoader() {
-  const { setMapsEnabled } = useMapProvider();
+  const {
+    setMapsEnabled,
+    setProviderEnabled,
+    setProvider,
+    setMap3dEnabled,
+    setNavigationEnabled,
+    setNativeModuleAvailable,
+  } = useMapProvider();
   const router = useRouter();
   const segments = useSegments();
   const fetchSettings = usePlatformSettingsStore((s) => s.fetchSettings);
   const settings = usePlatformSettingsStore((s) => s.settings);
   const hasLoaded = useRef(false);
+  const rootSegment = segments[0] || null;
 
   // Fetch settings on mount, poll every 60s, and re-fetch on app foreground
   useEffect(() => {
@@ -64,31 +73,57 @@ function PlatformSettingsLoader() {
       clearInterval(iv);
       sub.remove();
     };
-  }, []);
+  }, [fetchSettings]);
 
-  // Keep Expo Maps availability in sync with backend settings
+  // Keep map availability and provider mode in sync with backend settings
   useEffect(() => {
-    const canUseNativeMaps =
-      Boolean(settings.expo_maps_enabled) &&
-      isExpoMapsAvailable &&
-      isGoogleMapsConfigured();
+    const mobileMapEnabled =
+      settings.mobile_map_enabled ?? settings.expo_maps_enabled;
+    const provider =
+      settings.mobile_map_provider === "mapbox" ? "mapbox" : "native";
+    const nativeProviderReady =
+      isNativeMapsAvailable && isGoogleMapsConfigured();
 
-    setMapsEnabled(canUseNativeMaps);
+    setMapsEnabled(Boolean(mobileMapEnabled));
+    setProviderEnabled(Boolean(mobileMapEnabled));
+    setProvider(provider);
+    setMap3dEnabled(Boolean(settings.mobile_map_3d_enabled));
+    setNavigationEnabled(Boolean(settings.mobile_navigation_enabled));
+    setNativeModuleAvailable(nativeProviderReady);
 
-    if (settings.expo_maps_enabled && !canUseNativeMaps) {
+    if (mobileMapEnabled && provider === "mapbox" && !isMapboxAvailable) {
+      recordBootstrapTrace(
+        "maps:provider-fallback",
+        "mapbox-unavailable-native-fallback",
+      ).catch(() => {});
+    }
+
+    if (mobileMapEnabled && provider === "native" && !nativeProviderReady) {
       recordBootstrapTrace(
         "maps:disabled",
-        isExpoMapsAvailable
+        isNativeMapsAvailable
           ? "android-provider-not-configured"
           : "native-map-module-unavailable",
       ).catch(() => {});
     }
-  }, [settings.expo_maps_enabled, setMapsEnabled]);
+  }, [
+    settings.expo_maps_enabled,
+    settings.mobile_map_3d_enabled,
+    settings.mobile_map_enabled,
+    settings.mobile_map_provider,
+    settings.mobile_navigation_enabled,
+    setMapsEnabled,
+    setProviderEnabled,
+    setProvider,
+    setMap3dEnabled,
+    setNavigationEnabled,
+    setNativeModuleAvailable,
+  ]);
 
   // Gate: redirect to maintenance screen when maintenance_mode is on or app version is too old
   useEffect(() => {
     if (!hasLoaded.current) return;
-    const onMaintenance = segments[0] === "maintenance";
+    const onMaintenance = rootSegment === "maintenance";
     const appVersion = Constants.expoConfig?.version || "1.0.0";
     const needsUpdate =
       compareVersions(appVersion, settings.app_version_minimum) < 0;
@@ -99,7 +134,12 @@ function PlatformSettingsLoader() {
     } else if (!shouldBlock && onMaintenance) {
       router.replace("/");
     }
-  }, [settings.maintenance_mode, settings.app_version_minimum, segments]);
+  }, [
+    rootSegment,
+    router,
+    settings.maintenance_mode,
+    settings.app_version_minimum,
+  ]);
 
   return null;
 }
@@ -117,8 +157,7 @@ function compareVersions(a: string, b: string): number {
 }
 
 function PushNotificationsGate() {
-  const token = useAuthStore((state) => state.token);
-  usePushNotifications(Boolean(token));
+  usePushNotifications(true);
   return null;
 }
 

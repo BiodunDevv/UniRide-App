@@ -30,29 +30,31 @@ export default function MaintenanceScreen() {
       clearInterval(iv);
       sub.remove();
     };
-  }, []);
-
-  // If maintenance is lifted, navigate back
-  useEffect(() => {
-    if (!settings.maintenance_mode) {
-      router.replace("/");
-    }
-  }, [settings.maintenance_mode]);
+  }, [fetchSettings]);
 
   // Check if app version is below minimum
   const appVersion = Constants.expoConfig?.version || "1.0.0";
   const needsUpdate =
     compareVersions(appVersion, settings.app_version_minimum) < 0;
 
+  // Navigate back only when both maintenance and version lock are cleared.
+  useEffect(() => {
+    if (!settings.maintenance_mode && !needsUpdate) {
+      router.replace("/");
+    }
+  }, [needsUpdate, router, settings.maintenance_mode]);
+
   const handleRetry = useCallback(async () => {
     await fetchSettings();
-  }, []);
+  }, [fetchSettings]);
 
   const handleUpdate = useCallback(() => {
     const storeUrl = Platform.select({
       ios: "https://apps.apple.com",
-      android: "https://play.google.com/store",
-      default: "https://play.google.com/store",
+      android:
+        "https://play.google.com/store/apps/details?id=com.biodun42.uniride",
+      default:
+        "https://play.google.com/store/apps/details?id=com.biodun42.uniride",
     });
     Linking.openURL(storeUrl);
   }, []);
@@ -77,7 +79,7 @@ export default function MaintenanceScreen() {
           <View className="mb-4 flex-row items-center">
             <View
               className={`mr-3 h-11 w-11 items-center justify-center rounded-2xl ${
-                needsUpdate ? "bg-blue-50" : "bg-amber-50"
+                needsUpdate ? "bg-primary/10" : "bg-amber-50"
               }`}
             >
               <Ionicons
@@ -85,7 +87,7 @@ export default function MaintenanceScreen() {
                   needsUpdate ? "cloud-download-outline" : "construct-outline"
                 }
                 size={18}
-                color={needsUpdate ? "#2563EB" : "#D97706"}
+                color={needsUpdate ? "#042F40" : "#D97706"}
               />
             </View>
             <View className="flex-1">
@@ -162,7 +164,7 @@ export default function MaintenanceScreen() {
             {needsUpdate ? (
               <TouchableOpacity
                 onPress={handleUpdate}
-                className="items-center rounded-2xl border border-slate-900 bg-slate-900 px-4 py-3.5"
+                className="items-center rounded-2xl border border-[#042F40] bg-[#042F40] px-4 py-3.5"
                 activeOpacity={0.88}
               >
                 <View className="flex-row items-center">
@@ -179,7 +181,7 @@ export default function MaintenanceScreen() {
                 className={`items-center rounded-2xl border px-4 py-3.5 ${
                   isLoading
                     ? "border-slate-200 bg-slate-100"
-                    : "border-slate-900 bg-slate-900"
+                    : "border-[#042F40] bg-[#042F40]"
                 }`}
                 activeOpacity={0.88}
               >

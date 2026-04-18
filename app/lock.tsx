@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -32,9 +32,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import Logo from "@/components/Logo";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useNotificationIntentStore } from "@/store/useNotificationIntentStore";
 import useTranslatorStore from "@/store/useTranslatorStore";
 import { T, useTranslation } from "@/hooks/use-translation";
 import { recordBootstrapTrace } from "@/lib/post-auth";
+import { getNotificationRoute } from "@/lib/notificationPresentation";
 
 const LANG_LABEL: Record<string, string> = {
   en: "EN",
@@ -248,10 +250,41 @@ export default function CurrentUserScreen() {
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
-  const navigateHome = () => {
+  const navigateHome = useCallback(() => {
     recordBootstrapTrace("lock:navigate-dashboard").catch(() => {});
+    const authUser = useAuthStore.getState().user;
+    const intentState = useNotificationIntentStore.getState();
+    const pendingNotificationPayload = intentState.pendingPayload;
+    const pendingNotificationResponseKey = intentState.pendingResponseKey;
+
+    if (pendingNotificationPayload && authUser) {
+      const routeBase: "(users)" | "(drivers)" =
+        authUser.role === "driver" ? "(drivers)" : "(users)";
+      const target = getNotificationRoute(
+        {
+          type: String(
+            pendingNotificationPayload.category ||
+              pendingNotificationPayload.type ||
+              "system",
+          ) as any,
+          metadata: pendingNotificationPayload,
+        },
+        routeBase,
+      );
+
+      if (pendingNotificationResponseKey) {
+        intentState.markResponseHandled(pendingNotificationResponseKey);
+      }
+      intentState.clearPendingIntent();
+      router.replace("/bootstrap");
+      setTimeout(() => {
+        router.push(target as any);
+      }, 80);
+      return;
+    }
+
     router.replace("/bootstrap");
-  };
+  }, [router]);
 
   const handleBiometric = async () => {
     if (!isMounted.current) return;

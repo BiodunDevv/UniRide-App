@@ -317,9 +317,9 @@ export default function BootstrapScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Driver Operations
+                UniRide Experience
               </Text>
-              <Text className="mt-1 text-xl font-bold text-slate-900">
+              <Text className="mt-1 text-xl font-bold text-[#042F40]">
                 {title}
               </Text>
             </View>
@@ -340,7 +340,7 @@ export default function BootstrapScreen() {
 
           <View className="rounded-[28px] bg-[#042F40] px-5 py-5">
             <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-[#D4A017]">
-              Startup Sequence
+              Startup Status
             </Text>
             <Text className="mt-2 text-2xl font-bold text-white">
               {safeMode
@@ -394,7 +394,7 @@ export default function BootstrapScreen() {
                   <Ionicons name="list-outline" size={17} color="#042F40" />
                 </View>
                 <View>
-                  <Text className="text-sm font-semibold text-slate-900">
+                  <Text className="text-sm font-semibold text-[#042F40]">
                     Startup Steps
                   </Text>
                   <Text className="text-xs text-slate-500">
@@ -463,7 +463,7 @@ export default function BootstrapScreen() {
                         </View>
 
                         <View className="flex-1">
-                          <Text className="text-sm font-semibold text-slate-900">
+                          <Text className="text-sm font-semibold text-[#042F40]">
                             {index + 1}. {step.label}
                           </Text>
                           {step.note ? (
@@ -528,8 +528,8 @@ export default function BootstrapScreen() {
                 <Ionicons name="build-outline" size={17} color="#042F40" />
               </View>
               <View className="flex-1">
-                <Text className="text-sm font-semibold text-slate-900">
-                  Recovery Actions
+                <Text className="text-sm font-semibold text-[#042F40]">
+                  Support Actions
                 </Text>
                 <Text className="text-xs leading-5 text-slate-500">
                   Retry full startup, continue in recovery mode, or sign out
@@ -615,7 +615,7 @@ export default function BootstrapScreen() {
                 {safeMode ? "Recovery mode" : "Live mode"}
               </Text>
             </View>
-            <Text className="mt-1 text-sm font-semibold text-slate-900">
+            <Text className="mt-1 text-sm font-semibold text-[#042F40]">
               {user?.email || "Session pending"}
             </Text>
             {warningSteps > 0 ? (

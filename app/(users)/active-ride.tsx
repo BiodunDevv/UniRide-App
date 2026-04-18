@@ -41,6 +41,35 @@ import {
   sanitizeLngLatTuple,
   sanitizeRouteGeometry,
 } from "@/lib/mapSafety";
+import {
+  fetchMapboxNavigationRoute,
+  findNearestStepIndex,
+  getRemainingStepDistanceMeters,
+  getRemainingStepDurationSeconds,
+  MapboxNavigationRoute,
+  nearestDistanceToRouteMeters,
+} from "@/lib/mapNavigation";
+
+const NAV_REROUTE_THRESHOLD_METERS = 90;
+const NAV_REROUTE_COOLDOWN_MS = 15000;
+const ACTIVE_RIDE_AUTO_LOCATION_ZOOM_LEVEL = 16.4;
+
+function formatDistanceLabel(distanceMeters: number): string {
+  if (distanceMeters >= 1000) {
+    return `${(distanceMeters / 1000).toFixed(1)} km`;
+  }
+
+  return `${Math.max(1, Math.round(distanceMeters))} m`;
+}
+
+function formatDurationLabel(durationSeconds: number): string {
+  const totalMinutes = Math.max(1, Math.round(durationSeconds / 60));
+  if (totalMinutes < 60) return `${totalMinutes} min`;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}
 
 export default function UserActiveRideScreen() {
   const router = useRouter();
@@ -54,9 +83,21 @@ export default function UserActiveRideScreen() {
   } = useRideStore();
   const { userLocation } = useLocationStore();
   const mapsFeatureEnabled = usePlatformSettingsStore(
-    (state) => state.settings.expo_maps_enabled,
+    (state) =>
+      state.settings.mobile_map_enabled ?? state.settings.expo_maps_enabled,
   );
-  const { canRenderMaps } = useMapProvider();
+  const navigationSdkEnabled = usePlatformSettingsStore((state) =>
+    Boolean(state.settings.mobile_navigation_enabled),
+  );
+  const {
+    canRenderMaps,
+    provider,
+    mapboxExpoGoRuntime,
+    mapboxTokenConfigured,
+    requestedProviderAvailable,
+    nativeModuleAvailable,
+    runtimeFailure,
+  } = useMapProvider();
   const safeMode = useBootstrapStore((state) => state.safeMode);
   const { connect, joinRide, leaveRide, streamPassengerLocation } = useSocket();
   const cameraRef = useRef<{ setCamera: (opts: any) => void }>(null);
@@ -78,6 +119,17 @@ export default function UserActiveRideScreen() {
   const [driverLastUpdated, setDriverLastUpdated] = useState<string | null>(
     null,
   );
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [navigationLoading, setNavigationLoading] = useState(false);
+  const [navigationRoute, setNavigationRoute] =
+    useState<MapboxNavigationRoute | null>(null);
+  const [navigationStepIndex, setNavigationStepIndex] = useState(0);
+  const [navigationNotice, setNavigationNotice] = useState<string | null>(null);
+  const [offRouteDistanceMeters, setOffRouteDistanceMeters] = useState<
+    number | null
+  >(null);
+  const rerouteInFlightRef = useRef(false);
+  const lastRerouteAtRef = useRef(0);
 
   const formatLiveStatus = useCallback((value?: string | null) => {
     if (!value) return "Waiting for live updates";
@@ -469,6 +521,314 @@ export default function UserActiveRideScreen() {
   const center = resolveSafeCenter(driverCoords, userLocation);
   const showMapCanvas =
     mapsFeatureEnabled && canRenderMaps && allowMapCanvas && !safeMode;
+  const destinationTuple =
+    sanitizeLngLatTuple(ride?.destination?.coordinates) ||
+    sanitizeLngLatTuple(
+      dest && typeof dest === "object"
+        ? (dest as any).coordinates?.coordinates || (dest as any).coordinates
+        : null,
+    );
+  const navigationOriginTuple =
+    sanitizeLngLatTuple(
+      userLocation
+        ? [userLocation.longitude, userLocation.latitude]
+        : ride?.current_location?.coordinates,
+    ) || driverCoords;
+
+  const mapRouteCoordinates =
+    isNavigating && navigationRoute?.coordinates?.length
+      ? navigationRoute.coordinates
+      : routeCoordinates;
+  const currentNavigationStep =
+    isNavigating && navigationRoute?.steps?.length
+      ? navigationRoute.steps[
+          Math.min(
+            navigationStepIndex,
+            Math.max(0, navigationRoute.steps.length - 1),
+          )
+        ]
+      : null;
+  const remainingNavigationDistance = isNavigating
+    ? navigationRoute?.steps?.length
+      ? getRemainingStepDistanceMeters(
+          navigationRoute.steps,
+          navigationStepIndex,
+        )
+      : navigationRoute?.distanceMeters || 0
+    : 0;
+  const remainingNavigationDuration = isNavigating
+    ? navigationRoute?.steps?.length
+      ? getRemainingStepDurationSeconds(
+          navigationRoute.steps,
+          navigationStepIndex,
+        )
+      : navigationRoute?.durationSeconds || 0
+    : 0;
+
+  const handleToggleInAppNavigation = useCallback(async () => {
+    if (isNavigating) {
+      setIsNavigating(false);
+      setNavigationStepIndex(0);
+      setOffRouteDistanceMeters(null);
+      setNavigationNotice(null);
+      return;
+    }
+
+    if (!navigationSdkEnabled) {
+      Alert.alert(
+        "Navigation disabled",
+        "In-app navigation is disabled in platform settings.",
+      );
+      return;
+    }
+
+    if (provider !== "mapbox") {
+      Alert.alert(
+        "Mapbox required",
+        "Switch map provider to Mapbox in platform settings to use in-app navigation.",
+      );
+      return;
+    }
+
+    if (mapboxExpoGoRuntime) {
+      Alert.alert(
+        "Mapbox unavailable in Expo Go",
+        "Use a development build or production binary to run in-app navigation.",
+      );
+      return;
+    }
+
+    if (!mapboxTokenConfigured || !requestedProviderAvailable) {
+      Alert.alert(
+        "Mapbox setup required",
+        "Mapbox token or native runtime is unavailable. Verify app build configuration and try again.",
+      );
+      return;
+    }
+
+    if (!navigationOriginTuple || !destinationTuple) {
+      Alert.alert(
+        "Navigation unavailable",
+        "We need your current location and destination coordinates before starting in-app navigation.",
+      );
+      return;
+    }
+
+    try {
+      setNavigationLoading(true);
+      setNavigationNotice("Fetching best route...");
+
+      const route = await fetchMapboxNavigationRoute({
+        origin: navigationOriginTuple,
+        destination: destinationTuple,
+      });
+
+      setNavigationRoute(route);
+      setNavigationStepIndex(0);
+      setOffRouteDistanceMeters(null);
+      setIsNavigating(true);
+      setNavigationNotice("In-app navigation started");
+    } catch (error: any) {
+      const message =
+        error?.message === "mapbox-token-missing"
+          ? "Mapbox token is missing. Add EXPO_PUBLIC_MAPBOX_TOKEN and rebuild the app."
+          : "Unable to start in-app navigation right now.";
+      Alert.alert("Navigation error", message);
+      setNavigationNotice(null);
+    } finally {
+      setNavigationLoading(false);
+    }
+  }, [
+    destinationTuple,
+    isNavigating,
+    mapboxExpoGoRuntime,
+    mapboxTokenConfigured,
+    navigationOriginTuple,
+    navigationSdkEnabled,
+    provider,
+    requestedProviderAvailable,
+  ]);
+
+  useEffect(() => {
+    if (!navigationNotice) return;
+    const timeout = setTimeout(() => {
+      setNavigationNotice(null);
+    }, 3200);
+    return () => clearTimeout(timeout);
+  }, [navigationNotice]);
+
+  useEffect(() => {
+    if (!isNavigating) return;
+    if (!userLocation || !cameraRef.current) return;
+
+    cameraRef.current.setCamera({
+      centerCoordinate: [userLocation.longitude, userLocation.latitude],
+      zoomLevel: 16.2,
+      pitch: 58,
+      animationDuration: 700,
+    });
+  }, [isNavigating, userLocation]);
+
+  useEffect(() => {
+    if (!isNavigating || !navigationRoute || !userLocation) return;
+
+    const currentPoint = {
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    };
+
+    const nearestDistance = nearestDistanceToRouteMeters(
+      currentPoint,
+      navigationRoute.coordinates,
+    );
+    setOffRouteDistanceMeters(nearestDistance);
+
+    const nearestStep = findNearestStepIndex(
+      currentPoint,
+      navigationRoute.steps,
+      navigationStepIndex,
+    );
+    if (nearestStep !== navigationStepIndex) {
+      setNavigationStepIndex(nearestStep);
+    }
+
+    if (
+      nearestDistance <= NAV_REROUTE_THRESHOLD_METERS ||
+      !destinationTuple ||
+      rerouteInFlightRef.current
+    ) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastRerouteAtRef.current < NAV_REROUTE_COOLDOWN_MS) {
+      return;
+    }
+
+    rerouteInFlightRef.current = true;
+    lastRerouteAtRef.current = now;
+    setNavigationNotice("Off route detected. Rerouting...");
+
+    fetchMapboxNavigationRoute({
+      origin: [userLocation.longitude, userLocation.latitude],
+      destination: destinationTuple,
+    })
+      .then((updatedRoute) => {
+        setNavigationRoute(updatedRoute);
+        setNavigationStepIndex(0);
+        setOffRouteDistanceMeters(0);
+        setNavigationNotice("Route updated");
+      })
+      .catch(() => {
+        setNavigationNotice("Reroute failed. Continuing current route");
+      })
+      .finally(() => {
+        rerouteInFlightRef.current = false;
+      });
+  }, [
+    destinationTuple,
+    isNavigating,
+    navigationRoute,
+    navigationStepIndex,
+    userLocation,
+  ]);
+
+  const mapFallbackInfo = (() => {
+    if (safeMode) {
+      return {
+        icon: "shield-checkmark-outline" as const,
+        title: "Safe mode is active",
+        description:
+          "Map rendering is paused while UniRide runs in safe mode. Ride tracking details remain available below.",
+      };
+    }
+
+    if (!mapsFeatureEnabled) {
+      return {
+        icon: "toggle-outline" as const,
+        title: "Map canvas is disabled",
+        description:
+          "Interactive maps are disabled from platform settings. Contact an administrator to enable them.",
+      };
+    }
+
+    if (!allowMapCanvas && canRenderMaps) {
+      return {
+        icon: "time-outline" as const,
+        title: "Preparing map canvas",
+        description:
+          "UniRide is initializing the map view. It should appear shortly.",
+      };
+    }
+
+    if (provider === "mapbox") {
+      if (mapboxExpoGoRuntime) {
+        return {
+          icon: "phone-portrait-outline" as const,
+          title: "Mapbox is not available in Expo Go",
+          description:
+            "Use a development build or production binary to render Mapbox maps.",
+        };
+      }
+
+      if (!mapboxTokenConfigured) {
+        return {
+          icon: "key-outline" as const,
+          title: "Mapbox token is missing",
+          description:
+            "EXPO_PUBLIC_MAPBOX_TOKEN is missing. Add it to environment variables and rebuild the app.",
+        };
+      }
+
+      if (!requestedProviderAvailable) {
+        return {
+          icon: "layers-outline" as const,
+          title: "Mapbox is unavailable in this build",
+          description:
+            "The selected Mapbox provider is not available in the current runtime. Rebuild the app with Mapbox native support.",
+        };
+      }
+
+      if (runtimeFailure) {
+        return {
+          icon: "alert-circle-outline" as const,
+          title: "Mapbox failed to initialize",
+          description: `Mapbox runtime error: ${runtimeFailure}`,
+        };
+      }
+
+      return {
+        icon: "layers-outline" as const,
+        title: "Mapbox is temporarily unavailable",
+        description:
+          "The selected Mapbox provider could not render right now. Try again shortly.",
+      };
+    }
+
+    if (!nativeModuleAvailable || !requestedProviderAvailable) {
+      return {
+        icon: "map-outline" as const,
+        title: "Native map is not available",
+        description:
+          "This build does not have a configured native map provider. Verify Google Maps setup and rebuild.",
+      };
+    }
+
+    if (runtimeFailure) {
+      return {
+        icon: "alert-circle-outline" as const,
+        title: "Native map failed to initialize",
+        description: `Native map runtime error: ${runtimeFailure}`,
+      };
+    }
+
+    return {
+      icon: "map-outline" as const,
+      title: "Map is not available",
+      description:
+        "Interactive maps are currently unavailable, but ride operations continue below.",
+    };
+  })();
 
   const openDriverProfile = useCallback(() => {
     if (!driverId) return;
@@ -598,14 +958,14 @@ export default function UserActiveRideScreen() {
                 ref={cameraRef}
                 defaultSettings={{
                   centerCoordinate: center,
-                  zoomLevel: 14,
+                  zoomLevel: ACTIVE_RIDE_AUTO_LOCATION_ZOOM_LEVEL,
                 }}
                 animationDuration={1200}
               />
               <LocationPuck />
-              {routeCoordinates.length > 1 && (
+              {mapRouteCoordinates.length > 1 && (
                 <Polyline
-                  coordinates={routeCoordinates}
+                  coordinates={mapRouteCoordinates}
                   strokeColor="#042F40"
                   strokeWidth={4}
                 />
@@ -635,6 +995,28 @@ export default function UserActiveRideScreen() {
               )}
             </MapView>
             <View className="absolute right-3 top-3 gap-2">
+              {provider === "mapbox" && showMapCanvas ? (
+                <TouchableOpacity
+                  onPress={handleToggleInAppNavigation}
+                  disabled={navigationLoading}
+                  className={`w-10 h-10 rounded-full items-center justify-center ${
+                    isNavigating ? "bg-[#042F40]" : "bg-white/95"
+                  }`}
+                >
+                  {navigationLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={isNavigating ? "#FFFFFF" : "#042F40"}
+                    />
+                  ) : (
+                    <Ionicons
+                      name={isNavigating ? "stop-circle-outline" : "navigate"}
+                      size={20}
+                      color={isNavigating ? "#FFFFFF" : "#042F40"}
+                    />
+                  )}
+                </TouchableOpacity>
+              ) : null}
               <TouchableOpacity
                 onPress={() =>
                   setMapType((current) =>
@@ -659,7 +1041,7 @@ export default function UserActiveRideScreen() {
                         userLocation.longitude,
                         userLocation.latitude,
                       ],
-                      zoomLevel: 15,
+                      zoomLevel: ACTIVE_RIDE_AUTO_LOCATION_ZOOM_LEVEL,
                       animationDuration: 800,
                     });
                 }}
@@ -668,19 +1050,57 @@ export default function UserActiveRideScreen() {
                 <Ionicons name="locate" size={20} color="#042F40" />
               </TouchableOpacity>
             </View>
+            {isNavigating ? (
+              <View className="absolute bottom-3 left-3 right-3 rounded-2xl border border-slate-200 bg-white/95 px-3 py-3">
+                <Text className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  In-App Navigation
+                </Text>
+                <Text className="mt-1 text-sm font-semibold text-slate-900">
+                  {navigationNotice ||
+                    currentNavigationStep?.instruction ||
+                    "Follow the highlighted route"}
+                </Text>
+                <View className="mt-2 flex-row items-center justify-between">
+                  <Text className="text-[11px] text-slate-600">
+                    Remaining {formatDistanceLabel(remainingNavigationDistance)}
+                  </Text>
+                  <Text className="text-[11px] text-slate-600">
+                    ETA {formatDurationLabel(remainingNavigationDuration)}
+                  </Text>
+                </View>
+                {offRouteDistanceMeters !== null &&
+                offRouteDistanceMeters > NAV_REROUTE_THRESHOLD_METERS ? (
+                  <Text className="mt-1 text-[11px] font-medium text-amber-700">
+                    Off route by {formatDistanceLabel(offRouteDistanceMeters)}.
+                    Rerouting...
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
           </View>
         ) : (
           <View className="mx-5 mt-3 rounded-[28px] border border-slate-200 bg-white px-5 py-5">
-            <Text className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Ride Tracking
-            </Text>
-            <Text className="mt-2 text-2xl font-bold text-slate-900">
-              Live trip details are still available
+            <View className="flex-row items-center">
+              <View className="h-10 w-10 items-center justify-center rounded-full bg-slate-100">
+                <Ionicons
+                  name={mapFallbackInfo.icon}
+                  size={20}
+                  color="#475569"
+                />
+              </View>
+              <Text className="ml-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Ride Tracking
+              </Text>
+            </View>
+            <Text className="mt-3 text-2xl font-bold text-slate-900">
+              {mapFallbackInfo.title}
             </Text>
             <Text className="mt-2 text-sm leading-6 text-slate-600">
-              Your booking, driver updates, fare, and check-in flow are still
-              active. The map view has been temporarily disabled by admin
-              settings.
+              {mapFallbackInfo.description}
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-600">
+              Your booking, driver updates, fare, and check-in flow remain
+              active while the map view is unavailable.
             </Text>
             {safeMode ? (
               <TouchableOpacity
